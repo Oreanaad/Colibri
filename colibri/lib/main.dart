@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'modelos.dart';
 import 'pantallas/biblioteca.dart';
 import 'pantallas/comunidad.dart';
@@ -34,6 +35,17 @@ class AppColibri extends StatelessWidget {
       title: 'Colibrí',
       debugShowCheckedModeBanner: false,
       theme: construirTema(),
+
+      // Sin esto, el calendario que elige las fechas aparece en inglés:
+      // "Select date", "Cancel", los meses y hasta el orden de los días.
+      locale: const Locale('es'),
+      supportedLocales: const [Locale('es'), Locale('en')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+
       home: const Marco(),
     );
   }

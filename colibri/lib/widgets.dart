@@ -222,6 +222,81 @@ class Rotulo extends StatelessWidget {
       Text(texto.toUpperCase(), style: Tipo.rotulo);
 }
 
+/// El cartelito de abajo que confirma que algo pasó.
+///
+/// Confirmar es más importante de lo que parece: sin esto, tocás "agregar"
+/// y no pasa nada visible, así que no sabés si funcionó y lo tocás de nuevo.
+void mostrarAviso(
+  BuildContext context,
+  String texto, {
+  String? accion,
+  VoidCallback? alAccionar,
+}) {
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar() // si había otro, no se apilan
+    ..showSnackBar(
+      SnackBar(
+        content: Text(texto,
+            style: const TextStyle(color: Paleta.luz, fontSize: 13.5)),
+        backgroundColor: Paleta.nocheAlta,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(14),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: const BorderSide(color: Paleta.linea),
+        ),
+        duration: const Duration(seconds: 4),
+        action: accion == null
+            ? null
+            : SnackBarAction(
+                label: accion,
+                textColor: Paleta.lila,
+                onPressed: alAccionar ?? () {},
+              ),
+      ),
+    );
+}
+
+/// Hoja de abajo para elegir dónde va un libro. Se usa desde el aviso de
+/// "agregado" y desde la ficha.
+Future<void> elegirEstado(BuildContext context, Libro libro) async {
+  final elegido = await showModalBottomSheet<Estado>(
+    context: context,
+    backgroundColor: Paleta.nocheAlta,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+    ),
+    builder: (context) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 14),
+          Container(
+            width: 38,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Paleta.linea,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 18),
+          for (final e in Estado.values)
+            ListTile(
+              title: Text(e.nombre, style: Tipo.cuerpo),
+              trailing: libro.estado == e
+                  ? const Icon(Icons.check_rounded, color: Paleta.lila)
+                  : null,
+              onTap: () => Navigator.of(context).pop(e),
+            ),
+          const SizedBox(height: 10),
+        ],
+      ),
+    ),
+  );
+
+  if (elegido != null) await biblioteca.cambiarEstado(libro, elegido);
+}
+
 /// La grilla de tapas. La usan la biblioteca, los estantes y el perfil
 /// de otra persona, así que vive acá y no dentro de una pantalla.
 class GrillaLibros extends StatelessWidget {

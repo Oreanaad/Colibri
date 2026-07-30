@@ -26,6 +26,20 @@ class Libro {
   int paginaActual;
   int? paginas;
 
+  /// Cuándo lo empezaste y cuándo lo terminaste. Guardamos solo la fecha,
+  /// sin hora: a nadie le importa haber terminado un libro a las 23:47.
+  DateTime? empezado;
+  DateTime? terminado;
+
+  /// Tu reseña. La marca de spoilers la ponés vos al escribirla, y si está
+  /// puesta el texto se muestra tapado hasta que alguien decida verlo.
+  String? resena;
+  bool resenaConSpoilers;
+
+  /// Tu personaje favorito. Hoy es un dato tuyo; el día que haya
+  /// comunidad se convierte en una coincidencia más.
+  String? personaje;
+
   /// Estantes propios: los nombres que inventa cada persona.
   ///
   /// A diferencia del estado, un libro puede estar en varios a la vez:
@@ -43,8 +57,23 @@ class Libro {
     this.puntaje = 0,
     this.paginaActual = 0,
     this.paginas,
+    this.empezado,
+    this.terminado,
+    this.resena,
+    this.resenaConSpoilers = false,
+    this.personaje,
     Set<String>? estantes,
   }) : estantes = estantes ?? <String>{};
+
+  bool get tieneResena => (resena ?? '').trim().isNotEmpty;
+
+  /// Cuántos días te llevó. Contamos el primero y el último, así que
+  /// empezar y terminar el mismo día da 1 y no 0.
+  int? get diasDeLectura {
+    if (empezado == null || terminado == null) return null;
+    final d = terminado!.difference(empezado!).inDays + 1;
+    return d < 1 ? 1 : d;
+  }
 
   /// Clave para detectar que dos personas tienen el mismo libro,
   /// aunque lo hayan cargado desde ediciones distintas.
@@ -100,7 +129,15 @@ class Libro {
         'paginaActual': paginaActual,
         'paginas': paginas,
         'estantes': estantes.toList(),
+        'empezado': empezado?.toIso8601String(),
+        'terminado': terminado?.toIso8601String(),
+        'resena': resena,
+        'resenaConSpoilers': resenaConSpoilers,
+        'personaje': personaje,
       };
+
+  static DateTime? _fecha(Object? v) =>
+      v is String ? DateTime.tryParse(v) : null;
 
   factory Libro.desdeJson(Map<String, dynamic> j) => Libro(
         id: j['id'] as String,
@@ -118,6 +155,11 @@ class Libro {
         estantes: ((j['estantes'] as List?) ?? const [])
             .map((e) => e as String)
             .toSet(),
+        empezado: _fecha(j['empezado']),
+        terminado: _fecha(j['terminado']),
+        resena: j['resena'] as String?,
+        resenaConSpoilers: (j['resenaConSpoilers'] as bool?) ?? false,
+        personaje: j['personaje'] as String?,
       );
 }
 
@@ -169,6 +211,30 @@ class Biblioteca extends ChangeNotifier {
 
   /// Para cuando se cambia algo de un libro que ya está guardado.
   Future<void> actualizar() => _guardar();
+
+  /// Cambia el estado y, de paso, anota las fechas si estaban vacías.
+  ///
+  /// Es el tipo de ayuda que se agradece sin notarla: si marcaste
+  /// "leyendo" hoy, empezaste hoy. Nunca pisa una fecha ya puesta, y
+  /// siempre se puede corregir a mano.
+  ///
+  /// El parámetro [hoy] existe para que los tests no dependan del
+  /// día en que se corran.
+  Future<void> cambiarEstado(Libro libro, Estado nuevo, {DateTime? hoy}) async {
+    libro.estado = nuevo;
+
+    final h = hoy ?? DateTime.now();
+    final fecha = DateTime(h.year, h.month, h.day);
+
+    if (nuevo == Estado.leyendo) {
+      libro.empezado ??= fecha;
+    } else if (nuevo == Estado.leido) {
+      libro.empezado ??= fecha;
+      libro.terminado ??= fecha;
+    }
+
+    await _guardar();
+  }
 
   // ---------- Estantes propios ----------
 
@@ -258,3 +324,13 @@ class Biblioteca extends ChangeNotifier {
 
 /// Una sola instancia para toda la app. Alcanza para una demo.
 final biblioteca = Biblioteca();
+
+/// "12 mar 2026". Sin paquetes de fechas: para tres usos alcanza y sobra,
+/// y evita arrastrar una dependencia entera por doce palabras.
+String fechaCorta(DateTime d) {
+  const meses = [
+    'ene', 'feb', 'mar', 'abr', 'may', 'jun',
+    'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
+  ];
+  return '${d.day} ${meses[d.month - 1]} ${d.year}';
+}

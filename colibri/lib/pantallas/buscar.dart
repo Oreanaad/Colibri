@@ -210,8 +210,18 @@ class _Resultado extends StatelessWidget {
             onPressed: () async {
               if (yaEsta) {
                 await biblioteca.quitar(libro);
+                if (context.mounted) {
+                  mostrarAviso(context, '«${libro.titulo}» salió de tu biblioteca');
+                }
               } else {
                 await biblioteca.agregar(libro);
+                if (!context.mounted) return;
+                mostrarAviso(
+                  context,
+                  '«${libro.titulo}» se sumó a ${libro.estado.nombre}',
+                  accion: 'Cambiar',
+                  alAccionar: () => elegirEstado(context, libro),
+                );
               }
             },
             icon: Icon(
