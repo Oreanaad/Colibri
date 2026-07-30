@@ -267,24 +267,17 @@ class Placa extends StatelessWidget {
     return HSLColor.fromAHSL(1, matiz, 0.38, 0.17).toColor();
   }
 
-  /// El texto se achica solo cuando la frase es larga, para que nunca
-  /// quede cortada ni se desborde.
-  double get _tamano {
-    final n = frase.texto.length;
-    final base = formato == Formato.historia ? 1.15 : 1.0;
-    if (n < 90) return 26 * base;
-    if (n < 180) return 22 * base;
-    if (n < 320) return 18 * base;
-    if (n < 500) return 15 * base;
-    return 13 * base;
-  }
-
   @override
   Widget build(BuildContext context) {
-    final margen = formato == Formato.historia ? 40.0 : 32.0;
-    final margenAlto = formato == Formato.historia ? 52.0 : 30.0;
+    return LayoutBuilder(
+      builder: (context, medidas) {
+        // Todo se mide contra el ancho de la placa, no contra píxeles
+        // fijos: así la imagen se ve igual sea cual sea el tamaño en el
+        // que se dibuje, y al exportarla al triple sigue proporcionada.
+        final base = medidas.maxWidth * 0.056;
+        final margen = medidas.maxWidth * (formato == Formato.historia ? 0.10 : 0.08);
 
-    return Container(
+        return Container(
           decoration: BoxDecoration(
             color: switch (fondo) {
               Fondo.noche => Paleta.noche,
@@ -299,110 +292,177 @@ class Placa extends StatelessWidget {
                   )
                 : null,
           ),
-          // ClipRect recorta lo que sangra por los bordes: sin esto, la
-          // marca de agua se dibujaría fuera de la placa.
-          child: ClipRect(
-            child: Stack(
-              children: [
-                if (fondo == Fondo.lomo)
-                  // Una franja dorada al costado, como el canto de un libro.
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: 6,
-                    child: Container(color: Paleta.oro),
-                  ),
-
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                      margen, margenAlto, margen, margenAlto),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        '“',
-                        style: TextStyle(
-                          fontSize: _tamano * 2.2,
-                          height: 0.8,
-                          color: Paleta.oro,
-                          fontWeight: FontWeight.w300,
-                        ),
-                      ),
-                      SizedBox(height: _tamano * 0.3),
-                      Flexible(
-                        child: Text(
-                          frase.texto,
-                          style: TextStyle(
-                            fontSize: _tamano,
-                            height: 1.45,
-                            color: _texto,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: _tamano * 1.2),
-
-                      // Una línea dorada corta, y debajo la ficha del libro.
-                      Container(width: 34, height: 2, color: Paleta.oro),
-                      SizedBox(height: _tamano * 0.7),
-                      Text(
-                        libro.titulo,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: _tamano * 0.62,
-                          height: 1.25,
-                          color: _texto,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      SizedBox(height: _tamano * 0.16),
-                      Text(
-                        libro.autor,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: _tamano * 0.55,
-                          color: Paleta.oro,
-                        ),
-                      ),
-
-                      // La marca va acá, pegada a la ficha del libro, y no
-                      // en una esquina.
-                      //
-                      // Una esquina se recorta sin perder nada. Esto no:
-                      // para sacarla hay que recortar también el título y
-                      // la autoría, que es justo lo que quien comparte
-                      // quiere conservar. Es el único lugar de la placa
-                      // que no se puede cortar sin romper la cita.
-                      SizedBox(height: _tamano * 0.28),
-                      Text.rich(
-                        TextSpan(
-                          style: TextStyle(
-                            fontSize: _tamano * 0.45,
-                            color: _suave,
-                            letterSpacing: 0.3,
-                          ),
-                          children: [
-                            const TextSpan(text: 'co'),
-                            TextSpan(
-                              text: 'libr',
-                              style: TextStyle(
-                                color: Paleta.oro.withValues(alpha: 0.85),
-                              ),
-                            ),
-                            const TextSpan(text: 'í'),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+          child: Stack(
+            children: [
+              if (fondo == Fondo.lomo)
+                // Una franja dorada al costado, como el canto de un libro.
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: medidas.maxWidth * 0.016,
+                  child: Container(color: Paleta.oro),
                 ),
-              ],
-            ),
+
+              Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: margen,
+                  vertical: margen * (formato == Formato.historia ? 1.3 : 1.0),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '“',
+                      style: TextStyle(
+                        fontSize: base * 2.1,
+                        height: 0.9,
+                        color: Paleta.oro,
+                        fontWeight: FontWeight.w300,
+                      ),
+                    ),
+                    SizedBox(height: base * 0.35),
+
+                    // La frase se queda con todo el espacio que sobra, y
+                    // adentro se achica lo necesario para entrar entera.
+                    Expanded(
+                      child: _FraseQueEntra(
+                        texto: frase.texto,
+                        color: _texto,
+                        maximo: base * 1.25,
+                        minimo: base * 0.42,
+                      ),
+                    ),
+
+                    SizedBox(height: base * 0.8),
+                    Container(width: base * 1.6, height: 2, color: Paleta.oro),
+                    SizedBox(height: base * 0.7),
+
+                    Text(
+                      libro.titulo,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: base * 0.66,
+                        height: 1.25,
+                        color: _texto,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    SizedBox(height: base * 0.16),
+                    Text(
+                      libro.autor,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: base * 0.58, color: Paleta.oro),
+                    ),
+
+                    // La marca va acá, pegada a la ficha del libro, y no
+                    // en una esquina.
+                    //
+                    // Una esquina se recorta sin perder nada. Esto no:
+                    // para sacarla hay que recortar también el título y la
+                    // autoría, que es justo lo que quien comparte quiere
+                    // conservar. Es el único lugar de la placa que no se
+                    // puede cortar sin romper la cita.
+                    SizedBox(height: base * 0.3),
+                    Text.rich(
+                      TextSpan(
+                        style: TextStyle(
+                          fontSize: base * 0.46,
+                          color: _suave,
+                          letterSpacing: 0.3,
+                        ),
+                        children: [
+                          const TextSpan(text: 'co'),
+                          TextSpan(
+                            text: 'libr',
+                            style: TextStyle(
+                              color: Paleta.oro.withValues(alpha: 0.85),
+                            ),
+                          ),
+                          const TextSpan(text: 'í'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
+        );
+      },
+    );
+  }
+}
+
+/// La frase, dibujada al tamaño más grande con el que entra completa.
+///
+/// Antes el tamaño salía de una tabla por largo de texto —menos de 90
+/// caracteres, tal número; menos de 180, tal otro— y eso adivina mal: una
+/// frase con palabras largas ocupa mucho más que otra del mismo largo, y
+/// terminaba cortada.
+///
+/// Acá se mide de verdad. Se prueba un tamaño, se calcula cuánto alto
+/// ocuparía, y se ajusta. Como probar de a uno sería lento, se parte el
+/// rango a la mitad cada vez: doce pasos alcanzan para acertar al décimo
+/// de punto. Se llama búsqueda binaria y es el mismo truco de adivinar un
+/// número preguntando "¿más o menos?".
+class _FraseQueEntra extends StatelessWidget {
+  final String texto;
+  final Color color;
+  final double maximo;
+  final double minimo;
+
+  const _FraseQueEntra({
+    required this.texto,
+    required this.color,
+    required this.maximo,
+    required this.minimo,
+  });
+
+  static const _estilo = TextStyle(height: 1.45, fontStyle: FontStyle.italic);
+
+  double _mayorQueEntra(double ancho, double alto) {
+    double alturaCon(double tamano) {
+      final medidor = TextPainter(
+        text: TextSpan(
+          text: texto,
+          style: _estilo.copyWith(fontSize: tamano),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: ancho);
+      return medidor.height;
+    }
+
+    if (alturaCon(maximo) <= alto) return maximo;
+
+    var chico = minimo;
+    var grande = maximo;
+    for (var i = 0; i < 12; i++) {
+      final medio = (chico + grande) / 2;
+      if (alturaCon(medio) <= alto) {
+        chico = medio;
+      } else {
+        grande = medio;
+      }
+    }
+    return chico;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, medidas) {
+        final tamano = _mayorQueEntra(medidas.maxWidth, medidas.maxHeight);
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            texto,
+            style: _estilo.copyWith(fontSize: tamano, color: color),
+          ),
+        );
+      },
     );
   }
 }

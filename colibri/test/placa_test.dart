@@ -89,20 +89,52 @@ void main() {
 
   testWidgets('una frase larga se dibuja más chica para que entre entera',
       (tester) async {
-    final corta = _armar(texto: 'Una frase corta y linda de leer siempre.');
-    final larga = _armar(texto: 'a' * 400);
+    const corta = 'Una frase corta y linda de leer siempre.';
+    final larga = List.filled(24, 'palabras interminables').join(' ');
 
-    await tester.pumpWidget(corta);
-    final tamanoCorta = tester
-        .widget<Text>(find.text('Una frase corta y linda de leer siempre.'))
-        .style!
-        .fontSize!;
+    await tester.pumpWidget(_armar(texto: corta));
+    final tamanoCorta = tester.widget<Text>(find.text(corta)).style!.fontSize!;
 
-    await tester.pumpWidget(larga);
-    final tamanoLarga =
-        tester.widget<Text>(find.text('a' * 400)).style!.fontSize!;
+    await tester.pumpWidget(_armar(texto: larga));
+    final tamanoLarga = tester.widget<Text>(find.text(larga)).style!.fontSize!;
 
     expect(tamanoLarga, lessThan(tamanoCorta));
+  });
+
+  testWidgets('la frase entra entera, sin cortarse', (tester) async {
+    // El bug que esto cuida: el tamaño salía de una tabla por largo de
+    // texto y adivinaba mal, así que la frase quedaba cortada abajo.
+    final casos = [
+      'Corta.',
+      'Oh, Violet. Worried brown eyes look down at me as strong hands '
+          'catch my shoulders before I can fall.',
+      List.filled(28, 'una palabra bastante larga').join(' '),
+      'a' * 780, // una sola palabra enorme, sin dónde cortar
+    ];
+
+    for (final formato in Formato.values) {
+      for (final crudo in casos) {
+        // Frase recorta lo que pasa del tope, así que lo que se dibuja
+        // no siempre es igual a lo que se le pasó.
+        final texto = Frase(texto: crudo).texto;
+
+        await tester.pumpWidget(_armar(texto: crudo, formato: formato));
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull,
+            reason: 'formato ${formato.name}, ${texto.length} caracteres');
+
+        // Si no entrara, Flutter recortaría el texto y la altura pintada
+        // sería mayor que la caja que le tocó.
+        final frase = find.text(texto);
+        expect(frase, findsOneWidget);
+
+        final alto = tester.getSize(frase).height;
+        final disponible = tester.getSize(find.byType(Placa)).height;
+        expect(alto, lessThan(disponible),
+            reason: 'la frase se pasa de la placa en ${formato.name}');
+      }
+    }
   });
 
   testWidgets('los tres fondos dibujan sin romperse', (tester) async {
