@@ -13,6 +13,50 @@ extension NombreEstado on Estado {
       };
 }
 
+/// Una frase que alguien subrayó.
+///
+/// Es lo único de un libro digital que sale del teléfono: el fragmento
+/// que la lectora eligió, no el archivo. Es exactamente lo mismo que si
+/// lo hubiera tipeado a mano mirando el libro de papel.
+class Frase {
+  /// Cuánto texto se puede guardar de una vez.
+  ///
+  /// No es un capricho técnico: **es la protección legal del proyecto.**
+  /// Con un tope, nadie puede reconstruir un libro guardando frase por
+  /// frase, y la app queda del lado de citar y no del de repartir.
+  static const topeDeCaracteres = 800;
+
+  final String texto;
+  final DateTime guardada;
+
+  /// En qué parte del libro estaba, de 0 a 1. Sirve para decir
+  /// "cerca del final" sin depender de números de página, que cambian
+  /// con cada edición.
+  final double? posicion;
+
+  Frase({required String texto, DateTime? guardada, this.posicion})
+      : texto = _recortar(texto),
+        guardada = guardada ?? DateTime.now();
+
+  static String _recortar(String t) {
+    final limpio = t.trim();
+    if (limpio.length <= topeDeCaracteres) return limpio;
+    return '${limpio.substring(0, topeDeCaracteres).trimRight()}…';
+  }
+
+  Map<String, dynamic> aJson() => {
+        'texto': texto,
+        'guardada': guardada.toIso8601String(),
+        'posicion': posicion,
+      };
+
+  factory Frase.desdeJson(Map<String, dynamic> j) => Frase(
+        texto: j['texto'] as String,
+        guardada: DateTime.tryParse((j['guardada'] as String?) ?? ''),
+        posicion: (j['posicion'] as num?)?.toDouble(),
+      );
+}
+
 class Libro {
   final String id;
   final String titulo;
@@ -40,6 +84,9 @@ class Libro {
   /// comunidad se convierte en una coincidencia más.
   String? personaje;
 
+  /// Las frases que subrayaste de este libro.
+  final List<Frase> frases;
+
   /// Estantes propios: los nombres que inventa cada persona.
   ///
   /// A diferencia del estado, un libro puede estar en varios a la vez:
@@ -63,7 +110,9 @@ class Libro {
     this.resenaConSpoilers = false,
     this.personaje,
     Set<String>? estantes,
-  }) : estantes = estantes ?? <String>{};
+    List<Frase>? frases,
+  })  : estantes = estantes ?? <String>{},
+        frases = frases ?? <Frase>[];
 
   bool get tieneResena => (resena ?? '').trim().isNotEmpty;
 
@@ -134,6 +183,7 @@ class Libro {
         'resena': resena,
         'resenaConSpoilers': resenaConSpoilers,
         'personaje': personaje,
+        'frases': frases.map((f) => f.aJson()).toList(),
       };
 
   static DateTime? _fecha(Object? v) =>
@@ -160,6 +210,9 @@ class Libro {
         resena: j['resena'] as String?,
         resenaConSpoilers: (j['resenaConSpoilers'] as bool?) ?? false,
         personaje: j['personaje'] as String?,
+        frases: ((j['frases'] as List?) ?? const [])
+            .map((f) => Frase.desdeJson(f as Map<String, dynamic>))
+            .toList(),
       );
 }
 
@@ -167,6 +220,7 @@ class Libro {
 class Biblioteca extends ChangeNotifier {
   static const _claveLibros = 'colibri.biblioteca.v1';
   static const _claveEstantes = 'colibri.estantes.v1';
+  static const _claveConTexto = 'colibri.conTexto.v1';
 
   final List<Libro> _libros = [];
 
@@ -276,10 +330,50 @@ class Biblioteca extends ChangeNotifier {
     await _guardar();
   }
 
+  // ---------- Texto de los libros digitales ----------
+  //
+  // Guardamos el TEXTO extraído, nunca el archivo. El .epub se abre una
+  // vez y se descarta: en la app no queda ningún archivo que se pueda
+  // compartir, mandar ni descargar.
+  //
+  // El texto vive en el teléfono y no sale de ahí. Lo único que puede
+  // volverse público es la frase que la lectora eligió a mano.
+
+  final Set<String> _conTexto = {};
+
+  bool tieneTexto(Libro l) => _conTexto.contains(l.clave);
+
+  static String _claveTexto(Libro l) => 'colibri.texto.${l.clave}';
+
+  Future<void> guardarTexto(Libro libro, List<String> parrafos) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_claveTexto(libro), parrafos);
+    _conTexto.add(libro.clave);
+    await _guardar();
+  }
+
+  Future<List<String>?> textoDe(Libro libro) async {
+    if (!tieneTexto(libro)) return null;
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList(_claveTexto(libro));
+  }
+
+  /// Borra el texto pero deja las frases: son tuyas, las elegiste vos.
+  Future<void> borrarTexto(Libro libro) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_claveTexto(libro));
+    _conTexto.remove(libro.clave);
+    await _guardar();
+  }
+
   // ---------- Guardado ----------
 
   Future<void> cargar() async {
     final prefs = await SharedPreferences.getInstance();
+
+    _conTexto
+      ..clear()
+      ..addAll(prefs.getStringList(_claveConTexto) ?? const []);
 
     final crudoLibros = prefs.getString(_claveLibros);
     if (crudoLibros != null) {
@@ -319,6 +413,7 @@ class Biblioteca extends ChangeNotifier {
       jsonEncode(_libros.map((l) => l.aJson()).toList()),
     );
     await prefs.setStringList(_claveEstantes, _estantes);
+    await prefs.setStringList(_claveConTexto, _conTexto.toList());
   }
 }
 

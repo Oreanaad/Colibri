@@ -3,6 +3,7 @@ import '../modelos.dart';
 import '../tema.dart';
 import '../widgets.dart';
 import 'estantes.dart';
+import 'frases.dart';
 import 'resena.dart';
 
 /// Ficha de un libro: todo lo tuyo sobre él, y lo que dice la comunidad.
@@ -197,6 +198,11 @@ class _PantallaFichaState extends State<PantallaFicha> {
                 const Rotulo('Tu reseña'),
                 const SizedBox(height: 10),
                 ResenaPropia(l),
+                const SizedBox(height: 22),
+
+                const Rotulo('Tus frases'),
+                const SizedBox(height: 10),
+                _Frases(l),
                 const SizedBox(height: 22),
 
                 BotonContorno(
@@ -462,6 +468,55 @@ class _Personaje extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Las frases subrayadas: cuántas hay y el acceso a buscarlas.
+class _Frases extends StatelessWidget {
+  final Libro l;
+  const _Frases(this.l);
+
+  @override
+  Widget build(BuildContext context) {
+    final cuantas = l.frases.length;
+    final digital = biblioteca.tieneTexto(l);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (cuantas > 0) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            decoration: const BoxDecoration(
+              color: Paleta.oroTenue,
+              border: Border(left: BorderSide(color: Paleta.oro, width: 3)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('“${l.frases.first.texto}”', style: Tipo.lectura),
+                if (cuantas > 1) ...[
+                  const SizedBox(height: 8),
+                  Text('y ${cuantas - 1} más',
+                      style: Tipo.meta
+                          .copyWith(color: Paleta.oro, fontSize: 11.5)),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        BotonContorno(
+          cuantas == 0
+              ? (digital ? 'Buscar una frase' : 'Sumar mis frases')
+              : 'Ver las $cuantas frases',
+          alTocar: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => PantallaFrases(l)),
+          ),
+        ),
+      ],
     );
   }
 }
