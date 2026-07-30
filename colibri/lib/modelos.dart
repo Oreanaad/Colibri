@@ -2,13 +2,14 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-enum Estante { leyendo, leido, pendiente }
+/// Dónde está un libro en tu lectura. Es uno solo y siempre hay uno.
+enum Estado { leyendo, leido, pendiente }
 
-extension NombreEstante on Estante {
+extension NombreEstado on Estado {
   String get nombre => switch (this) {
-        Estante.leyendo => 'Leyendo',
-        Estante.leido => 'Leídos',
-        Estante.pendiente => 'Pendientes',
+        Estado.leyendo => 'Leyendo',
+        Estado.leido => 'Leídos',
+        Estado.pendiente => 'Pendientes',
       };
 }
 
@@ -20,10 +21,16 @@ class Libro {
   final String? editorial;
   final int? anio;
 
-  Estante estante;
+  Estado estado;
   int puntaje; // 0 = sin puntuar
   int paginaActual;
   int? paginas;
+
+  /// Estantes propios: los nombres que inventa cada persona.
+  ///
+  /// A diferencia del estado, un libro puede estar en varios a la vez:
+  /// "los que me rompieron" no compite con "leído".
+  final Set<String> estantes;
 
   Libro({
     required this.id,
@@ -32,11 +39,12 @@ class Libro {
     this.tapaId,
     this.editorial,
     this.anio,
-    this.estante = Estante.pendiente,
+    this.estado = Estado.pendiente,
     this.puntaje = 0,
     this.paginaActual = 0,
     this.paginas,
-  });
+    Set<String>? estantes,
+  }) : estantes = estantes ?? <String>{};
 
   /// Clave para detectar que dos personas tienen el mismo libro,
   /// aunque lo hayan cargado desde ediciones distintas.
@@ -87,10 +95,11 @@ class Libro {
         'tapaId': tapaId,
         'editorial': editorial,
         'anio': anio,
-        'estante': estante.index,
+        'estado': estado.index,
         'puntaje': puntaje,
         'paginaActual': paginaActual,
         'paginas': paginas,
+        'estantes': estantes.toList(),
       };
 
   factory Libro.desdeJson(Map<String, dynamic> j) => Libro(
@@ -100,25 +109,41 @@ class Libro {
         tapaId: j['tapaId'] as int?,
         editorial: j['editorial'] as String?,
         anio: j['anio'] as int?,
-        estante: Estante.values[(j['estante'] as int?) ?? 2],
+        // 'estante' es el nombre viejo: lo leemos para no perder datos
+        // de quien ya venía usando la demo.
+        estado: Estado.values[(j['estado'] ?? j['estante'] ?? 2) as int],
         puntaje: (j['puntaje'] as int?) ?? 0,
         paginaActual: (j['paginaActual'] as int?) ?? 0,
         paginas: j['paginas'] as int?,
+        estantes: ((j['estantes'] as List?) ?? const [])
+            .map((e) => e as String)
+            .toSet(),
       );
 }
 
 /// La biblioteca de quien usa la app. Se guarda en el teléfono.
 class Biblioteca extends ChangeNotifier {
-  static const _clave = 'colibri.biblioteca.v1';
+  static const _claveLibros = 'colibri.biblioteca.v1';
+  static const _claveEstantes = 'colibri.estantes.v1';
+
   final List<Libro> _libros = [];
 
-  List<Libro> get todos => List.unmodifiable(_libros);
+  /// Los nombres de estantes, en el orden en que se crearon.
+  /// Viven acá y no solo dentro de los libros para que un estante
+  /// recién creado, todavía vacío, no desaparezca.
+  final List<String> _estantes = [];
 
-  List<Libro> enEstante(Estante e) =>
-      _libros.where((l) => l.estante == e).toList();
+  List<Libro> get todos => List.unmodifiable(_libros);
+  List<String> get estantes => List.unmodifiable(_estantes);
+
+  List<Libro> enEstado(Estado e) =>
+      _libros.where((l) => l.estado == e).toList();
+
+  List<Libro> enEstante(String nombre) =>
+      _libros.where((l) => l.estantes.contains(nombre)).toList();
 
   Libro? get leyendoAhora {
-    final l = enEstante(Estante.leyendo);
+    final l = enEstado(Estado.leyendo);
     return l.isEmpty ? null : l.first;
   }
 
@@ -134,42 +159,100 @@ class Biblioteca extends ChangeNotifier {
   Future<void> agregar(Libro libro) async {
     if (tiene(libro)) return;
     _libros.insert(0, libro);
-    notifyListeners();
-    await guardar();
+    await _guardar();
   }
 
   Future<void> quitar(Libro libro) async {
     _libros.removeWhere((l) => l.clave == libro.clave);
-    notifyListeners();
-    await guardar();
+    await _guardar();
   }
 
-  Future<void> actualizar() async {
-    notifyListeners();
-    await guardar();
+  /// Para cuando se cambia algo de un libro que ya está guardado.
+  Future<void> actualizar() => _guardar();
+
+  // ---------- Estantes propios ----------
+
+  /// Devuelve el nombre creado, o null si estaba repetido o vacío.
+  Future<String?> crearEstante(String nombre) async {
+    final limpio = nombre.trim();
+    if (limpio.isEmpty) return null;
+    final yaEsta = _estantes.any(
+      (e) => e.toLowerCase() == limpio.toLowerCase(),
+    );
+    if (yaEsta) return null;
+    _estantes.add(limpio);
+    await _guardar();
+    return limpio;
   }
+
+  Future<void> borrarEstante(String nombre) async {
+    _estantes.remove(nombre);
+    for (final l in _libros) {
+      l.estantes.remove(nombre);
+    }
+    await _guardar();
+  }
+
+  Future<void> renombrarEstante(String viejo, String nuevo) async {
+    final limpio = nuevo.trim();
+    if (limpio.isEmpty || limpio == viejo) return;
+    final i = _estantes.indexOf(viejo);
+    if (i == -1) return;
+    _estantes[i] = limpio;
+    for (final l in _libros) {
+      if (l.estantes.remove(viejo)) l.estantes.add(limpio);
+    }
+    await _guardar();
+  }
+
+  Future<void> alternarEstante(Libro libro, String nombre) async {
+    if (!libro.estantes.remove(nombre)) libro.estantes.add(nombre);
+    await _guardar();
+  }
+
+  // ---------- Guardado ----------
 
   Future<void> cargar() async {
     final prefs = await SharedPreferences.getInstance();
-    final crudo = prefs.getString(_clave);
-    if (crudo == null) return;
-    try {
-      final lista = jsonDecode(crudo) as List;
-      _libros
-        ..clear()
-        ..addAll(lista.map((j) => Libro.desdeJson(j as Map<String, dynamic>)));
-      notifyListeners();
-    } catch (_) {
-      // Si el formato guardado quedó viejo, arrancamos limpio en vez de romper.
+
+    final crudoLibros = prefs.getString(_claveLibros);
+    if (crudoLibros != null) {
+      try {
+        final lista = jsonDecode(crudoLibros) as List;
+        _libros
+          ..clear()
+          ..addAll(lista.map((j) => Libro.desdeJson(j as Map<String, dynamic>)));
+      } catch (_) {
+        // Si el formato guardado quedó viejo, arrancamos limpio en vez de romper.
+      }
     }
+
+    final crudoEstantes = prefs.getStringList(_claveEstantes);
+    if (crudoEstantes != null) {
+      _estantes
+        ..clear()
+        ..addAll(crudoEstantes);
+    }
+
+    // Por las dudas: si un libro quedó con un estante que ya no está en
+    // la lista, lo recuperamos en vez de perderlo en silencio.
+    for (final l in _libros) {
+      for (final e in l.estantes) {
+        if (!_estantes.contains(e)) _estantes.add(e);
+      }
+    }
+
+    notifyListeners();
   }
 
-  Future<void> guardar() async {
+  Future<void> _guardar() async {
+    notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
-      _clave,
+      _claveLibros,
       jsonEncode(_libros.map((l) => l.aJson()).toList()),
     );
+    await prefs.setStringList(_claveEstantes, _estantes);
   }
 }
 

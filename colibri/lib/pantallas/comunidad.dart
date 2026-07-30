@@ -5,7 +5,6 @@ import '../api.dart';
 import '../modelos.dart';
 import '../tema.dart';
 import '../widgets.dart';
-import 'biblioteca.dart';
 import 'ficha.dart';
 
 /// La biblioteca de otra persona: la pantalla más importante de la app.

@@ -222,6 +222,52 @@ class Rotulo extends StatelessWidget {
       Text(texto.toUpperCase(), style: Tipo.rotulo);
 }
 
+/// La grilla de tapas. La usan la biblioteca, los estantes y el perfil
+/// de otra persona, así que vive acá y no dentro de una pantalla.
+class GrillaLibros extends StatelessWidget {
+  final List<Libro> libros;
+  final ValueChanged<Libro> alTocar;
+
+  /// Claves de los libros que se encienden en oro: los que compartís
+  /// con la persona cuya biblioteca estás mirando.
+  final Set<String> marcados;
+
+  const GrillaLibros(
+    this.libros, {
+    super.key,
+    required this.alTocar,
+    this.marcados = const {},
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: libros.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 14,
+        childAspectRatio: 2 / 3,
+      ),
+      itemBuilder: (_, i) {
+        final l = libros[i];
+        return GestureDetector(
+          onTap: () => alTocar(l),
+          child: LayoutBuilder(
+            builder: (_, c) => Tapa(
+              l,
+              ancho: c.maxWidth,
+              marcada: marcados.contains(l.clave),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 /// El cartel dorado del encuentro: aparece solo cuando hay otra
 /// persona del otro lado.
 class AvisoOro extends StatelessWidget {

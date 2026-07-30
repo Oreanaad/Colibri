@@ -3,7 +3,29 @@ import '../modelos.dart';
 import '../tema.dart';
 import '../widgets.dart';
 import 'buscar.dart';
+import 'estantes.dart';
 import 'ficha.dart';
+
+/// Las cuatro solapas de la biblioteca. Las tres primeras son estados de
+/// lectura; la cuarta son los estantes que arma cada persona.
+enum _Solapa { leyendo, leidos, pendientes, estantes }
+
+extension on _Solapa {
+  String get nombre => switch (this) {
+        _Solapa.leyendo => 'Leyendo',
+        _Solapa.leidos => 'Leídos',
+        _Solapa.pendientes => 'Pendientes',
+        _Solapa.estantes => 'Estantes',
+      };
+
+  /// Null en la solapa de estantes: esa no filtra por estado.
+  Estado? get estado => switch (this) {
+        _Solapa.leyendo => Estado.leyendo,
+        _Solapa.leidos => Estado.leido,
+        _Solapa.pendientes => Estado.pendiente,
+        _Solapa.estantes => null,
+      };
+}
 
 class PantallaBiblioteca extends StatefulWidget {
   const PantallaBiblioteca({super.key});
@@ -13,7 +35,7 @@ class PantallaBiblioteca extends StatefulWidget {
 }
 
 class _PantallaBibliotecaState extends State<PantallaBiblioteca> {
-  Estante _activo = Estante.leyendo;
+  _Solapa _activa = _Solapa.leyendo;
 
   void _irABuscar() {
     Navigator.of(context).push(
@@ -32,9 +54,6 @@ class _PantallaBibliotecaState extends State<PantallaBiblioteca> {
     return AnimatedBuilder(
       animation: biblioteca,
       builder: (context, _) {
-        final libros = biblioteca.enEstante(_activo);
-        final leyendo = biblioteca.leyendoAhora;
-
         return SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -54,29 +73,14 @@ class _PantallaBibliotecaState extends State<PantallaBiblioteca> {
                   ],
                 ),
               ),
-              _Pestanas(
-                activo: _activo,
-                alCambiar: (e) => setState(() => _activo = e),
+              _Solapas(
+                activa: _activa,
+                alCambiar: (s) => setState(() => _activa = s),
               ),
               Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
-                  children: [
-                    if (leyendo != null && _activo == Estante.leyendo) ...[
-                      const Rotulo('Ahora mismo'),
-                      const SizedBox(height: 10),
-                      _TarjetaLeyendo(leyendo, alTocar: () => _abrir(leyendo)),
-                      const SizedBox(height: 26),
-                    ],
-                    if (libros.isEmpty)
-                      _Vacio(estante: _activo, alTocar: _irABuscar)
-                    else ...[
-                      Rotulo('${libros.length} ${_activo.nombre.toLowerCase()}'),
-                      const SizedBox(height: 12),
-                      _Grilla(libros, alTocar: _abrir),
-                    ],
-                  ],
-                ),
+                child: _activa == _Solapa.estantes
+                    ? const VistaEstantes()
+                    : _listaDeEstado(_activa.estado!),
               ),
             ],
           ),
@@ -84,13 +88,37 @@ class _PantallaBibliotecaState extends State<PantallaBiblioteca> {
       },
     );
   }
+
+  Widget _listaDeEstado(Estado estado) {
+    final libros = biblioteca.enEstado(estado);
+    final leyendo = biblioteca.leyendoAhora;
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+      children: [
+        if (leyendo != null && estado == Estado.leyendo) ...[
+          const Rotulo('Ahora mismo'),
+          const SizedBox(height: 10),
+          _TarjetaLeyendo(leyendo, alTocar: () => _abrir(leyendo)),
+          const SizedBox(height: 26),
+        ],
+        if (libros.isEmpty)
+          _Vacio(estado: estado, alTocar: _irABuscar)
+        else ...[
+          Rotulo('${libros.length} ${estado.nombre.toLowerCase()}'),
+          const SizedBox(height: 12),
+          GrillaLibros(libros, alTocar: _abrir),
+        ],
+      ],
+    );
+  }
 }
 
-class _Pestanas extends StatelessWidget {
-  final Estante activo;
-  final ValueChanged<Estante> alCambiar;
+class _Solapas extends StatelessWidget {
+  final _Solapa activa;
+  final ValueChanged<_Solapa> alCambiar;
 
-  const _Pestanas({required this.activo, required this.alCambiar});
+  const _Solapas({required this.activa, required this.alCambiar});
 
   @override
   Widget build(BuildContext context) {
@@ -99,11 +127,11 @@ class _Pestanas extends StatelessWidget {
         border: Border(bottom: BorderSide(color: Paleta.linea)),
       ),
       child: Row(
-        children: Estante.values.map((e) {
-          final es = e == activo;
+        children: _Solapa.values.map((s) {
+          final es = s == activa;
           return Expanded(
             child: InkWell(
-              onTap: () => alCambiar(e),
+              onTap: () => alCambiar(s),
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
@@ -115,10 +143,10 @@ class _Pestanas extends StatelessWidget {
                   ),
                 ),
                 child: Text(
-                  e.nombre,
+                  s.nombre,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: 12.5,
                     fontWeight: es ? FontWeight.w600 : FontWeight.w400,
                     color: es ? Paleta.lila : Paleta.bruma,
                   ),
@@ -199,66 +227,16 @@ class _TarjetaLeyendo extends StatelessWidget {
   }
 }
 
-class _Grilla extends StatelessWidget {
-  final List<Libro> libros;
-  final ValueChanged<Libro> alTocar;
-  final Set<String> marcados;
-
-  const _Grilla(this.libros, {required this.alTocar, this.marcados = const {}});
-
-  @override
-  Widget build(BuildContext context) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: libros.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 14,
-        childAspectRatio: 2 / 3,
-      ),
-      itemBuilder: (_, i) {
-        final l = libros[i];
-        return GestureDetector(
-          onTap: () => alTocar(l),
-          child: LayoutBuilder(
-            builder: (_, c) => Tapa(
-              l,
-              ancho: c.maxWidth,
-              marcada: marcados.contains(l.clave),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// Grilla reutilizable para la pantalla de la otra persona.
-class GrillaLibros extends StatelessWidget {
-  final List<Libro> libros;
-  final ValueChanged<Libro> alTocar;
-  final Set<String> marcados;
-
-  const GrillaLibros(this.libros,
-      {super.key, required this.alTocar, this.marcados = const {}});
-
-  @override
-  Widget build(BuildContext context) =>
-      _Grilla(libros, alTocar: alTocar, marcados: marcados);
-}
-
 class _Vacio extends StatelessWidget {
-  final Estante estante;
+  final Estado estado;
   final VoidCallback alTocar;
 
-  const _Vacio({required this.estante, required this.alTocar});
+  const _Vacio({required this.estado, required this.alTocar});
 
-  String get _texto => switch (estante) {
-        Estante.leyendo => 'No estás leyendo nada todavía.',
-        Estante.leido => 'Todavía no marcaste ningún libro como leído.',
-        Estante.pendiente => 'No tenés nada esperando.',
+  String get _texto => switch (estado) {
+        Estado.leyendo => 'No estás leyendo nada todavía.',
+        Estado.leido => 'Todavía no marcaste ningún libro como leído.',
+        Estado.pendiente => 'No tenés nada esperando.',
       };
 
   @override

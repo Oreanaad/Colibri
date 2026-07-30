@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../modelos.dart';
 import '../tema.dart';
 import '../widgets.dart';
+import 'estantes.dart';
 
 /// Ficha de un libro. Acá viven las dos funciones que diferencian a Colibrí:
 /// las reseñas por capas de spoiler y la frase más subrayada.
@@ -92,15 +93,19 @@ class _PantallaFichaState extends State<PantallaFicha> {
               const SizedBox(height: 24),
 
               if (enBiblioteca) ...[
-                _SelectorEstante(
-                  l.estante,
+                _SelectorEstado(
+                  l.estado,
                   alCambiar: (e) {
-                    l.estante = e;
+                    l.estado = e;
                     _guardar();
                   },
                 ),
-                const SizedBox(height: 20),
-                if (l.estante == Estante.leyendo) _avanceLectura(),
+                const SizedBox(height: 22),
+                const Rotulo('Tus estantes'),
+                const SizedBox(height: 10),
+                ChipsDeEstantes(l),
+                const SizedBox(height: 22),
+                if (l.estado == Estado.leyendo) _avanceLectura(),
                 const SizedBox(height: 8),
                 BotonContorno(
                   'Sacar de mi biblioteca',
@@ -123,7 +128,7 @@ class _PantallaFichaState extends State<PantallaFicha> {
               const SizedBox(height: 30),
               const Rotulo('Reseñas de la comunidad'),
               const SizedBox(height: 12),
-              _Capas(avance: _avance, leyendo: l.estante == Estante.leyendo),
+              _Capas(avance: _avance, leyendo: l.estado == Estado.leyendo),
 
               const SizedBox(height: 30),
               const Rotulo('La frase más subrayada'),
@@ -175,16 +180,16 @@ class _PantallaFichaState extends State<PantallaFicha> {
   }
 }
 
-class _SelectorEstante extends StatelessWidget {
-  final Estante activo;
-  final ValueChanged<Estante> alCambiar;
+class _SelectorEstado extends StatelessWidget {
+  final Estado activo;
+  final ValueChanged<Estado> alCambiar;
 
-  const _SelectorEstante(this.activo, {required this.alCambiar});
+  const _SelectorEstado(this.activo, {required this.alCambiar});
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      children: Estante.values.map((e) {
+      children: Estado.values.map((e) {
         final es = e == activo;
         return Expanded(
           child: Padding(
