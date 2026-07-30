@@ -1,7 +1,7 @@
 import 'dart:async';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import '../archivo/selector.dart';
 import '../epub.dart';
 import '../modelos.dart';
 import '../tema.dart';
@@ -78,17 +78,11 @@ class _PantallaFrasesState extends State<PantallaFrases> {
 
     // --- 1. Elegir el archivo ---
     //
-    // Sin filtro de extensión a propósito. Con `FileType.custom` el
-    // sistema esconde o apaga archivos válidos: en iOS el filtro va por
-    // UTI y no por extensión, y en web depende de cómo el navegador
-    // interprete el `accept`. Queda una pantalla donde no se puede
-    // elegir nada. Mejor dejar elegir cualquiera y validar acá.
-    final FilePickerResult? elegido;
+    // El selector vive en lib/archivo/: en la web es uno propio, porque
+    // el de file_picker no anda en Safari de iPhone. Ahí está explicado.
+    final ArchivoElegido? archivo;
     try {
-      elegido = await FilePicker.pickFiles(
-        type: FileType.any,
-        withData: true, // los bytes, en memoria y nada más
-      );
+      archivo = await elegirArchivo();
     } catch (e) {
       if (!mounted) return;
       setState(() => _importando = false);
@@ -96,14 +90,13 @@ class _PantallaFrasesState extends State<PantallaFrases> {
       return;
     }
 
-    final archivo = elegido?.files.singleOrNull;
     if (archivo == null) {
       if (mounted) setState(() => _importando = false);
       return; // canceló, y eso no es un error
     }
 
     final bytes = archivo.bytes;
-    if (bytes == null || bytes.isEmpty) {
+    if (bytes.isEmpty) {
       if (!mounted) return;
       setState(() => _importando = false);
       mostrarAviso(context,
@@ -111,13 +104,12 @@ class _PantallaFrasesState extends State<PantallaFrases> {
       return;
     }
 
-    final nombre = archivo.name.toLowerCase();
-    if (!nombre.endsWith('.epub')) {
+    if (!archivo.esEpub) {
       if (!mounted) return;
       setState(() => _importando = false);
       mostrarAviso(
         context,
-        nombre.endsWith('.pdf')
+        archivo.esPdf
             ? 'Por ahora solo EPUB. El PDF viene más adelante.'
             : 'Ese archivo no es un EPUB.',
       );
