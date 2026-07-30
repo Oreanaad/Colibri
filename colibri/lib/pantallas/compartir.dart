@@ -281,117 +281,187 @@ class Placa extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: switch (fondo) {
-          Fondo.noche => Paleta.noche,
-          Fondo.papel => const Color(0xFFF2EFF6),
-          Fondo.lomo => _colorLomo,
-        },
-        gradient: fondo == Fondo.noche
-            ? const RadialGradient(
-                center: Alignment(-0.5, -0.6),
-                radius: 1.3,
-                colors: [Color(0x33E9B44C), Paleta.noche],
-              )
-            : null,
-      ),
-      child: Stack(
-        children: [
-          if (fondo == Fondo.lomo)
-            // Una franja dorada al costado, como el canto de un libro.
-            Positioned(
-              left: 0,
-              top: 0,
-              bottom: 0,
-              width: 6,
-              child: Container(color: Paleta.oro),
-            ),
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              formato == Formato.historia ? 40 : 32,
-              formato == Formato.historia ? 56 : 34,
-              formato == Formato.historia ? 40 : 32,
-              formato == Formato.historia ? 44 : 28,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  '“',
-                  style: TextStyle(
-                    fontSize: _tamano * 2.2,
-                    height: 0.8,
-                    color: Paleta.oro,
-                    fontWeight: FontWeight.w300,
-                  ),
-                ),
-                SizedBox(height: _tamano * 0.3),
-                Flexible(
-                  child: Text(
-                    frase.texto,
-                    style: TextStyle(
-                      fontSize: _tamano,
-                      height: 1.45,
-                      color: _texto,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ),
-                SizedBox(height: _tamano * 1.2),
+    return LayoutBuilder(
+      builder: (context, medidas) {
+        final ancho = medidas.maxWidth;
+        final alto = medidas.maxHeight;
+        final margen = formato == Formato.historia ? 40.0 : 32.0;
+        final margenAlto = formato == Formato.historia ? 52.0 : 30.0;
 
-                // Una línea dorada corta, y debajo la ficha del libro.
-                Container(width: 34, height: 2, color: Paleta.oro),
-                SizedBox(height: _tamano * 0.7),
-                Text(
-                  libro.titulo,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: _tamano * 0.62,
-                    height: 1.25,
-                    color: _texto,
-                    fontWeight: FontWeight.w600,
+        return Container(
+          decoration: BoxDecoration(
+            color: switch (fondo) {
+              Fondo.noche => Paleta.noche,
+              Fondo.papel => const Color(0xFFF2EFF6),
+              Fondo.lomo => _colorLomo,
+            },
+            gradient: fondo == Fondo.noche
+                ? const RadialGradient(
+                    center: Alignment(-0.5, -0.6),
+                    radius: 1.3,
+                    colors: [Color(0x33E9B44C), Paleta.noche],
+                  )
+                : null,
+          ),
+          // ClipRect recorta lo que sangra por los bordes: sin esto, la
+          // marca de agua se dibujaría fuera de la placa.
+          child: ClipRect(
+            child: Stack(
+              children: [
+                // La marca de agua va primero de todo, para que quede
+                // detrás del texto y no le pelee la lectura.
+                Positioned(
+                  left: -ancho * 0.05,
+                  bottom: -alto * 0.03,
+                  child: MarcaDeAgua(tamano: ancho * 0.30, sobreClaro: _claro),
+                ),
+
+                if (fondo == Fondo.lomo)
+                  // Una franja dorada al costado, como el canto de un libro.
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: 6,
+                    child: Container(color: Paleta.oro),
+                  ),
+
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                      margen, margenAlto, margen, margenAlto),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '“',
+                        style: TextStyle(
+                          fontSize: _tamano * 2.2,
+                          height: 0.8,
+                          color: Paleta.oro,
+                          fontWeight: FontWeight.w300,
+                        ),
+                      ),
+                      SizedBox(height: _tamano * 0.3),
+                      Flexible(
+                        child: Text(
+                          frase.texto,
+                          style: TextStyle(
+                            fontSize: _tamano,
+                            height: 1.45,
+                            color: _texto,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: _tamano * 1.2),
+
+                      // Una línea dorada corta, y debajo la ficha del libro.
+                      Container(width: 34, height: 2, color: Paleta.oro),
+                      SizedBox(height: _tamano * 0.7),
+                      Text(
+                        libro.titulo,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: _tamano * 0.62,
+                          height: 1.25,
+                          color: _texto,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      SizedBox(height: _tamano * 0.16),
+                      Text(
+                        libro.autor,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: _tamano * 0.55,
+                          color: Paleta.oro,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                SizedBox(height: _tamano * 0.16),
-                Text(
-                  libro.autor,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: _tamano * 0.55,
-                    color: Paleta.oro,
+
+                // La firma legible, abajo a la derecha. La marca de agua
+                // se ve; esta se lee, que no es lo mismo.
+                Positioned(
+                  right: margen,
+                  bottom: margenAlto,
+                  child: Text.rich(
+                    TextSpan(
+                      style: TextStyle(
+                        fontSize: _tamano * 0.5,
+                        color: _suave,
+                        letterSpacing: 0.3,
+                      ),
+                      children: [
+                        const TextSpan(text: 'co'),
+                        TextSpan(
+                          text: 'libr',
+                          style: TextStyle(
+                            color: Paleta.oro.withValues(alpha: 0.8),
+                          ),
+                        ),
+                        const TextSpan(text: 'í'),
+                      ],
+                    ),
                   ),
                 ),
               ],
             ),
           ),
+        );
+      },
+    );
+  }
+}
 
-          // La marca abajo a la derecha, chica: la placa es de la frase,
-          // no nuestra.
-          Positioned(
-            right: formato == Formato.historia ? 40 : 32,
-            bottom: formato == Formato.historia ? 44 : 28,
-            child: Text.rich(
-              TextSpan(
-                style: TextStyle(
-                  fontSize: _tamano * 0.5,
-                  color: _suave,
-                  letterSpacing: 0.3,
-                ),
-                children: [
-                  const TextSpan(text: 'co'),
-                  TextSpan(
-                      text: 'libr',
-                      style: TextStyle(color: Paleta.oro.withValues(alpha: 0.75))),
-                  const TextSpan(text: 'í'),
-                ],
-              ),
-            ),
+/// El logotipo enorme y casi transparente que queda de fondo en la placa.
+///
+/// Sirve para que la imagen se siga reconociendo como de Colibrí aunque
+/// alguien recorte el pie antes de subirla, que es lo que suele pasar.
+/// Va bajísimo de opacidad a propósito: una marca de agua que compite con
+/// el texto hace que la gente no comparta la placa.
+///
+/// El secreto de la marca se mantiene incluso acá: las cuatro letras del
+/// medio van en dorado, un poco más visibles que el resto.
+class MarcaDeAgua extends StatelessWidget {
+  final double tamano;
+  final bool sobreClaro;
+
+  const MarcaDeAgua({
+    super.key,
+    required this.tamano,
+    required this.sobreClaro,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Sobre papel claro hace falta menos opacidad: el contraste de un
+    // gris oscuro sobre blanco pesa más que el de un blanco sobre noche.
+    final base = sobreClaro
+        ? const Color(0xFF241B40).withValues(alpha: 0.055)
+        : Paleta.luz.withValues(alpha: 0.075);
+    final destello = Paleta.oro.withValues(alpha: sobreClaro ? 0.11 : 0.14);
+
+    return IgnorePointer(
+      child: Text.rich(
+        TextSpan(
+          style: TextStyle(
+            fontSize: tamano,
+            height: 1,
+            letterSpacing: tamano * 0.01,
+            fontWeight: FontWeight.w400,
+            color: base,
           ),
-        ],
+          children: [
+            const TextSpan(text: 'co'),
+            TextSpan(text: 'libr', style: TextStyle(color: destello)),
+            const TextSpan(text: 'í'),
+          ],
+        ),
       ),
     );
   }

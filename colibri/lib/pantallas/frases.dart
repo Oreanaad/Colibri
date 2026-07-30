@@ -8,11 +8,21 @@ import '../tema.dart';
 import '../widgets.dart';
 import 'compartir.dart';
 
-/// Buscar una frase adentro del libro digital y guardarla.
+/// Las tres formas de llegar a una frase.
+enum _Seccion { buscar, leer, guardadas }
+
+extension on _Seccion {
+  String get nombre => switch (this) {
+        _Seccion.buscar => 'Buscar',
+        _Seccion.leer => 'El libro',
+        _Seccion.guardadas => 'Guardadas',
+      };
+}
+
+/// Subrayar frases de un libro digital.
 ///
-/// La lectora se acuerda de tres o cuatro palabras; escribe eso y la app
-/// le devuelve el párrafo entero. Es lo mismo que tipear la frase a mano
-/// mirando el libro, pero sin el trabajo de tipearla.
+/// El EPUB se suma **una sola vez**: después queda guardado y se pueden
+/// subrayar todas las frases que se quiera, sin volver a importar nada.
 class PantallaFrases extends StatefulWidget {
   final Libro libro;
   const PantallaFrases(this.libro, {super.key});
@@ -30,6 +40,7 @@ class _PantallaFrasesState extends State<PantallaFrases> {
   bool _importando = false;
   List<Coincidencia> _resultados = const [];
   bool _busco = false;
+  _Seccion _seccion = _Seccion.buscar;
 
   @override
   void initState() {
@@ -48,9 +59,11 @@ class _PantallaFrasesState extends State<PantallaFrases> {
     final parrafos = await biblioteca.textoDe(widget.libro);
     if (!mounted) return;
     setState(() {
-      _libroDigital =
-          parrafos == null ? null : Epub(parrafos: parrafos);
+      _libroDigital = parrafos == null ? null : Epub(parrafos: parrafos);
       _cargando = false;
+      if (_libroDigital != null && widget.libro.frases.isNotEmpty) {
+        _seccion = _Seccion.guardadas;
+      }
     });
   }
 
@@ -60,15 +73,38 @@ class _PantallaFrasesState extends State<PantallaFrases> {
     setState(() => _importando = true);
 
     try {
+      // Sin filtro de extensión a propósito.
+      //
+      // Con `FileType.custom` el sistema esconde o apaga los archivos que
+      // no coinciden, y en la práctica termina escondiendo EPUB válidos:
+      // en iOS el filtro va por UTI y no por extensión, y en la web
+      // depende de cómo el navegador interprete el `accept`. El resultado
+      // es una pantalla donde no se puede elegir nada.
+      //
+      // Preferimos dejar elegir cualquier archivo y validarlo nosotros,
+      // que además nos deja dar un mensaje que explica qué pasó.
       final elegido = await FilePicker.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['epub'],
+        type: FileType.any,
         withData: true, // los bytes, en memoria y nada más
       );
 
-      final bytes = elegido?.files.single.bytes;
-      if (bytes == null) {
+      final archivo = elegido?.files.singleOrNull;
+      final bytes = archivo?.bytes;
+      if (archivo == null || bytes == null) {
         if (mounted) setState(() => _importando = false);
+        return;
+      }
+
+      final nombre = archivo.name.toLowerCase();
+      if (!nombre.endsWith('.epub')) {
+        if (!mounted) return;
+        setState(() => _importando = false);
+        mostrarAviso(
+          context,
+          nombre.endsWith('.pdf')
+              ? 'Por ahora solo EPUB. El PDF viene más adelante.'
+              : 'Ese archivo no es un EPUB.',
+        );
         return;
       }
 
@@ -77,7 +113,7 @@ class _PantallaFrasesState extends State<PantallaFrases> {
         if (!mounted) return;
         setState(() => _importando = false);
         mostrarAviso(context,
-            'No se pudo leer ese archivo. ¿Seguro que es un EPUB con texto?');
+            'Es un EPUB pero no le encontré texto. ¿Será uno escaneado?');
         return;
       }
 
@@ -86,9 +122,10 @@ class _PantallaFrasesState extends State<PantallaFrases> {
       setState(() {
         _libroDigital = epub;
         _importando = false;
+        _seccion = _Seccion.leer;
       });
       mostrarAviso(context,
-          'Listo: ${epub.parrafos.length} párrafos. El archivo no se guardó.');
+          'Listo. El archivo no se guardó, y no hay que volver a sumarlo.');
     } catch (e) {
       if (!mounted) return;
       setState(() => _importando = false);
@@ -114,23 +151,44 @@ class _PantallaFrasesState extends State<PantallaFrases> {
     });
   }
 
-  Future<void> _guardarFrase(Coincidencia c) async {
-    widget.libro.frases.insert(
-      0,
-      Frase(
-        texto: c.parrafo,
-        posicion: c.porcentaje(_libroDigital!.parrafos.length),
-      ),
-    );
+  /// Los primeros cien caracteres normalizados, que alcanzan para
+  /// reconocer un párrafo sin romperse con las frases que se cortaron
+  /// por el tope de caracteres.
+  static String _huella(String texto) {
+    final n = Epub.normalizar(texto);
+    return n.length > 100 ? n.substring(0, 100) : n;
+  }
+
+  bool _yaSubrayada(String parrafo) {
+    final h = _huella(parrafo);
+    return widget.libro.frases.any((f) => _huella(f.texto) == h);
+  }
+
+  /// Subraya o des-subraya un párrafo. Un solo toque hace las dos cosas,
+  /// así se pueden marcar muchas seguidas sin salir de la lista.
+  Future<void> _alternar(String parrafo, int indice) async {
+    final total = _libroDigital?.parrafos.length ?? 1;
+    final h = _huella(parrafo);
+    final estaba = _yaSubrayada(parrafo);
+
+    if (estaba) {
+      widget.libro.frases.removeWhere((f) => _huella(f.texto) == h);
+    } else {
+      widget.libro.frases.insert(
+        0,
+        Frase(texto: parrafo, posicion: total == 0 ? 0 : indice / total),
+      );
+    }
+
     await biblioteca.actualizar();
     if (!mounted) return;
+    setState(() {});
+    if (!estaba) mostrarAviso(context, 'Subrayada');
+  }
 
-    _controlador.clear();
-    setState(() {
-      _resultados = const [];
-      _busco = false;
-    });
-    mostrarAviso(context, 'Frase guardada');
+  Future<void> _borrar(Frase f) async {
+    setState(() => widget.libro.frases.remove(f));
+    await biblioteca.actualizar();
   }
 
   @override
@@ -150,7 +208,10 @@ class _PantallaFrasesState extends State<PantallaFrases> {
               onSelected: (_) async {
                 await biblioteca.borrarTexto(widget.libro);
                 if (!context.mounted) return;
-                setState(() => _libroDigital = null);
+                setState(() {
+                  _libroDigital = null;
+                  _seccion = _Seccion.buscar;
+                });
                 mostrarAviso(context,
                     'Texto borrado. Tus frases guardadas siguen ahí.');
               },
@@ -210,9 +271,16 @@ class _PantallaFrasesState extends State<PantallaFrases> {
               Text('¿Lo leés en digital?', style: Tipo.subtitulo),
               const SizedBox(height: 8),
               Text(
-                'Sumá tu EPUB y después, cuando te guste una frase, escribí '
-                'las palabras que te acuerdes y te aparece el párrafo entero.',
+                'Sumá tu EPUB una sola vez y después subrayá todas las frases '
+                'que quieras: buscándolas por unas palabras, o recorriendo el '
+                'libro y tocando el párrafo.',
                 style: Tipo.meta,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Si el libro lo tenés en Apple Books o en el Kindle, primero '
+                'guardalo en Archivos: desde ahí sí se puede elegir.',
+                style: Tipo.meta.copyWith(fontSize: 11.5, color: Paleta.lila),
               ),
               const SizedBox(height: 16),
               _importando
@@ -240,24 +308,76 @@ class _PantallaFrasesState extends State<PantallaFrases> {
     );
   }
 
-  // ---------- Ya tiene el texto ----------
+  // ---------- Ya tiene el texto: no hay que volver a importarlo ----------
 
   Widget _conLibro() {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+          child: Row(
+            children: _Seccion.values.map((s) {
+              final es = s == _seccion;
+              final n = widget.libro.frases.length;
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: InkWell(
+                    onTap: () => setState(() => _seccion = s),
+                    borderRadius: BorderRadius.circular(30),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        border:
+                            Border.all(color: es ? Paleta.lila : Paleta.linea),
+                        color: es ? const Color(0x22B9A6E6) : null,
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: Text(
+                        s == _Seccion.guardadas && n > 0
+                            ? '${s.nombre} $n'
+                            : s.nombre,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: es ? Paleta.lila : Paleta.bruma,
+                          fontWeight: es ? FontWeight.w600 : FontWeight.w400,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        Expanded(
+          child: switch (_seccion) {
+            _Seccion.buscar => _vistaBuscar(),
+            _Seccion.leer => _vistaLeer(),
+            _Seccion.guardadas => _vistaGuardadas(),
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _vistaBuscar() {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
           child: TextField(
             controller: _controlador,
             onChanged: _alEscribir,
-            autofocus: widget.libro.frases.isEmpty,
             style: const TextStyle(color: Paleta.luz, fontSize: 15),
             cursorColor: Paleta.lila,
             decoration: InputDecoration(
               hintText: 'Escribí lo que te acuerdes…',
               hintStyle: Tipo.meta,
-              prefixIcon: const Icon(Icons.format_quote_rounded,
+              prefixIcon: const Icon(Icons.search_rounded,
                   color: Paleta.bruma, size: 20),
+              isDense: true,
               filled: true,
               fillColor: Paleta.nocheAlta,
               contentPadding: const EdgeInsets.symmetric(vertical: 14),
@@ -276,125 +396,178 @@ class _PantallaFrasesState extends State<PantallaFrases> {
             ),
           ),
         ),
-        Expanded(child: _cuerpo()),
+        Expanded(child: _resultadosDeBusqueda()),
       ],
     );
   }
 
-  Widget _cuerpo() {
+  Widget _resultadosDeBusqueda() {
     if (_busco && _resultados.isEmpty) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(32, 40, 32, 32),
         child: Text(
           'No aparece nada con esas palabras.\n\nProbá con menos, o fijate '
-          'que sean tal cual están en el libro: si la frase se corta con '
-          'una coma o un guion, ponelas sin eso.',
+          'que sean tal cual están en el libro.',
           style: Tipo.meta,
           textAlign: TextAlign.center,
         ),
       );
     }
 
-    if (_resultados.isNotEmpty) {
-      final total = _libroDigital!.parrafos.length;
-      return ListView.separated(
-        padding: const EdgeInsets.fromLTRB(20, 6, 20, 28),
-        itemCount: _resultados.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 12),
-        itemBuilder: (_, i) => _Resultado(
-          _resultados[i],
-          buscado: _controlador.text,
-          total: total,
-          alGuardar: () => _guardarFrase(_resultados[i]),
+    if (_resultados.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(32, 50, 32, 0),
+        child: Text(
+          'Escribí tres o cuatro palabras de una frase que te haya gustado. '
+          'Sin acentos ni comas: no hace falta que sea exacto.',
+          style: Tipo.meta,
+          textAlign: TextAlign.center,
         ),
       );
     }
 
-    // Sin búsqueda activa: las frases ya guardadas.
+    final total = _libroDigital!.parrafos.length;
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+      itemCount: _resultados.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
+      itemBuilder: (_, i) {
+        final c = _resultados[i];
+        return _Parrafo(
+          texto: c.parrafo,
+          buscado: _controlador.text,
+          donde: _dondeCae(c.porcentaje(total)),
+          subrayada: _yaSubrayada(c.parrafo),
+          alTocar: () => _alternar(c.parrafo, c.indice),
+        );
+      },
+    );
+  }
+
+  /// Recorrer el libro entero y tocar los párrafos que gusten.
+  /// Es la forma natural de subrayar mientras se lee.
+  Widget _vistaLeer() {
+    final parrafos = _libroDigital!.parrafos;
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+      itemCount: parrafos.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      itemBuilder: (_, i) => _Parrafo(
+        texto: parrafos[i],
+        subrayada: _yaSubrayada(parrafos[i]),
+        alTocar: () => _alternar(parrafos[i], i),
+      ),
+    );
+  }
+
+  Widget _vistaGuardadas() {
+    if (widget.libro.frases.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(32, 50, 32, 0),
+        child: Text(
+          'Todavía no subrayaste nada de este libro.',
+          style: Tipo.meta,
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 6, 20, 28),
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
       children: [
-        if (widget.libro.frases.isEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 50),
-            child: Text(
-              'El libro está listo: ${_libroDigital!.parrafos.length} '
-              'párrafos.\n\nEscribí arriba tres o cuatro palabras de una '
-              'frase que te haya gustado.',
-              style: Tipo.meta,
-              textAlign: TextAlign.center,
-            ),
-          )
-        else ...[
-          Rotulo('${widget.libro.frases.length} '
-              '${widget.libro.frases.length == 1 ? "frase" : "frases"}'),
-          const SizedBox(height: 12),
-          ...widget.libro.frases.map((f) => _TarjetaFrase(
-                f,
-                libro: widget.libro,
-                alBorrar: () => _borrar(f),
-              )),
-        ],
+        Text('Tocá una frase para compartirla.',
+            style: Tipo.meta.copyWith(fontSize: 11.5)),
+        const SizedBox(height: 14),
+        ...widget.libro.frases.map((f) => _TarjetaFrase(
+              f,
+              libro: widget.libro,
+              alBorrar: () => _borrar(f),
+            )),
       ],
     );
   }
 
-  Future<void> _borrar(Frase f) async {
-    setState(() => widget.libro.frases.remove(f));
-    await biblioteca.actualizar();
-  }
-}
-
-/// Un párrafo encontrado, con las palabras buscadas resaltadas.
-class _Resultado extends StatelessWidget {
-  final Coincidencia c;
-  final String buscado;
-  final int total;
-  final VoidCallback alGuardar;
-
-  const _Resultado(this.c,
-      {required this.buscado, required this.total, required this.alGuardar});
-
-  /// Dónde cae en el libro, dicho como lo diría una persona.
-  String get _donde {
-    final p = c.porcentaje(total);
+  /// Dónde cae en el libro, dicho como lo diría una persona. Sin números
+  /// de página, que cambian con cada edición.
+  String _dondeCae(double p) {
     if (p < 0.15) return 'al principio';
     if (p < 0.45) return 'en el primer tercio';
     if (p < 0.7) return 'por la mitad';
     if (p < 0.9) return 'cerca del final';
     return 'en el final';
   }
+}
+
+/// Un párrafo del libro, que se subraya de un toque.
+///
+/// El estado se ve en el propio párrafo —fondo dorado y marcador— así que
+/// se pueden marcar muchos seguidos sin que la pantalla se mueva ni se
+/// pierda el lugar donde se venía leyendo.
+class _Parrafo extends StatelessWidget {
+  final String texto;
+  final String? buscado;
+  final String? donde;
+  final bool subrayada;
+  final VoidCallback alTocar;
+
+  const _Parrafo({
+    required this.texto,
+    required this.subrayada,
+    required this.alTocar,
+    this.buscado,
+    this.donde,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Paleta.nocheAlta,
+    return Material(
+      color: subrayada ? Paleta.oroTenue : Paleta.nocheAlta,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: alTocar,
         borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _TextoResaltado(c.parrafo, buscado: buscado),
-          const SizedBox(height: 10),
-          Row(
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: subrayada ? Paleta.oro : Colors.transparent,
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(_donde, style: Tipo.meta.copyWith(fontSize: 11)),
-              const Spacer(),
-              TextButton.icon(
-                onPressed: alGuardar,
-                icon: const Icon(Icons.bookmark_add_outlined, size: 16),
-                label: const Text('Guardar', style: TextStyle(fontSize: 13)),
-                style: TextButton.styleFrom(
-                  foregroundColor: Paleta.lila,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  minimumSize: const Size(0, 32),
-                ),
+              buscado == null
+                  ? Text(texto, style: Tipo.lectura)
+                  : _TextoResaltado(texto, buscado: buscado!),
+              const SizedBox(height: 9),
+              Row(
+                children: [
+                  Icon(
+                    subrayada
+                        ? Icons.bookmark_rounded
+                        : Icons.bookmark_border_rounded,
+                    size: 15,
+                    color: subrayada ? Paleta.oro : Paleta.bruma,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    subrayada ? 'Subrayada' : 'Tocá para subrayar',
+                    style: Tipo.meta.copyWith(
+                      fontSize: 11,
+                      color: subrayada ? Paleta.oro : Paleta.bruma,
+                    ),
+                  ),
+                  if (donde != null) ...[
+                    const Spacer(),
+                    Text(donde!, style: Tipo.meta.copyWith(fontSize: 11)),
+                  ],
+                ],
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
