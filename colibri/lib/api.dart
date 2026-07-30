@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'modelos.dart';
 
@@ -8,6 +9,20 @@ import 'modelos.dart';
 class Api {
   static const _campos =
       'key,title,author_name,cover_i,first_publish_year,publisher,number_of_pages_median';
+
+  /// Open Library pide que las apps se identifiquen con un User-Agent, y
+  /// en Android y iOS se lo mandamos. **En web no**, y no es un descuido:
+  ///
+  /// User-Agent es una cabecera "prohibida" para el navegador. Al pedirla,
+  /// dispara una consulta previa de permiso (preflight), y Open Library
+  /// responde que solo acepta Accept, Accept-Language, Content-Language y
+  /// Content-Type. User-Agent no está en la lista, así que el navegador
+  /// cancela el pedido **antes de mandarlo**: la búsqueda no funcionaba
+  /// en la versión web y sí en la de escritorio.
+  ///
+  /// Sin la cabecera es un pedido "simple", no hay preflight, y anda.
+  static Map<String, String> get _cabeceras =>
+      kIsWeb ? const {} : const {'User-Agent': 'Colibri/0.1 (demo)'};
 
   static Future<List<Libro>> buscar(String consulta) async {
     if (consulta.trim().length < 3) return [];
@@ -19,7 +34,7 @@ class Api {
     });
 
     final respuesta = await http
-        .get(uri, headers: {'User-Agent': 'Colibri/0.1 (demo)'})
+        .get(uri, headers: _cabeceras)
         .timeout(const Duration(seconds: 15));
 
     if (respuesta.statusCode != 200) return [];
