@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'modelos.dart';
 import 'pantallas/biblioteca.dart';
 import 'pantallas/comunidad.dart';
+import 'pantallas/todas_las_frases.dart';
 import 'tema.dart';
 
 Future<void> main() async {
@@ -63,6 +64,7 @@ class _MarcoState extends State<Marco> {
 
   static const _pantallas = [
     PantallaBiblioteca(),
+    PantallaTodasLasFrases(),
     PantallaComunidad(),
   ];
 
@@ -86,6 +88,11 @@ class _MarcoState extends State<Marco> {
               icon: Icon(Icons.menu_book_outlined, color: Paleta.bruma),
               selectedIcon: Icon(Icons.menu_book_rounded, color: Paleta.lila),
               label: 'Biblioteca',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.format_quote_outlined, color: Paleta.bruma),
+              selectedIcon: Icon(Icons.format_quote_rounded, color: Paleta.lila),
+              label: 'Frases',
             ),
             NavigationDestination(
               icon: Icon(Icons.people_outline_rounded, color: Paleta.bruma),

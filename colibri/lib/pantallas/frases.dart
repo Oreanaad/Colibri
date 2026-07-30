@@ -6,6 +6,7 @@ import '../epub.dart';
 import '../modelos.dart';
 import '../tema.dart';
 import '../widgets.dart';
+import 'compartir.dart';
 
 /// Buscar una frase adentro del libro digital y guardarla.
 ///
@@ -192,6 +193,7 @@ class _PantallaFrasesState extends State<PantallaFrases> {
           const SizedBox(height: 12),
           ...widget.libro.frases.map((f) => _TarjetaFrase(
                 f,
+                libro: widget.libro,
                 alBorrar: () => _borrar(f),
               )),
           const SizedBox(height: 28),
@@ -329,6 +331,7 @@ class _PantallaFrasesState extends State<PantallaFrases> {
           const SizedBox(height: 12),
           ...widget.libro.frases.map((f) => _TarjetaFrase(
                 f,
+                libro: widget.libro,
                 alBorrar: () => _borrar(f),
               )),
         ],
@@ -439,39 +442,56 @@ class _TextoResaltado extends StatelessWidget {
 
 class _TarjetaFrase extends StatelessWidget {
   final Frase frase;
+  final Libro libro;
   final VoidCallback alBorrar;
 
-  const _TarjetaFrase(this.frase, {required this.alBorrar});
+  const _TarjetaFrase(this.frase,
+      {required this.libro, required this.alBorrar});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.fromLTRB(14, 12, 8, 8),
       decoration: const BoxDecoration(
         color: Paleta.oroTenue,
         border: Border(left: BorderSide(color: Paleta.oro, width: 3)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('“${frase.texto}”', style: Tipo.lectura),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Text(fechaCorta(frase.guardada),
-                  style: Tipo.meta.copyWith(fontSize: 11)),
-              const Spacer(),
-              IconButton(
-                onPressed: alBorrar,
-                icon: const Icon(Icons.delete_outline_rounded, size: 18),
-                color: Paleta.bruma,
-                tooltip: 'Borrar la frase',
-                visualDensity: VisualDensity.compact,
-              ),
-            ],
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => PantallaCompartir(libro, frase),
+            ),
           ),
-        ],
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 8, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('“${frase.texto}”', style: Tipo.lectura),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Text(fechaCorta(frase.guardada),
+                        style: Tipo.meta.copyWith(fontSize: 11)),
+                    const SizedBox(width: 10),
+                    const Icon(Icons.ios_share_rounded,
+                        size: 14, color: Paleta.bruma),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: alBorrar,
+                      icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                      color: Paleta.bruma,
+                      tooltip: 'Borrar la frase',
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
