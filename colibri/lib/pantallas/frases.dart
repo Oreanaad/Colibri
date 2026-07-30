@@ -72,65 +72,98 @@ class _PantallaFrasesState extends State<PantallaFrases> {
   Future<void> _importar() async {
     setState(() => _importando = true);
 
+    // Cada paso avisa qué falló. Un "no se pudo" a secas no le sirve a
+    // nadie: ni a la lectora para arreglarlo, ni a nosotras para saber
+    // qué pasó cuando alguien lo reporta.
+
+    // --- 1. Elegir el archivo ---
+    //
+    // Sin filtro de extensión a propósito. Con `FileType.custom` el
+    // sistema esconde o apaga archivos válidos: en iOS el filtro va por
+    // UTI y no por extensión, y en web depende de cómo el navegador
+    // interprete el `accept`. Queda una pantalla donde no se puede
+    // elegir nada. Mejor dejar elegir cualquiera y validar acá.
+    final FilePickerResult? elegido;
     try {
-      // Sin filtro de extensión a propósito.
-      //
-      // Con `FileType.custom` el sistema esconde o apaga los archivos que
-      // no coinciden, y en la práctica termina escondiendo EPUB válidos:
-      // en iOS el filtro va por UTI y no por extensión, y en la web
-      // depende de cómo el navegador interprete el `accept`. El resultado
-      // es una pantalla donde no se puede elegir nada.
-      //
-      // Preferimos dejar elegir cualquier archivo y validarlo nosotros,
-      // que además nos deja dar un mensaje que explica qué pasó.
-      final elegido = await FilePicker.pickFiles(
+      elegido = await FilePicker.pickFiles(
         type: FileType.any,
         withData: true, // los bytes, en memoria y nada más
       );
-
-      final archivo = elegido?.files.singleOrNull;
-      final bytes = archivo?.bytes;
-      if (archivo == null || bytes == null) {
-        if (mounted) setState(() => _importando = false);
-        return;
-      }
-
-      final nombre = archivo.name.toLowerCase();
-      if (!nombre.endsWith('.epub')) {
-        if (!mounted) return;
-        setState(() => _importando = false);
-        mostrarAviso(
-          context,
-          nombre.endsWith('.pdf')
-              ? 'Por ahora solo EPUB. El PDF viene más adelante.'
-              : 'Ese archivo no es un EPUB.',
-        );
-        return;
-      }
-
-      final epub = Epub.abrir(bytes);
-      if (epub == null) {
-        if (!mounted) return;
-        setState(() => _importando = false);
-        mostrarAviso(context,
-            'Es un EPUB pero no le encontré texto. ¿Será uno escaneado?');
-        return;
-      }
-
-      await biblioteca.guardarTexto(widget.libro, epub.parrafos);
-      if (!mounted) return;
-      setState(() {
-        _libroDigital = epub;
-        _importando = false;
-        _seccion = _Seccion.leer;
-      });
-      mostrarAviso(context,
-          'Listo. El archivo no se guardó, y no hay que volver a sumarlo.');
     } catch (e) {
       if (!mounted) return;
       setState(() => _importando = false);
-      mostrarAviso(context, 'No se pudo abrir el archivo.');
+      mostrarAviso(context, 'El teléfono no dejó abrir el explorador.');
+      return;
     }
+
+    final archivo = elegido?.files.singleOrNull;
+    if (archivo == null) {
+      if (mounted) setState(() => _importando = false);
+      return; // canceló, y eso no es un error
+    }
+
+    final bytes = archivo.bytes;
+    if (bytes == null || bytes.isEmpty) {
+      if (!mounted) return;
+      setState(() => _importando = false);
+      mostrarAviso(context,
+          'El archivo llegó vacío. Si está en la nube, bajalo antes.');
+      return;
+    }
+
+    final nombre = archivo.name.toLowerCase();
+    if (!nombre.endsWith('.epub')) {
+      if (!mounted) return;
+      setState(() => _importando = false);
+      mostrarAviso(
+        context,
+        nombre.endsWith('.pdf')
+            ? 'Por ahora solo EPUB. El PDF viene más adelante.'
+            : 'Ese archivo no es un EPUB.',
+      );
+      return;
+    }
+
+    // --- 2. Sacarle el texto ---
+    final Epub? epub;
+    try {
+      epub = Epub.abrir(bytes);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _importando = false);
+      mostrarAviso(context, 'Ese EPUB tiene un formato que no supe leer.');
+      return;
+    }
+
+    if (epub == null) {
+      if (!mounted) return;
+      setState(() => _importando = false);
+      mostrarAviso(context,
+          'Es un EPUB pero no le encontré texto. ¿Será uno escaneado?');
+      return;
+    }
+
+    // --- 3. Guardarlo ---
+    //
+    // Si no entra, el libro igual queda en memoria: se puede subrayar
+    // ahora mismo, y recién al cerrar la app hay que volver a sumarlo.
+    final guardado = await biblioteca.guardarTexto(widget.libro, epub.parrafos);
+
+    if (!mounted) return;
+    setState(() {
+      _libroDigital = epub;
+      _importando = false;
+      _seccion = _Seccion.leer;
+    });
+
+    mostrarAviso(
+      context,
+      guardado
+          ? 'Listo: ${epub.parrafos.length} párrafos. El archivo no se guardó, '
+              'y no hay que volver a sumarlo.'
+          : 'Es muy grande para guardarlo en este teléfono. Podés subrayar '
+              'ahora, pero al cerrar la app hay que sumarlo de nuevo.',
+    );
   }
 
   void _alEscribir(String texto) {

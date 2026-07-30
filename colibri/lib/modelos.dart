@@ -1,4 +1,6 @@
 import 'dart:convert';
+
+import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -345,17 +347,58 @@ class Biblioteca extends ChangeNotifier {
 
   static String _claveTexto(Libro l) => 'colibri.texto.${l.clave}';
 
-  Future<void> guardarTexto(Libro libro, List<String> parrafos) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_claveTexto(libro), parrafos);
-    _conTexto.add(libro.clave);
-    await _guardar();
+  /// Guarda el texto comprimido.
+  ///
+  /// La compresión no es una optimización: es lo que hace que la función
+  /// exista. En la web el guardado del navegador tiene un tope de unos
+  /// 5 MB por sitio, y una novela entera lo pasa fácil, así que guardarla
+  /// tal cual lanzaba un error y la importación fallaba entera.
+  ///
+  /// Comprimida ocupa alrededor de un tercio. Además va como un solo
+  /// texto y no como lista, que se guarda mucho más chico.
+  ///
+  /// Devuelve false si no entró. En ese caso la app sigue andando con el
+  /// libro en memoria hasta que se cierre.
+  Future<bool> guardarTexto(Libro libro, List<String> parrafos) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final crudo = utf8.encode(parrafos.join('\u0000'));
+      final comprimido = base64Encode(GZipEncoder().encode(crudo));
+      await prefs.setString(_claveTexto(libro), comprimido);
+      _conTexto.add(libro.clave);
+      await _guardar();
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<List<String>?> textoDe(Libro libro) async {
     if (!tieneTexto(libro)) return null;
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getStringList(_claveTexto(libro));
+
+    // Preguntamos por el valor sin decirle de qué tipo es.
+    //
+    // `getString` no devuelve null cuando lo guardado es una lista: lanza
+    // un error de tipo. Y lo guardado ES una lista para quien importó un
+    // libro con la versión anterior, así que pedirlo con tipo hacía que
+    // esos libros rompieran la pantalla en lugar de migrar.
+    final guardado = prefs.get(_claveTexto(libro));
+
+    if (guardado is String) {
+      try {
+        final crudo = GZipDecoder().decodeBytes(base64Decode(guardado));
+        return utf8.decode(crudo).split('\u0000');
+      } catch (_) {
+        return null;
+      }
+    }
+
+    // Formato viejo, sin comprimir: lo leemos igual para no perderle el
+    // libro a quien ya lo había sumado.
+    if (guardado is List) return guardado.cast<String>();
+
+    return null;
   }
 
   /// Borra el texto pero deja las frases: son tuyas, las elegiste vos.
