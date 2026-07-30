@@ -47,17 +47,44 @@ void main() {
     expect(find.text('Juan Rulfo'), findsOneWidget);
   });
 
-  testWidgets('la marca va chiquita y con las letras del secreto en oro',
+  testWidgets('hay una sola marca, chica y con el secreto en oro',
       (tester) async {
     await tester.pumpWidget(_armar());
 
-    final marca = tester
+    final conTramos = tester
         .widgetList<Text>(find.byType(Text))
-        .firstWhere((t) => t.textSpan != null);
-    final tramos = (marca.textSpan! as TextSpan).children!.cast<TextSpan>();
+        .where((t) => t.textSpan != null)
+        .toList();
 
+    expect(conTramos.length, 1,
+        reason: 'se sacó la marca de agua grande de atrás');
+
+    final marca = conTramos.single.textSpan! as TextSpan;
+    final tramos = marca.children!.cast<TextSpan>();
     expect(tramos.map((t) => t.text).join(), 'colibrí');
     expect(tramos.firstWhere((t) => t.text == 'libr').style!.color, isNotNull);
+
+    // Chica de verdad: más chica que la propia autoría.
+    final tamanoMarca = marca.style!.fontSize!;
+    final tamanoAutor =
+        tester.widget<Text>(find.text('Juan Rulfo')).style!.fontSize!;
+    expect(tamanoMarca, lessThan(tamanoAutor));
+  });
+
+  testWidgets('la marca va pegada a la autoría, donde no se puede recortar',
+      (tester) async {
+    await tester.pumpWidget(_armar());
+
+    final autor = tester.getBottomLeft(find.text('Juan Rulfo'));
+    final marca = tester.getTopLeft(
+      find.byWidgetPredicate((w) => w is Text && w.textSpan != null),
+    );
+
+    // Justo debajo de la autoría y alineada con ella: si alguien recorta
+    // la marca, se lleva puesta la cita.
+    expect(marca.dy - autor.dy, lessThan(20));
+    expect((marca.dx - tester.getTopLeft(find.text('Juan Rulfo')).dx).abs(),
+        lessThan(2));
   });
 
   testWidgets('una frase larga se dibuja más chica para que entre entera',

@@ -8,13 +8,17 @@ import '../tema.dart';
 import '../widgets.dart';
 import 'compartir.dart';
 
-/// Las tres formas de llegar a una frase.
-enum _Seccion { buscar, leer, guardadas }
+/// Las dos formas de llegar a una frase.
+///
+/// No hay una sección para recorrer el libro entero, y es a propósito:
+/// hay que escribir para encontrar. Así la app nunca muestra el libro
+/// completo, que es la diferencia entre una herramienta para citar y un
+/// lector de libros ajenos.
+enum _Seccion { buscar, guardadas }
 
 extension on _Seccion {
   String get nombre => switch (this) {
         _Seccion.buscar => 'Buscar',
-        _Seccion.leer => 'El libro',
         _Seccion.guardadas => 'Guardadas',
       };
 }
@@ -145,7 +149,7 @@ class _PantallaFrasesState extends State<PantallaFrases> {
     setState(() {
       _libroDigital = epub;
       _importando = false;
-      _seccion = _Seccion.leer;
+      _seccion = _Seccion.buscar;
     });
 
     mostrarAviso(
@@ -176,39 +180,34 @@ class _PantallaFrasesState extends State<PantallaFrases> {
     });
   }
 
-  /// Los primeros cien caracteres normalizados, que alcanzan para
-  /// reconocer un párrafo sin romperse con las frases que se cortaron
-  /// por el tope de caracteres.
-  static String _huella(String texto) {
-    final n = Epub.normalizar(texto);
-    return n.length > 100 ? n.substring(0, 100) : n;
-  }
-
+  /// ¿Ya subrayó algo de este párrafo?
+  ///
+  /// No alcanza con comparar el párrafo entero: ahora una frase puede ser
+  /// un tramo de adentro, así que preguntamos si el párrafo contiene lo
+  /// guardado.
   bool _yaSubrayada(String parrafo) {
-    final h = _huella(parrafo);
-    return widget.libro.frases.any((f) => _huella(f.texto) == h);
+    final p = Epub.normalizar(parrafo);
+    return widget.libro.frases
+        .any((f) => p.contains(Epub.normalizar(f.texto)));
   }
 
-  /// Subraya o des-subraya un párrafo. Un solo toque hace las dos cosas,
-  /// así se pueden marcar muchas seguidas sin salir de la lista.
-  Future<void> _alternar(String parrafo, int indice) async {
+  /// Guarda un pedazo de párrafo como frase.
+  ///
+  /// Recibe el texto ya recortado por la lectora: puede ser el párrafo
+  /// entero o solo el tramo que marcó con el dedo.
+  Future<void> subrayar(String texto, int indice) async {
     final total = _libroDigital?.parrafos.length ?? 1;
-    final h = _huella(parrafo);
-    final estaba = _yaSubrayada(parrafo);
+    final limpio = texto.trim();
+    if (limpio.isEmpty) return;
 
-    if (estaba) {
-      widget.libro.frases.removeWhere((f) => _huella(f.texto) == h);
-    } else {
-      widget.libro.frases.insert(
-        0,
-        Frase(texto: parrafo, posicion: total == 0 ? 0 : indice / total),
-      );
-    }
-
+    widget.libro.frases.insert(
+      0,
+      Frase(texto: limpio, posicion: total == 0 ? 0 : indice / total),
+    );
     await biblioteca.actualizar();
     if (!mounted) return;
     setState(() {});
-    if (!estaba) mostrarAviso(context, 'Subrayada');
+    mostrarAviso(context, 'Subrayada');
   }
 
   Future<void> _borrar(Frase f) async {
@@ -379,7 +378,6 @@ class _PantallaFrasesState extends State<PantallaFrases> {
         Expanded(
           child: switch (_seccion) {
             _Seccion.buscar => _vistaBuscar(),
-            _Seccion.leer => _vistaLeer(),
             _Seccion.guardadas => _vistaGuardadas(),
           },
         ),
@@ -459,30 +457,16 @@ class _PantallaFrasesState extends State<PantallaFrases> {
       itemBuilder: (_, i) {
         final c = _resultados[i];
         return _Parrafo(
+          // La clave hace que al cambiar la búsqueda cada tarjeta arranque
+          // limpia y no se quede con la selección de la anterior.
+          key: ValueKey('${c.indice}-${_controlador.text}'),
           texto: c.parrafo,
           buscado: _controlador.text,
           donde: _dondeCae(c.porcentaje(total)),
-          subrayada: _yaSubrayada(c.parrafo),
-          alTocar: () => _alternar(c.parrafo, c.indice),
+          yaHayAlgo: _yaSubrayada(c.parrafo),
+          alSubrayar: (texto) => subrayar(texto, c.indice),
         );
       },
-    );
-  }
-
-  /// Recorrer el libro entero y tocar los párrafos que gusten.
-  /// Es la forma natural de subrayar mientras se lee.
-  Widget _vistaLeer() {
-    final parrafos = _libroDigital!.parrafos;
-
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
-      itemCount: parrafos.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 10),
-      itemBuilder: (_, i) => _Parrafo(
-        texto: parrafos[i],
-        subrayada: _yaSubrayada(parrafos[i]),
-        alTocar: () => _alternar(parrafos[i], i),
-      ),
     );
   }
 
@@ -524,116 +508,138 @@ class _PantallaFrasesState extends State<PantallaFrases> {
   }
 }
 
-/// Un párrafo del libro, que se subraya de un toque.
+/// Un párrafo encontrado, del que se subraya lo que la lectora quiera.
 ///
-/// El estado se ve en el propio párrafo —fondo dorado y marcador— así que
-/// se pueden marcar muchos seguidos sin que la pantalla se mueva ni se
-/// pierda el lugar donde se venía leyendo.
-class _Parrafo extends StatelessWidget {
+/// El texto es seleccionable: se puede marcar con el dedo de dónde a
+/// dónde, y se guarda solo ese tramo. Si no marca nada, se guarda el
+/// párrafo entero, que es lo que la mayoría va a querer.
+class _Parrafo extends StatefulWidget {
   final String texto;
-  final String? buscado;
-  final String? donde;
-  final bool subrayada;
-  final VoidCallback alTocar;
+  final String buscado;
+  final String donde;
+  final bool yaHayAlgo;
+  final ValueChanged<String> alSubrayar;
 
   const _Parrafo({
+    super.key,
     required this.texto,
-    required this.subrayada,
-    required this.alTocar,
-    this.buscado,
-    this.donde,
+    required this.buscado,
+    required this.donde,
+    required this.yaHayAlgo,
+    required this.alSubrayar,
   });
 
   @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: subrayada ? Paleta.oroTenue : Paleta.nocheAlta,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: alTocar,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            border: Border.all(
-              color: subrayada ? Paleta.oro : Colors.transparent,
-            ),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              buscado == null
-                  ? Text(texto, style: Tipo.lectura)
-                  : _TextoResaltado(texto, buscado: buscado!),
-              const SizedBox(height: 9),
-              Row(
-                children: [
-                  Icon(
-                    subrayada
-                        ? Icons.bookmark_rounded
-                        : Icons.bookmark_border_rounded,
-                    size: 15,
-                    color: subrayada ? Paleta.oro : Paleta.bruma,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    subrayada ? 'Subrayada' : 'Tocá para subrayar',
-                    style: Tipo.meta.copyWith(
-                      fontSize: 11,
-                      color: subrayada ? Paleta.oro : Paleta.bruma,
-                    ),
-                  ),
-                  if (donde != null) ...[
-                    const Spacer(),
-                    Text(donde!, style: Tipo.meta.copyWith(fontSize: 11)),
-                  ],
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  State<_Parrafo> createState() => _ParrafoState();
 }
 
-/// Pinta en lila el pedazo que se buscó, para que se vea de una.
-class _TextoResaltado extends StatelessWidget {
-  final String texto;
-  final String buscado;
+class _ParrafoState extends State<_Parrafo> {
+  /// Lo que la lectora marcó con el dedo, o null si no marcó nada.
+  String? _elegido;
 
-  const _TextoResaltado(this.texto, {required this.buscado});
+  void _alCambiarLaSeleccion(TextSelection s, SelectionChangedCause? _) {
+    final hay = !s.isCollapsed && s.start >= 0 && s.end <= widget.texto.length;
+    final tramo = hay ? widget.texto.substring(s.start, s.end).trim() : '';
+    setState(() => _elegido = tramo.length >= 3 ? tramo : null);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final parcial = _elegido != null;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Paleta.nocheAlta,
+        border: Border.all(
+          color: parcial ? Paleta.lila : Colors.transparent,
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SelectableText.rich(
+            _conResaltado(widget.texto, widget.buscado),
+            onSelectionChanged: _alCambiarLaSeleccion,
+            selectionColor: const Color(0x55B9A6E6),
+            cursorColor: Paleta.lila,
+          ),
+          const SizedBox(height: 12),
+
+          Row(
+            children: [
+              Icon(
+                parcial
+                    ? Icons.content_cut_rounded
+                    : Icons.touch_app_outlined,
+                size: 13,
+                color: parcial ? Paleta.lila : Paleta.bruma,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  parcial
+                      ? 'Vas a guardar ${_elegido!.length} caracteres'
+                      : 'Marcá con el dedo de dónde a dónde, o guardalo entero',
+                  style: Tipo.meta.copyWith(
+                    fontSize: 11,
+                    color: parcial ? Paleta.lila : Paleta.bruma,
+                  ),
+                ),
+              ),
+              Text(widget.donde, style: Tipo.meta.copyWith(fontSize: 11)),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          Row(
+            children: [
+              Expanded(
+                child: BotonContorno(
+                  parcial ? 'Subrayar lo marcado' : 'Subrayar el párrafo',
+                  alTocar: () => widget.alSubrayar(_elegido ?? widget.texto),
+                ),
+              ),
+              if (widget.yaHayAlgo) ...[
+                const SizedBox(width: 10),
+                const Icon(Icons.bookmark_rounded,
+                    size: 17, color: Paleta.oro),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// El pedazo buscado va en lila, para encontrarlo de un vistazo.
+  TextSpan _conResaltado(String texto, String buscado) {
     final aguja = Epub.normalizar(buscado);
     final donde = Epub.normalizar(texto).indexOf(aguja);
 
     if (donde == -1 || aguja.isEmpty) {
-      return Text(texto, style: Tipo.lectura);
+      return TextSpan(text: texto, style: Tipo.lectura);
     }
 
     // La normalización no cambia el largo del texto (solo reemplaza
     // letras por letras), así que las posiciones siguen sirviendo.
-    final fin = (donde + aguja.length).clamp(0, texto.length);
     final inicio = donde.clamp(0, texto.length);
+    final fin = (donde + aguja.length).clamp(0, texto.length);
 
-    return Text.rich(
-      TextSpan(
-        style: Tipo.lectura,
-        children: [
-          TextSpan(text: texto.substring(0, inicio)),
-          TextSpan(
-            text: texto.substring(inicio, fin),
-            style: const TextStyle(
-              color: Paleta.lila,
-              fontWeight: FontWeight.w600,
-            ),
+    return TextSpan(
+      style: Tipo.lectura,
+      children: [
+        TextSpan(text: texto.substring(0, inicio)),
+        TextSpan(
+          text: texto.substring(inicio, fin),
+          style: const TextStyle(
+            color: Paleta.lila,
+            fontWeight: FontWeight.w600,
           ),
-          TextSpan(text: texto.substring(fin)),
-        ],
-      ),
+        ),
+        TextSpan(text: texto.substring(fin)),
+      ],
     );
   }
 }

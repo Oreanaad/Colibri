@@ -281,14 +281,10 @@ class Placa extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, medidas) {
-        final ancho = medidas.maxWidth;
-        final alto = medidas.maxHeight;
-        final margen = formato == Formato.historia ? 40.0 : 32.0;
-        final margenAlto = formato == Formato.historia ? 52.0 : 30.0;
+    final margen = formato == Formato.historia ? 40.0 : 32.0;
+    final margenAlto = formato == Formato.historia ? 52.0 : 30.0;
 
-        return Container(
+    return Container(
           decoration: BoxDecoration(
             color: switch (fondo) {
               Fondo.noche => Paleta.noche,
@@ -308,14 +304,6 @@ class Placa extends StatelessWidget {
           child: ClipRect(
             child: Stack(
               children: [
-                // La marca de agua va primero de todo, para que quede
-                // detrás del texto y no le pelee la lectura.
-                Positioned(
-                  left: -ancho * 0.05,
-                  bottom: -alto * 0.03,
-                  child: MarcaDeAgua(tamano: ancho * 0.30, sobreClaro: _claro),
-                ),
-
                 if (fondo == Fondo.lomo)
                   // Una franja dorada al costado, como el canto de un libro.
                   Positioned(
@@ -380,89 +368,41 @@ class Placa extends StatelessWidget {
                           color: Paleta.oro,
                         ),
                       ),
-                    ],
-                  ),
-                ),
 
-                // La firma legible, abajo a la derecha. La marca de agua
-                // se ve; esta se lee, que no es lo mismo.
-                Positioned(
-                  right: margen,
-                  bottom: margenAlto,
-                  child: Text.rich(
-                    TextSpan(
-                      style: TextStyle(
-                        fontSize: _tamano * 0.5,
-                        color: _suave,
-                        letterSpacing: 0.3,
-                      ),
-                      children: [
-                        const TextSpan(text: 'co'),
+                      // La marca va acá, pegada a la ficha del libro, y no
+                      // en una esquina.
+                      //
+                      // Una esquina se recorta sin perder nada. Esto no:
+                      // para sacarla hay que recortar también el título y
+                      // la autoría, que es justo lo que quien comparte
+                      // quiere conservar. Es el único lugar de la placa
+                      // que no se puede cortar sin romper la cita.
+                      SizedBox(height: _tamano * 0.28),
+                      Text.rich(
                         TextSpan(
-                          text: 'libr',
                           style: TextStyle(
-                            color: Paleta.oro.withValues(alpha: 0.8),
+                            fontSize: _tamano * 0.45,
+                            color: _suave,
+                            letterSpacing: 0.3,
                           ),
+                          children: [
+                            const TextSpan(text: 'co'),
+                            TextSpan(
+                              text: 'libr',
+                              style: TextStyle(
+                                color: Paleta.oro.withValues(alpha: 0.85),
+                              ),
+                            ),
+                            const TextSpan(text: 'í'),
+                          ],
                         ),
-                        const TextSpan(text: 'í'),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-        );
-      },
-    );
-  }
-}
-
-/// El logotipo enorme y casi transparente que queda de fondo en la placa.
-///
-/// Sirve para que la imagen se siga reconociendo como de Colibrí aunque
-/// alguien recorte el pie antes de subirla, que es lo que suele pasar.
-/// Va bajísimo de opacidad a propósito: una marca de agua que compite con
-/// el texto hace que la gente no comparta la placa.
-///
-/// El secreto de la marca se mantiene incluso acá: las cuatro letras del
-/// medio van en dorado, un poco más visibles que el resto.
-class MarcaDeAgua extends StatelessWidget {
-  final double tamano;
-  final bool sobreClaro;
-
-  const MarcaDeAgua({
-    super.key,
-    required this.tamano,
-    required this.sobreClaro,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    // Sobre papel claro hace falta menos opacidad: el contraste de un
-    // gris oscuro sobre blanco pesa más que el de un blanco sobre noche.
-    final base = sobreClaro
-        ? const Color(0xFF241B40).withValues(alpha: 0.055)
-        : Paleta.luz.withValues(alpha: 0.075);
-    final destello = Paleta.oro.withValues(alpha: sobreClaro ? 0.11 : 0.14);
-
-    return IgnorePointer(
-      child: Text.rich(
-        TextSpan(
-          style: TextStyle(
-            fontSize: tamano,
-            height: 1,
-            letterSpacing: tamano * 0.01,
-            fontWeight: FontWeight.w400,
-            color: base,
-          ),
-          children: [
-            const TextSpan(text: 'co'),
-            TextSpan(text: 'libr', style: TextStyle(color: destello)),
-            const TextSpan(text: 'í'),
-          ],
-        ),
-      ),
     );
   }
 }
