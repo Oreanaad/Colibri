@@ -4,6 +4,7 @@ import '../api.dart';
 import '../modelos.dart';
 import '../tema.dart';
 import '../widgets.dart';
+import 'cargar_libro.dart';
 import 'ficha.dart';
 
 /// Buscar y agregar. La búsqueda arranca sola mientras se escribe:
@@ -64,6 +65,17 @@ class _PantallaBuscarState extends State<PantallaBuscar> {
         _error = 'No se pudo conectar. Fijate la conexión y probá de nuevo.';
       });
     }
+  }
+
+  Future<void> _cargarAMano() async {
+    final cargado = await Navigator.of(context).push<Libro>(
+      MaterialPageRoute(
+        builder: (_) => PantallaCargarLibro(textoBuscado: _controlador.text),
+      ),
+    );
+    // Si cargó uno, salimos de la búsqueda: ya consiguió lo que vino a
+    // buscar y dejarla acá la obligaría a cerrar dos pantallas.
+    if (cargado != null && mounted) Navigator.of(context).pop();
   }
 
   @override
@@ -149,11 +161,7 @@ class _PantallaBuscarState extends State<PantallaBuscar> {
       );
     }
     if (_resultados.isEmpty) {
-      return const _Mensaje(
-        'No apareció nada.\n\nEn la app real, acá va el botón para cargarlo '
-        'a mano: es el camino por el que van a entrar las editoriales '
-        'independientes y la narrativa latinoamericana reciente.',
-      );
+      return _NoApareceNada(buscado: _controlador.text, alCargar: _cargarAMano);
     }
 
     return AnimatedBuilder(
@@ -163,7 +171,9 @@ class _PantallaBuscarState extends State<PantallaBuscar> {
         itemCount: _resultados.length,
         separatorBuilder: (_, _) =>
             const Divider(color: Paleta.linea, height: 22, thickness: 1),
-        itemBuilder: (_, i) => _Resultado(_resultados[i]),
+        itemBuilder: (_, i) => i == _resultados.length
+            ? _NingunoEsElQueTengo(alCargar: _cargarAMano)
+            : _Resultado(_resultados[i]),
       ),
     );
   }
@@ -254,6 +264,65 @@ class _Mensaje extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(32, 40, 32, 32),
       child: Text(texto, style: Tipo.meta, textAlign: TextAlign.center),
+    );
+  }
+}
+
+/// Cuando la búsqueda no encontró nada.
+///
+/// Es el momento más importante de esta pantalla: acá es donde entra a la
+/// app todo lo que las bases abiertas no tienen.
+class _NoApareceNada extends StatelessWidget {
+  final String buscado;
+  final VoidCallback alCargar;
+
+  const _NoApareceNada({required this.buscado, required this.alCargar});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(28, 44, 28, 32),
+      children: [
+        Text(
+          'No apareció nada con «$buscado».',
+          style: Tipo.cuerpo,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'Pasa seguido con editoriales independientes y con narrativa '
+          'latinoamericana reciente: las bases abiertas son flojas justo '
+          'ahí. Cargalo vos y queda para siempre.',
+          style: Tipo.meta,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 24),
+        BotonLleno('Cargarlo yo', alTocar: alCargar),
+      ],
+    );
+  }
+}
+
+/// Al final de los resultados, por si ninguno era.
+class _NingunoEsElQueTengo extends StatelessWidget {
+  final VoidCallback alCargar;
+  const _NingunoEsElQueTengo({required this.alCargar});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10, bottom: 8),
+      child: Column(
+        children: [
+          Text(
+            '¿Ninguno es el que tenés en la mano?',
+            style: Tipo.meta,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 12),
+          BotonContorno('Cargalo vos, son 30 segundos', alTocar: alCargar),
+        ],
+      ),
     );
   }
 }

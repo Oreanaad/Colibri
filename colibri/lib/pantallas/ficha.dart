@@ -303,6 +303,27 @@ class _Encabezado extends StatelessWidget {
                 ].join(' · '),
                 style: Tipo.meta,
               ),
+              if (l.origen == Origen.propio) ...[
+                const SizedBox(height: 8),
+                // Queda registrado de dónde salió cada ficha. No es para
+                // desconfiar: es para poder completar y unir duplicados
+                // más adelante sin revisar el catálogo entero.
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.edit_note_rounded,
+                      size: 14,
+                      color: Paleta.bruma,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      'Lo cargaste vos',
+                      style: Tipo.meta.copyWith(fontSize: 11),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 12),
               Estrellas(l.puntaje, tamano: 22, alTocar: alPuntuar),
               const SizedBox(height: 4),
