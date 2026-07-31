@@ -8,7 +8,8 @@ import 'modelos.dart';
 /// para medir cuánto le falta con los libros que lee tu comunidad.
 class Api {
   static const _campos =
-      'key,title,author_name,cover_i,first_publish_year,publisher,number_of_pages_median';
+      'key,title,author_name,cover_i,first_publish_year,publisher,'
+      'number_of_pages_median,edition_count';
 
   /// Open Library pide que las apps se identifiquen con un User-Agent, y
   /// en Android y iOS se lo mandamos. **En web no**, y no es un descuido:
@@ -29,7 +30,9 @@ class Api {
 
     final uri = Uri.https('openlibrary.org', '/search.json', {
       'q': consulta.trim(),
-      'limit': '20',
+      // Pedimos de más porque después se agrupan los repetidos: si
+      // pidiéramos veinte, podrían quedar cuatro.
+      'limit': '60',
       'fields': _campos,
     });
 
@@ -41,9 +44,165 @@ class Api {
 
     final datos = jsonDecode(utf8.decode(respuesta.bodyBytes));
     final docs = (datos['docs'] as List?) ?? const [];
-    return docs
-        .map((d) => Libro.desdeOpenLibrary(d as Map<String, dynamic>))
-        .toList();
+    return sinRepetidos(docs.cast<Map<String, dynamic>>());
+  }
+
+  /// Agrupa los resultados repetidos y se queda con el mejor de cada uno.
+  ///
+  /// # Por qué hace falta
+  ///
+  /// Open Library tiene la misma novela cargada como varias obras
+  /// distintas: "Cazadores de sombras", "Cazadores De Sombras" y
+  /// "Cazadores de sombras" con autor desconocido son tres fichas de un
+  /// mismo libro. Buscar devolvía las tres y la pantalla se volvía un
+  /// listado inservible.
+  ///
+  /// # Cómo agrupa
+  ///
+  /// Por título normalizado más el apellido de quien escribe. El apellido
+  /// y no el nombre completo, porque una ficha dice "Cassandra Clare" y
+  /// otra "Clare, Cassandra".
+  ///
+  /// Las fichas sin autor se pegan al grupo de ese título si hay uno solo
+  /// con autor conocido: casi siempre son la misma obra mal cargada. Si
+  /// hay dos autores distintos para el mismo título, se muestran los dos:
+  /// **probablemente sean libros diferentes y perder uno es peor que
+  /// mostrar dos.**
+  static List<Libro> sinRepetidos(
+    List<Map<String, dynamic>> docs, {
+    int maximo = 15,
+  }) {
+    final grupos = <String, List<Map<String, dynamic>>>{};
+    final sinAutor = <String, List<Map<String, dynamic>>>{};
+
+    for (final d in docs) {
+      final titulo = _normalizar((d['title'] as String?) ?? '');
+      if (titulo.isEmpty) continue;
+
+      final apellido = _apellido(d);
+      if (apellido.isEmpty) {
+        sinAutor.putIfAbsent(titulo, () => []).add(d);
+      } else {
+        grupos.putIfAbsent('$titulo|$apellido', () => []).add(d);
+      }
+    }
+
+    // Las fichas sin autor se suman al único grupo de su título, si lo
+    // hay. Si no lo hay, quedan como grupo propio: algo es algo.
+    sinAutor.forEach((titulo, sueltas) {
+      final candidatos = grupos.keys
+          .where((k) => k.startsWith('$titulo|'))
+          .toList();
+      if (candidatos.length == 1) {
+        grupos[candidatos.first]!.addAll(sueltas);
+      } else if (candidatos.isEmpty) {
+        grupos['$titulo|'] = sueltas;
+      }
+    });
+
+    // Segunda pasada: los grupos flojos se comen.
+    //
+    // Cuando dos grupos comparten título pero tienen autores distintos,
+    // casi siempre uno es la ficha buena y el otro tiene puesto al
+    // traductor o al ilustrador en lugar de a quien escribió. Se nota en
+    // el peso: la ficha buena junta decenas de ediciones y la otra tiene
+    // una sola.
+    //
+    // Si un grupo pesa menos de la cuarta parte que el más grande de su
+    // título, se absorbe. Si los dos pesan parecido se quedan los dos:
+    // ahí sí es probable que sean libros diferentes.
+    final porTitulo = <String, List<String>>{};
+    for (final k in grupos.keys) {
+      porTitulo.putIfAbsent(k.split('|').first, () => []).add(k);
+    }
+
+    porTitulo.forEach((_, claves) {
+      if (claves.length < 2) return;
+
+      int peso(String k) =>
+          grupos[k]!.fold(0, (s, d) => s + ((d['edition_count'] as int?) ?? 1));
+
+      final masFuerte = claves.reduce((a, b) => peso(b) > peso(a) ? b : a);
+      for (final k in claves) {
+        if (k == masFuerte) continue;
+        if (peso(k) * 4 <= peso(masFuerte)) {
+          grupos[masFuerte]!.addAll(grupos[k]!);
+          grupos.remove(k);
+        }
+      }
+    });
+
+    // Se respeta el orden en que vinieron: Open Library los manda por
+    // relevancia y esa parte la hace bien.
+    final vistos = <String>{};
+    final salida = <Libro>[];
+    for (final d in docs) {
+      final titulo = _normalizar((d['title'] as String?) ?? '');
+      if (titulo.isEmpty) continue;
+
+      for (final entrada in grupos.entries) {
+        if (!entrada.value.contains(d)) continue;
+        if (!vistos.add(entrada.key)) break;
+        salida.add(Libro.desdeOpenLibrary(_mejorDe(entrada.value)));
+        break;
+      }
+      // Un tope: una lista de cincuenta resultados no se lee, se
+      // abandona. Si lo que buscabas no está en los primeros quince, el
+      // problema es la búsqueda, no la cantidad.
+      if (salida.length >= maximo) break;
+    }
+    return salida;
+  }
+
+  /// De un grupo de fichas del mismo libro, la más completa.
+  ///
+  /// Puntúa lo que sirve para reconocerlo: la tapa primero, porque una
+  /// ficha sin tapa se ve rota; después el autor, la editorial y el año.
+  /// La cantidad de ediciones desempata: la ficha que junta cincuenta
+  /// ediciones es la que Open Library considera principal.
+  static Map<String, dynamic> _mejorDe(List<Map<String, dynamic>> grupo) {
+    int puntos(Map<String, dynamic> d) {
+      var p = 0;
+      if (d['cover_i'] != null) p += 40;
+      if (_apellido(d).isNotEmpty) p += 20;
+      if ((d['publisher'] as List?)?.isNotEmpty ?? false) p += 6;
+      if (d['first_publish_year'] != null) p += 4;
+      if (d['number_of_pages_median'] != null) p += 3;
+      p += ((d['edition_count'] as int?) ?? 0).clamp(0, 20);
+      return p;
+    }
+
+    return grupo.reduce((a, b) => puntos(b) > puntos(a) ? b : a);
+  }
+
+  static String _apellido(Map<String, dynamic> d) {
+    final autores = (d['author_name'] as List?)?.cast<String>() ?? const [];
+    if (autores.isEmpty) return '';
+    final palabras = _normalizar(autores.first).split(' ')
+      ..removeWhere((s) => s.isEmpty);
+    if (palabras.isEmpty) return '';
+    // "Cassandra Clare" y "Clare, Cassandra" tienen que dar lo mismo, y
+    // ordenar las palabras alcanza sin tener que adivinar cuál es cuál.
+    palabras.sort();
+    return palabras.join(' ');
+  }
+
+  static String _normalizar(String s) {
+    const acentos = {
+      'á': 'a',
+      'é': 'e',
+      'í': 'i',
+      'ó': 'o',
+      'ú': 'u',
+      'ü': 'u',
+      'ñ': 'n',
+    };
+    var r = s.toLowerCase().trim();
+    acentos.forEach((k, v) => r = r.replaceAll(k, v));
+    return r
+        .replaceAll(RegExp(r'[^a-z0-9 ]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 
   /// Un solo resultado, para resolver los libros de la biblioteca de ejemplo.

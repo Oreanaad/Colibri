@@ -25,8 +25,11 @@ void main() {
       await b.cambiarEstado(l, Estado.leido, hoy: _hoy);
 
       expect(l.estado, Estado.pendiente);
-      expect(l.terminado, isNull,
-          reason: 'sin esto queda un "lo leíste en un día" que nunca pasó');
+      expect(
+        l.terminado,
+        isNull,
+        reason: 'sin esto queda un "lo leíste en un día" que nunca pasó',
+      );
     });
 
     test('tocar "leyendo" dos veces también', () async {
@@ -50,8 +53,11 @@ void main() {
       await b.cambiarEstado(l, Estado.leido, hoy: _hoy);
       await b.cambiarEstado(l, Estado.leido, hoy: _hoy);
 
-      expect(l.empezado, DateTime(2026, 3, 1),
-          reason: 'lo empezó de verdad, eso no se toca');
+      expect(
+        l.empezado,
+        DateTime(2026, 3, 1),
+        reason: 'lo empezó de verdad, eso no se toca',
+      );
       expect(l.terminado, isNull);
     });
 
@@ -80,8 +86,7 @@ void main() {
   group('varios personajes favoritos', () {
     test('se guardan todos y sobreviven al reinicio', () async {
       final b = Biblioteca();
-      final l = _libro()
-        ..personajes.addAll(['Cometierra', 'Walter', 'La Tía']);
+      final l = _libro()..personajes.addAll(['Cometierra', 'Walter', 'La Tía']);
       await b.agregar(l);
 
       final otra = Biblioteca();

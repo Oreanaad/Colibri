@@ -108,8 +108,11 @@ void main() {
       final puestos = chiles.where((c) => c.lleno).toList();
       expect(puestos.length, 2);
       expect(puestos.every((c) => c.color == Paleta.rojo), isTrue);
-      expect(puestos.every((c) => c.colorTallo == Paleta.verde), isTrue,
-          reason: 'los dos colores son lo que lo hace reconocible');
+      expect(
+        puestos.every((c) => c.colorTallo == Paleta.verde),
+        isTrue,
+        reason: 'los dos colores son lo que lo hace reconocible',
+      );
 
       // Las marcas apagadas van todas en gris, sin importar la escala:
       // lo que se ve es cuánto puntuaste, no cuántas escalas hay.
@@ -185,8 +188,9 @@ void main() {
       expect(elegidas.length, 3, reason: 'el tope es lo que da el dato');
     });
 
-    testWidgets('los chips no muestran cuánta gente eligió cada una',
-        (tester) async {
+    testWidgets('los chips no muestran cuánta gente eligió cada una', (
+      tester,
+    ) async {
       // Primero elegís, después ves. Si vieras los números antes, ibas a
       // poner lo que puso la mayoría.
       await tester.pumpWidget(

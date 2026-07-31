@@ -81,7 +81,10 @@ void main() {
     expect(b.buscarPorClave(s.libro!)?.titulo, 'Rayuela');
 
     await b.quitar(l);
-    expect(b.buscarPorClave(s.libro!), isNull,
-        reason: 'y si ya no está, la app lo detecta en vez de romperse');
+    expect(
+      b.buscarPorClave(s.libro!),
+      isNull,
+      reason: 'y si ya no está, la app lo detecta en vez de romperse',
+    );
   });
 }

@@ -39,12 +39,16 @@ void main() {
   testWidgets('una reseña corta no muestra "Ver más"', (tester) async {
     await _mostrar(tester, 'Buenísimo, lo leí de un tirón.');
 
-    expect(find.text('Ver más'), findsNothing,
-        reason: 'un "ver más" que no muestra nada más molesta');
+    expect(
+      find.text('Ver más'),
+      findsNothing,
+      reason: 'un "ver más" que no muestra nada más molesta',
+    );
   });
 
-  testWidgets('una reseña larga arranca cortada y se puede abrir',
-      (tester) async {
+  testWidgets('una reseña larga arranca cortada y se puede abrir', (
+    tester,
+  ) async {
     final larga = List.filled(40, 'Prueba de reseña.').join(' ');
     await _mostrar(tester, larga);
 
@@ -78,8 +82,11 @@ void main() {
     await tester.pumpAndSettle();
     final abierta = tester.getSize(find.byType(ResenaPropia)).height;
 
-    expect(cortada, lessThan(abierta / 2),
-        reason: 'ese era el punto: que no se coma la pantalla');
+    expect(
+      cortada,
+      lessThan(abierta / 2),
+      reason: 'ese era el punto: que no se coma la pantalla',
+    );
   });
 
   testWidgets('sin reseña, ofrece escribirla', (tester) async {
