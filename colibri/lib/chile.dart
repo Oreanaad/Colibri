@@ -12,7 +12,12 @@ import 'package:flutter/material.dart';
 /// íconos de la app.
 class Chile extends StatelessWidget {
   final double tamano;
+
+  /// El cuerpo va rojo y el cabito verde, como un chile de verdad. Son
+  /// dos colores porque es lo que lo hace reconocible de un vistazo:
+  /// una gota roja sola podría ser cualquier cosa.
   final Color color;
+  final Color colorTallo;
 
   /// Relleno cuando cuenta, contorno cuando está apagado. Es la misma
   /// diferencia que hay entre una estrella llena y una vacía.
@@ -22,6 +27,7 @@ class Chile extends StatelessWidget {
     super.key,
     required this.tamano,
     required this.color,
+    required this.colorTallo,
     this.lleno = true,
   });
 
@@ -31,7 +37,11 @@ class Chile extends StatelessWidget {
       width: tamano,
       height: tamano,
       child: CustomPaint(
-        painter: _DibujoDeChile(color: color, lleno: lleno),
+        painter: _DibujoDeChile(
+          color: color,
+          colorTallo: colorTallo,
+          lleno: lleno,
+        ),
       ),
     );
   }
@@ -39,9 +49,14 @@ class Chile extends StatelessWidget {
 
 class _DibujoDeChile extends CustomPainter {
   final Color color;
+  final Color colorTallo;
   final bool lleno;
 
-  const _DibujoDeChile({required this.color, required this.lleno});
+  const _DibujoDeChile({
+    required this.color,
+    required this.colorTallo,
+    required this.lleno,
+  });
 
   /// El dibujo está pensado en una caja de 24×24 y después se escala,
   /// así los números son legibles y no dependen del tamaño final.
@@ -69,25 +84,29 @@ class _DibujoDeChile extends CustomPainter {
       ..quadraticBezierTo(16.6, 5.6, 15.9, 7.7)
       ..close();
 
-    final pincel = Paint()
-      ..color = color
-      ..isAntiAlias = true;
-
-    if (lleno) {
-      pincel.style = PaintingStyle.fill;
-    } else {
-      pincel
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.7
-        ..strokeJoin = StrokeJoin.round
-        ..strokeCap = StrokeCap.round;
+    Paint pincelDe(Color c) {
+      final p = Paint()
+        ..color = c
+        ..isAntiAlias = true;
+      if (lleno) {
+        p.style = PaintingStyle.fill;
+      } else {
+        p
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.7
+          ..strokeJoin = StrokeJoin.round
+          ..strokeCap = StrokeCap.round;
+      }
+      return p;
     }
 
-    lienzo.drawPath(cuerpo, pincel);
-    lienzo.drawPath(tallo, pincel);
+    lienzo.drawPath(cuerpo, pincelDe(color));
+    lienzo.drawPath(tallo, pincelDe(colorTallo));
   }
 
   @override
   bool shouldRepaint(_DibujoDeChile anterior) =>
-      anterior.color != color || anterior.lleno != lleno;
+      anterior.color != color ||
+      anterior.colorTallo != colorTallo ||
+      anterior.lleno != lleno;
 }

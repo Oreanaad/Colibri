@@ -18,6 +18,19 @@ class Paleta {
   static const oroTenue = Color(0x1CE9B44C); // 11%
   static const oroBorde = Color(0x66E9B44C); // 40%
   static const oroTexto = Color(0xFFEDDCB8);
+
+  // ---- Las escalas de sensación ----
+  //
+  // Son la única excepción a la regla de que el oro es lo único cálido, y
+  // se la ganaron: una lágrima dorada no dice "lloré" y un corazón gris no
+  // dice "romance". Acá el color no decora, nombra.
+  //
+  // Están bajados de saturación a propósito. Un rojo puro y un azul puro
+  // sobre este violeta pelean con el oro y con las tapas; así apagados se
+  // leen igual de claro y no se llevan la pantalla por delante.
+  static const agua = Color(0xFF6E9FE0); // lágrimas
+  static const rojo = Color(0xFFE0596B); // corazones y el cuerpo del chile
+  static const verde = Color(0xFF5FA85A); // el cabito del chile
 }
 
 /// Escala tipográfica. Un solo lugar donde cambiarla.

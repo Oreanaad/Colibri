@@ -92,7 +92,7 @@ void main() {
       }
     });
 
-    testWidgets('el chile se dibuja, lleno y vacío', (tester) async {
+    testWidgets('el chile va rojo con el cabito verde', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: construirTema(),
@@ -102,11 +102,28 @@ void main() {
         ),
       );
 
-      expect(find.byType(Chile), findsNWidgets(5));
       final chiles = tester.widgetList<Chile>(find.byType(Chile)).toList();
-      expect(chiles.where((c) => c.lleno).length, 2);
-      expect(chiles.every((c) => c.color == Paleta.oro || c.color == Paleta.linea),
-          isTrue, reason: 'las tres escalas van en oro, cambia la forma');
+      expect(chiles.length, 5);
+
+      final puestos = chiles.where((c) => c.lleno).toList();
+      expect(puestos.length, 2);
+      expect(puestos.every((c) => c.color == Paleta.rojo), isTrue);
+      expect(puestos.every((c) => c.colorTallo == Paleta.verde), isTrue,
+          reason: 'los dos colores son lo que lo hace reconocible');
+
+      // Las marcas apagadas van todas en gris, sin importar la escala:
+      // lo que se ve es cuánto puntuaste, no cuántas escalas hay.
+      final apagados = chiles.where((c) => !c.lleno);
+      expect(apagados.every((c) => c.color == Paleta.linea), isTrue);
+    });
+
+    test('cada escala tiene su color, y no se repiten sin motivo', () {
+      expect(Escala.estrellas.color, Paleta.oro);
+      expect(Escala.lagrimas.color, Paleta.agua);
+      expect(Escala.corazones.color, Paleta.rojo);
+      // El chile comparte el rojo con el corazón, pero se distingue por
+      // la forma y por el cabito verde.
+      expect(Escala.chiles.color, Paleta.rojo);
     });
 
     testWidgets('tocar la misma marca borra la puntuación', (tester) async {

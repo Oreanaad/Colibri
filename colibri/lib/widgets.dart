@@ -126,14 +126,31 @@ extension DatosDeEscala on Escala {
     Escala.corazones => '¿Cuánto romance?',
     Escala.chiles => '¿Cuánto calienta?',
   };
+
+  /// Cada escala tiene su color, y no es decoración: **el color nombra**.
+  /// Una lágrima dorada no dice "lloré" y un corazón gris no dice
+  /// "romance". Es la única excepción a la regla de que el oro es lo
+  /// único cálido de la app.
+  Color get color => switch (this) {
+    Escala.estrellas => Paleta.oro,
+    Escala.lagrimas => Paleta.agua,
+    Escala.corazones => Paleta.rojo,
+    Escala.chiles => Paleta.rojo,
+  };
 }
 
 /// Una fila de cinco marcas que se tocan para puntuar.
 ///
-/// Las cuatro escalas van en oro y se distinguen por la forma del ícono,
-/// no por el color. Es la misma decisión de siempre: el oro es lo único
-/// cálido de la app, y meter un azul para las lágrimas o un rojo para los
-/// corazones rompería lo que hace que el oro se vea.
+/// Cada escala tiene su forma **y** su color: estrella dorada, lágrima
+/// azul, corazón rojo y chile rojo con el cabito verde.
+///
+/// Es la única excepción a la regla de que el oro es lo único cálido, y
+/// está bien que lo sea: acá el color no decora, nombra. Los tonos están
+/// bajados de saturación para que no le peleen al oro ni a las tapas.
+///
+/// Lo que **no** cambia de color es el estado apagado: las cinco marcas
+/// vacías van todas en gris. Así lo que se ve es cuánto puntuaste, no
+/// cuántas escalas hay.
 class Puntuacion extends StatelessWidget {
   final Escala escala;
   final int valor;
@@ -149,10 +166,15 @@ class Puntuacion extends StatelessWidget {
   });
 
   Widget _marca(bool cuenta) {
-    final color = cuenta ? Paleta.oro : Paleta.linea;
+    final color = cuenta ? escala.color : Paleta.linea;
 
     if (escala == Escala.chiles) {
-      return Chile(tamano: tamano, color: color, lleno: cuenta);
+      return Chile(
+        tamano: tamano,
+        color: color,
+        colorTallo: cuenta ? Paleta.verde : Paleta.linea,
+        lleno: cuenta,
+      );
     }
 
     return Icon(
