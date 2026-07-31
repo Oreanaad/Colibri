@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../modelos.dart';
 import '../tema.dart';
 import '../widgets.dart';
+import 'ediciones.dart';
 import 'estantes.dart';
 import 'frases.dart';
 import 'resena.dart';
@@ -44,6 +45,18 @@ class _PantallaFichaState extends State<PantallaFicha> {
       accion: 'Cambiar',
       alAccionar: () => elegirEstado(context, l),
     );
+  }
+
+  /// Ir a elegir en qué idioma y edición tenés el libro.
+  ///
+  /// Open Library siempre devuelve el título de la obra original, así que
+  /// un libro traducido aparece con el título en el idioma en que se
+  /// escribió, no en el que lo leíste.
+  Future<void> _cambiarEdicion() async {
+    final elegida = await Navigator.of(
+      context,
+    ).push<Libro>(MaterialPageRoute(builder: (_) => PantallaEdiciones(l)));
+    if (elegida != null && mounted) setState(() => l = elegida);
   }
 
   Future<void> _elegirFecha({required bool esInicio}) async {
@@ -157,6 +170,7 @@ class _PantallaFichaState extends State<PantallaFicha> {
                     l.puntaje = p;
                     _guardar();
                   },
+                  alCambiarEdicion: _cambiarEdicion,
                 ),
                 const SizedBox(height: 24),
 
@@ -279,8 +293,13 @@ class _PantallaFichaState extends State<PantallaFicha> {
 class _Encabezado extends StatelessWidget {
   final Libro l;
   final ValueChanged<int> alPuntuar;
+  final VoidCallback alCambiarEdicion;
 
-  const _Encabezado(this.l, {required this.alPuntuar});
+  const _Encabezado(
+    this.l, {
+    required this.alPuntuar,
+    required this.alCambiarEdicion,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -303,6 +322,37 @@ class _Encabezado extends StatelessWidget {
                 ].join(' · '),
                 style: Tipo.meta,
               ),
+              // Solo para los que vinieron del catálogo: los cargados a
+              // mano ya tienen el título que la lectora quiso.
+              if (l.origen == Origen.catalogo &&
+                  l.id.startsWith('/works/')) ...[
+                const SizedBox(height: 8),
+                InkWell(
+                  onTap: alCambiarEdicion,
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.translate_rounded,
+                          size: 13,
+                          color: Paleta.lila,
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          '¿Tenés otra edición?',
+                          style: Tipo.meta.copyWith(
+                            fontSize: 11.5,
+                            color: Paleta.lila,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
               if (l.origen == Origen.propio) ...[
                 const SizedBox(height: 8),
                 // Queda registrado de dónde salió cada ficha. No es para

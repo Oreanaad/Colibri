@@ -52,6 +52,88 @@ class Api {
     return r.isEmpty ? null : r.first;
   }
 
+  /// Las ediciones de una obra, para poder elegir la que una tiene.
+  ///
+  /// # Por qué hace falta una segunda consulta
+  ///
+  /// La búsqueda de Open Library encuentra el libro en cualquier idioma
+  /// —probado con español, portugués, francés y japonés— pero **siempre
+  /// devuelve el título de la obra original**. Buscás "harry potter y la
+  /// piedra filosofal" y te contesta "Harry Potter and the Philosopher's
+  /// Stone", que no es el libro que tenés en la mano.
+  ///
+  /// El título traducido vive en las ediciones, no en la obra, y no hay
+  /// forma de traerlo en la misma consulta: probamos con el filtro de
+  /// idioma, con los títulos alternativos y con el campo `editions`, y
+  /// ninguna lo devuelve. Así que se piden aparte, y solo cuando alguien
+  /// quiere cambiar de edición.
+  ///
+  /// [idioma] es el código de tres letras: spa, por, eng, fre, ita.
+  static Future<List<Libro>> ediciones(
+    Libro obra, {
+    String? idioma,
+    int maximo = 40,
+  }) async {
+    // El id de la obra viene de la búsqueda, con la forma /works/OL123W.
+    if (!obra.id.startsWith('/works/')) return const [];
+
+    final uri = Uri.https('openlibrary.org', '${obra.id}/editions.json', {
+      'limit': '200',
+    });
+
+    final respuesta = await http
+        .get(uri, headers: _cabeceras)
+        .timeout(const Duration(seconds: 20));
+    if (respuesta.statusCode != 200) return const [];
+
+    final datos = jsonDecode(utf8.decode(respuesta.bodyBytes));
+    final entradas = (datos['entries'] as List?) ?? const [];
+
+    final salida = <Libro>[];
+    for (final e in entradas.cast<Map<String, dynamic>>()) {
+      final idiomas = ((e['languages'] as List?) ?? const [])
+          .map((l) => ((l as Map)['key'] as String?) ?? '')
+          .map((k) => k.split('/').last)
+          .toList();
+
+      if (idioma != null && !idiomas.contains(idioma)) continue;
+
+      final tapas = (e['covers'] as List?)?.whereType<int>().toList();
+      final editoriales = (e['publishers'] as List?)?.cast<String>();
+
+      salida.add(
+        Libro(
+          id: (e['key'] as String?) ?? '${obra.id}-${salida.length}',
+          titulo: (e['title'] as String?) ?? obra.titulo,
+          autor: obra.autor,
+          tapaId: (tapas == null || tapas.isEmpty) ? null : tapas.first,
+          editorial: (editoriales == null || editoriales.isEmpty)
+              ? null
+              : editoriales.first,
+          anio: _anio(e['publish_date'] as String?),
+          paginas: e['number_of_pages'] as int?,
+        ),
+      );
+
+      if (salida.length >= maximo) break;
+    }
+
+    // Primero las que tienen tapa: son las que sirven para elegir.
+    salida.sort((a, b) {
+      if ((a.tapaId != null) == (b.tapaId != null)) return 0;
+      return a.tapaId != null ? -1 : 1;
+    });
+    return salida;
+  }
+
+  /// Las fechas vienen de mil formas: "2018", "08/08/2015", "Jun 04, 2020".
+  /// Lo único que siempre está es el año, así que sacamos eso.
+  static int? _anio(String? fecha) {
+    if (fecha == null) return null;
+    final m = RegExp(r'(1[5-9]\d{2}|20[0-4]\d)').firstMatch(fecha);
+    return m == null ? null : int.tryParse(m.group(1)!);
+  }
+
   /// La tapa. 'M' para la grilla, 'L' para la ficha.
   ///
   /// El `?default=false` es clave: sin eso Open Library devuelve un
