@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../modelos.dart';
 import '../tema.dart';
 import '../widgets.dart';
+import 'animos.dart';
 import 'ediciones.dart';
 import 'estantes.dart';
 import 'frases.dart';
@@ -192,8 +193,20 @@ class _PantallaFichaState extends State<PantallaFicha> {
                   _SelectorEstado(
                     l.estado,
                     alCambiar: (e) async {
+                      final eraOtro = l.estado != e;
                       await biblioteca.cambiarEstado(l, e);
-                      if (mounted) setState(() {});
+                      if (!mounted) return;
+                      setState(() {});
+
+                      // El único momento en que el libro está fresco.
+                      // Solo la primera vez, y siempre se puede saltear.
+                      if (eraOtro &&
+                          l.estado == Estado.leido &&
+                          l.animos.isEmpty &&
+                          context.mounted) {
+                        await preguntarComoTeDejo(context, l);
+                        if (mounted) setState(() {});
+                      }
                     },
                   ),
                   const SizedBox(height: 22),
@@ -240,19 +253,44 @@ class _PantallaFichaState extends State<PantallaFicha> {
                   _Frases(l),
                   const SizedBox(height: 22),
 
-                  BotonContorno(
-                    'Sacar de mi biblioteca',
-                    alTocar: () async {
-                      await biblioteca.quitar(l);
-                      if (context.mounted) Navigator.of(context).pop();
+                  const Rotulo('Las otras dos'),
+                  const SizedBox(height: 10),
+                  _OtrasEscalas(
+                    l,
+                    alCambiar: (escala, v) {
+                      setState(() {
+                        if (escala == Escala.lagrimas) {
+                          l.lagrimas = v;
+                        } else {
+                          l.picante = v;
+                        }
+                      });
+                      _guardar();
                     },
                   ),
+                  const SizedBox(height: 22),
+
+                  const Rotulo('Cómo te dejó'),
+                  const SizedBox(height: 10),
+                  ChipsDeAnimo(
+                    elegidas: l.animos.toSet(),
+                    alAlternar: (a) {
+                      setState(() {
+                        if (!l.animos.remove(a) &&
+                            l.animos.length < Animos.maximo) {
+                          l.animos.add(a);
+                        }
+                      });
+                      _guardar();
+                    },
+                  ),
+                  const SizedBox(height: 22),
                 ],
 
                 const SizedBox(height: 34),
-                const Rotulo('Cómo te deja'),
+                const Rotulo('Lo que dice la comunidad'),
                 const SizedBox(height: 10),
-                const _Animos(),
+                const _AnimosDeLaComunidad(),
 
                 const SizedBox(height: 30),
                 const Rotulo('Reseñas de la comunidad'),
@@ -593,6 +631,50 @@ class _Personajes extends StatelessWidget {
   }
 }
 
+/// Las lágrimas y el picante, cada una con su pregunta al lado.
+///
+/// Las tres escalas van en oro y se distinguen por la forma del ícono, no
+/// por el color: meter un azul para las lágrimas o un rojo para el chile
+/// rompería lo que hace que el oro se vea.
+class _OtrasEscalas extends StatelessWidget {
+  final Libro l;
+  final void Function(Escala, int) alCambiar;
+
+  const _OtrasEscalas(this.l, {required this.alCambiar});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget fila(Escala escala, int valor) => Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 116,
+            child: Text(
+              escala.pregunta,
+              style: Tipo.meta.copyWith(fontSize: 12.5),
+            ),
+          ),
+          Puntuacion(
+            escala,
+            valor,
+            tamano: 20,
+            alTocar: (v) => alCambiar(escala, v),
+          ),
+        ],
+      ),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        fila(Escala.lagrimas, l.lagrimas),
+        fila(Escala.chiles, l.picante),
+      ],
+    );
+  }
+}
+
 /// Las frases subrayadas: cuántas hay y el acceso a buscarlas.
 class _Frases extends StatelessWidget {
   final Libro l;
@@ -693,8 +775,8 @@ class _SelectorEstado extends StatelessWidget {
   }
 }
 
-class _Animos extends StatelessWidget {
-  const _Animos();
+class _AnimosDeLaComunidad extends StatelessWidget {
+  const _AnimosDeLaComunidad();
 
   static const _etiquetas = [
     ('me destruyó', 312),

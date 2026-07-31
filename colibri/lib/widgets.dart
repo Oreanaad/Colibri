@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'api.dart';
+import 'chile.dart';
 import 'modelos.dart';
 import 'tema.dart';
 
@@ -104,7 +105,91 @@ class _TapaGenerada extends StatelessWidget {
   }
 }
 
-/// Estrellas de puntuación. Van en oro: son lo que dijo una persona.
+/// Las tres cosas que se puntúan de un libro.
+///
+/// Miden cosas distintas y por eso conviven: [estrellas] dice qué tan
+/// bueno es, [lagrimas] cuánto te hizo llorar y [chiles] cuánto calienta.
+/// Un libro puede ser flojo y hacerte llorar igual.
+enum Escala { estrellas, lagrimas, chiles }
+
+extension DatosDeEscala on Escala {
+  String get nombre => switch (this) {
+    Escala.estrellas => 'Puntaje',
+    Escala.lagrimas => 'Lágrimas',
+    Escala.chiles => 'Picante',
+  };
+
+  String get pregunta => switch (this) {
+    Escala.estrellas => '¿Qué tan bueno?',
+    Escala.lagrimas => '¿Cuánto lloraste?',
+    Escala.chiles => '¿Cuánto calienta?',
+  };
+}
+
+/// Una fila de cinco marcas que se tocan para puntuar.
+///
+/// Las tres escalas van en oro y se distinguen por la forma del ícono, no
+/// por el color. Es la misma decisión de siempre: el oro es lo único
+/// cálido de la app, y meter un azul para las lágrimas o un rojo para los
+/// chiles rompería lo que hace que el oro se vea.
+class Puntuacion extends StatelessWidget {
+  final Escala escala;
+  final int valor;
+  final double tamano;
+  final ValueChanged<int>? alTocar;
+
+  const Puntuacion(
+    this.escala,
+    this.valor, {
+    super.key,
+    this.tamano = 16,
+    this.alTocar,
+  });
+
+  Widget _marca(bool cuenta) {
+    final color = cuenta ? Paleta.oro : Paleta.linea;
+
+    if (escala == Escala.chiles) {
+      return Chile(tamano: tamano, color: color, lleno: cuenta);
+    }
+
+    return Icon(
+      switch (escala) {
+        Escala.estrellas =>
+          cuenta ? Icons.star_rounded : Icons.star_outline_rounded,
+        Escala.lagrimas =>
+          cuenta ? Icons.water_drop_rounded : Icons.water_drop_outlined,
+        Escala.chiles => Icons.circle, // no llega acá
+      },
+      size: tamano,
+      color: color,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(5, (i) {
+        final marca = _marca(i < valor);
+        if (alTocar == null) return marca;
+
+        return GestureDetector(
+          // Tocar la que ya está puesta borra la puntuación: es la salida
+          // para el toque sin querer, igual que con los estados.
+          onTap: () => alTocar!(valor == i + 1 ? 0 : i + 1),
+          behavior: HitTestBehavior.opaque,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 1.5),
+            child: marca,
+          ),
+        );
+      }),
+    );
+  }
+}
+
+/// Atajo para el caso más común, que es el puntaje de siempre.
 class Estrellas extends StatelessWidget {
   final int puntaje;
   final double tamano;
@@ -113,28 +198,8 @@ class Estrellas extends StatelessWidget {
   const Estrellas(this.puntaje, {super.key, this.tamano = 16, this.alTocar});
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(5, (i) {
-        final llena = i < puntaje;
-        final estrella = Icon(
-          llena ? Icons.star_rounded : Icons.star_outline_rounded,
-          size: tamano,
-          color: llena ? Paleta.oro : Paleta.linea,
-        );
-        if (alTocar == null) return estrella;
-        return GestureDetector(
-          onTap: () => alTocar!(puntaje == i + 1 ? 0 : i + 1),
-          behavior: HitTestBehavior.opaque,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 1),
-            child: estrella,
-          ),
-        );
-      }),
-    );
-  }
+  Widget build(BuildContext context) =>
+      Puntuacion(Escala.estrellas, puntaje, tamano: tamano, alTocar: alTocar);
 }
 
 /// El logotipo. Las cuatro letras del medio en oro son la palabra "libro"

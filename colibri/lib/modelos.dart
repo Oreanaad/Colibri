@@ -29,6 +29,57 @@ enum Origen {
   propio,
 }
 
+/// Las etiquetas de «cómo te deja».
+///
+/// # Por qué es una lista cerrada y no texto libre
+///
+/// Escribir lo que una quiera suena mejor, pero no suma: «me destruyó»,
+/// «me destrozó» y «me rompió» son lo mismo dicho de tres maneras, y para
+/// la app serían tres etiquetas con una persona cada una. Si nadie
+/// coincide, no se puede buscar «algo que me destruya», que era el punto.
+///
+/// # Por qué son pocas
+///
+/// Con veinte lectoras y treinta etiquetas, cada una tendría cero o un
+/// uso y la función se vería muerta el día que se abre. Doce que seguro
+/// se usen valen más que treinta bien pensadas. Las demás entran después,
+/// cuando la gente las pida y haya volumen para sostenerlas.
+///
+/// # La regla para agregar una
+///
+/// La etiqueta no describe el libro: describe lo que te hizo. «Triste» o
+/// «bien escrito» hablan del libro, y para eso están las estrellas y las
+/// reseñas. Ante la duda, probale poner «me» adelante.
+class Animos {
+  /// Cuántas se pueden elegir por libro.
+  ///
+  /// El tope es lo que convierte una opinión en un dato: si alguien tuvo
+  /// que descartar «tierno» para dejar «me destruyó», ese «me destruyó»
+  /// vale. Sin tope, la mitad marca ocho y ninguna significa nada.
+  static const maximo = 3;
+
+  static const todas = <String>[
+    // Lo que te hizo
+    'me destruyó',
+    'me hizo llorar',
+    'me dejó pensando',
+    'me incomodó',
+    // Cómo se leyó
+    'no pude parar',
+    'me costó entrar',
+    'lento pero vale',
+    // El clima
+    'oscuro',
+    'tierno',
+    'gracioso',
+    // Después
+    'lo voy a releer',
+    // La verdad. Si todas fueran buenas, todos los libros se verían bien
+    // y ninguna serviría para decidir.
+    'me aburrió',
+  ];
+}
+
 /// Una frase que alguien subrayó.
 ///
 /// Es lo único de un libro digital que sale del teléfono: el fragmento
@@ -82,7 +133,18 @@ class Libro {
   final int? anio;
 
   Estado estado;
-  int puntaje; // 0 = sin puntuar
+
+  /// Las tres puntuaciones, todas de 0 a 5 y todas opcionales.
+  ///
+  /// Van juntas porque miden cosas distintas del mismo libro: [puntaje]
+  /// dice qué tan bueno es, [lagrimas] cuánto te hizo llorar y [picante]
+  /// cuánto calienta. Un libro puede ser flojo y hacerte llorar igual.
+  int puntaje; // estrellas · 0 = sin puntuar
+  int lagrimas; // gotas
+  int picante; // llamas
+
+  /// Cómo te dejó. Hasta [Animos.maximo].
+  final List<String> animos;
   int paginaActual;
   int? paginas;
 
@@ -125,6 +187,8 @@ class Libro {
     this.anio,
     this.estado = Estado.pendiente,
     this.puntaje = 0,
+    this.lagrimas = 0,
+    this.picante = 0,
     this.paginaActual = 0,
     this.paginas,
     this.empezado,
@@ -135,9 +199,11 @@ class Libro {
     Set<String>? estantes,
     List<Frase>? frases,
     List<String>? personajes,
+    List<String>? animos,
   }) : estantes = estantes ?? <String>{},
        frases = frases ?? <Frase>[],
-       personajes = personajes ?? <String>[];
+       personajes = personajes ?? <String>[],
+       animos = animos ?? <String>[];
 
   bool get tieneResena => (resena ?? '').trim().isNotEmpty;
 
@@ -212,6 +278,9 @@ class Libro {
     'anio': anio,
     'estado': estado.index,
     'puntaje': puntaje,
+    'lagrimas': lagrimas,
+    'picante': picante,
+    'animos': animos,
     'paginaActual': paginaActual,
     'paginas': paginas,
     'estantes': estantes.toList(),
@@ -238,6 +307,9 @@ class Libro {
     // de quien ya venía usando la demo.
     estado: Estado.values[(j['estado'] ?? j['estante'] ?? 2) as int],
     puntaje: (j['puntaje'] as int?) ?? 0,
+    lagrimas: (j['lagrimas'] as int?) ?? 0,
+    picante: (j['picante'] as int?) ?? 0,
+    animos: ((j['animos'] as List?)?.cast<String>()) ?? const [],
     paginaActual: (j['paginaActual'] as int?) ?? 0,
     paginas: j['paginas'] as int?,
     estantes: ((j['estantes'] as List?) ?? const [])
@@ -264,6 +336,7 @@ class Biblioteca extends ChangeNotifier {
   static const _claveLibros = 'colibri.biblioteca.v1';
   static const _claveEstantes = 'colibri.estantes.v1';
   static const _claveConTexto = 'colibri.conTexto.v1';
+  static const _clavePropuestas = 'colibri.animosPropuestos.v1';
 
   final List<Libro> _libros = [];
 
@@ -401,6 +474,29 @@ class Biblioteca extends ChangeNotifier {
     await _guardar();
   }
 
+  // ---------- Etiquetas que pide la gente ----------
+
+  /// Las etiquetas de ánimo que las lectoras pidieron y no están.
+  ///
+  /// No se publican: quedan guardadas para leerlas. Cuando una misma
+  /// propuesta aparezca muchas veces, se suma a [Animos.todas]. Así las
+  /// palabras terminan siendo de la comunidad, pero entran de a una y
+  /// cuando ya hay quien las use.
+  ///
+  /// Hoy viven en el teléfono de cada una; con servidor van a llegar
+  /// todas juntas a un solo lugar.
+  final List<String> _propuestas = [];
+
+  List<String> get animosPropuestos => List.unmodifiable(_propuestas);
+
+  Future<void> proponerAnimo(String texto) async {
+    final limpio = texto.trim().toLowerCase();
+    if (limpio.isEmpty || limpio.length > 40) return;
+    if (Animos.todas.any((a) => a.toLowerCase() == limpio)) return;
+    _propuestas.add(limpio);
+    await _guardar();
+  }
+
   // ---------- Texto de los libros digitales ----------
   //
   // Guardamos el TEXTO extraído, nunca el archivo. El .epub se abre una
@@ -487,6 +583,10 @@ class Biblioteca extends ChangeNotifier {
       ..clear()
       ..addAll(prefs.getStringList(_claveConTexto) ?? const []);
 
+    _propuestas
+      ..clear()
+      ..addAll(prefs.getStringList(_clavePropuestas) ?? const []);
+
     final crudoLibros = prefs.getString(_claveLibros);
     if (crudoLibros != null) {
       try {
@@ -528,6 +628,7 @@ class Biblioteca extends ChangeNotifier {
     );
     await prefs.setStringList(_claveEstantes, _estantes);
     await prefs.setStringList(_claveConTexto, _conTexto.toList());
+    await prefs.setStringList(_clavePropuestas, _propuestas);
   }
 }
 
