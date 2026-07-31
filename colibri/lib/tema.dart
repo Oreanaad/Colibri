@@ -138,7 +138,9 @@ ThemeData construirTema() {
   return ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
-    scaffoldBackgroundColor: Paleta.noche,
+    // Transparente para que se vea el librero del fondo. El color de
+    // verdad lo pone Fondo, una sola vez, detrás de toda la app.
+    scaffoldBackgroundColor: Colors.transparent,
     colorScheme: const ColorScheme.dark(
       surface: Paleta.noche,
       primary: Paleta.lila,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'fondo.dart';
 import 'modelos.dart';
 import 'pantallas/biblioteca.dart';
 import 'pantallas/comunidad.dart';
@@ -51,6 +52,9 @@ class AppColibri extends StatelessWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
 
+      // El librero va acá y no en cada pantalla: envuelve todo lo que la
+      // app dibuje, incluidas las que se abren encima.
+      builder: (context, hijo) => Fondo(hijo: hijo ?? const SizedBox()),
       home: const Marco(),
     );
   }

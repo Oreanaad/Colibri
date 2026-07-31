@@ -82,7 +82,7 @@ class _PantallaBuscarState extends State<PantallaBuscar> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Paleta.noche,
+        backgroundColor: Colors.transparent,
         foregroundColor: Paleta.lila,
         elevation: 0,
         title: const Text(
@@ -135,7 +135,7 @@ class _PantallaBuscarState extends State<PantallaBuscar> {
                   child: SizedBox(
                     height: 2,
                     child: LinearProgressIndicator(
-                      backgroundColor: Paleta.noche,
+                      backgroundColor: Paleta.linea,
                       valueColor: AlwaysStoppedAnimation<Color>(Paleta.lila),
                     ),
                   ),

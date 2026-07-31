@@ -151,7 +151,7 @@ class _PantallaCargarLibroState extends State<PantallaCargarLibro> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Paleta.noche,
+        backgroundColor: Colors.transparent,
         foregroundColor: Paleta.lila,
         elevation: 0,
         title: const Text(

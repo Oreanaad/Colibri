@@ -50,7 +50,7 @@ class _PantallaResenaState extends State<PantallaResena> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Paleta.noche,
+        backgroundColor: Colors.transparent,
         foregroundColor: Paleta.lila,
         elevation: 0,
         title: const Text(

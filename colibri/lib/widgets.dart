@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'api.dart';
 import 'chile.dart';
@@ -332,34 +334,59 @@ void avisar(
   String? accion,
   VoidCallback? alAccionar,
 }) {
-  mensajero
-    ..hideCurrentSnackBar() // si había otro, no se apilan
-    ..showSnackBar(
-      SnackBar(
-        content: Text(
-          texto,
-          style: const TextStyle(
-            color: Paleta.noche,
-            fontSize: 13.5,
-            fontWeight: FontWeight.w500,
-          ),
+  const duracion = Duration(seconds: 3);
+
+  // clearSnackBars y no hideCurrentSnackBar.
+  //
+  // Los avisos hacen cola: si mostrás tres seguidos, el segundo espera a
+  // que termine el primero y el tercero al segundo. `hide` solo baja el
+  // que está y deja pasar al siguiente, así que parecía que el cartel no
+  // se iba nunca cuando en realidad eran varios en fila. `clear` vacía la
+  // cola entera: siempre se ve el último y nada más.
+  mensajero.clearSnackBars();
+
+  final control = mensajero.showSnackBar(
+    SnackBar(
+      content: Text(
+        texto,
+        style: const TextStyle(
+          color: Paleta.noche,
+          fontSize: 13.5,
+          fontWeight: FontWeight.w500,
         ),
-        backgroundColor: Paleta.lila,
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        duration: const Duration(seconds: 3),
-        // Para que se pueda echar de un manotazo sin esperar.
-        dismissDirection: DismissDirection.horizontal,
-        action: accion == null
-            ? null
-            : SnackBarAction(
-                label: accion,
-                textColor: Paleta.noche,
-                onPressed: alAccionar ?? () {},
-              ),
       ),
-    );
+      backgroundColor: Paleta.lila,
+      behavior: SnackBarBehavior.floating,
+      margin: const EdgeInsets.all(14),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      duration: duracion,
+      // Para que se pueda echar de un manotazo sin esperar.
+      dismissDirection: DismissDirection.horizontal,
+      action: accion == null
+          ? null
+          : SnackBarAction(
+              label: accion,
+              textColor: Paleta.noche,
+              onPressed: alAccionar ?? () {},
+            ),
+    ),
+  );
+
+  // Red de seguridad.
+  //
+  // El temporizador que trae Flutter arranca recién cuando termina la
+  // animación de entrada del cartel. Si esa animación se interrumpe
+  // —algo muy fácil de provocar cuando la pantalla se redibuja justo en
+  // ese momento— el temporizador nunca arranca y el aviso se queda para
+  // siempre. Este cierra ese cartel puntual, así que si mientras tanto
+  // apareció otro, no lo toca.
+  Timer(duracion + const Duration(milliseconds: 500), () {
+    try {
+      control.close();
+    } catch (_) {
+      // ya se había ido, y está perfecto
+    }
+  });
 }
 
 /// La forma cómoda, cuando la pantalla que avisa sigue en pie.
