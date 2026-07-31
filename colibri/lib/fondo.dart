@@ -20,8 +20,9 @@ import 'tema.dart';
 ///
 /// - Solo aparece si hay margen de sobra. En un teléfono no se dibuja
 ///   nada: no hay lugar y sería ruido encima del contenido.
-/// - Los tonos son el mismo violeta del fondo, apenas más oscuro y
-///   apenas más claro. Nunca un color nuevo.
+/// - Los lomos son de colores distintos —índigo, ciruela, borravino,
+///   verde botella, ocre— pero todos oscurísimos y bajos de saturación.
+///   De lejos se lee "hay libros"; de cerca, ninguno se despega.
 /// - Se desvanece hacia el centro, así el borde del contenido no queda
 ///   marcado por una línea de lomos cortados.
 /// - No se mueve al hacer scroll. Es el fondo de la habitación, no algo
@@ -58,6 +59,26 @@ class _Librero extends CustomPainter {
 
   /// Cuántas baldas tiene el mueble.
   static const _baldas = 3;
+
+  /// Los colores de los lomos, como matiz y saturación.
+  ///
+  /// Son tonos de tela de encuadernación: índigo, ciruela, borravino,
+  /// verde botella, ocre. Es la misma familia que se propuso el primer
+  /// día para la identidad, cuando la app se iba a llamar Anaquel.
+  ///
+  /// Todos van con **poca saturación y muy poca luz**, y eso es lo que
+  /// los mantiene en su lugar: de lejos se lee "hay libros de colores
+  /// distintos", pero ninguno se despega del fondo ni compite con lo que
+  /// hay que leer. Un rojo o un verde plenos acá arruinarían la pantalla.
+  static const _tonos = <(double, double)>[
+    (250, 0.38), // violeta, el de la casa
+    (228, 0.34), // índigo
+    (292, 0.30), // ciruela
+    (342, 0.30), // borravino
+    (162, 0.26), // verde botella
+    (42, 0.34), // ocre
+    (205, 0.30), // azul de noche
+  ];
 
   /// Números repetibles a partir de un índice.
   ///
@@ -104,31 +125,35 @@ class _Librero extends CustomPainter {
 
       var x = desde + 6;
       var i = balda * 100;
+      var tonoAnterior = -1;
 
       while (x < hasta - 10) {
-        final anchoLomo = 16 + _mezcla(i, sal) * 30;
+        final anchoLomo = 14 + _mezcla(i, sal) * 34;
         if (x + anchoLomo > hasta - 6) break;
 
-        final altoLomo = altoBalda * (0.5 + _mezcla(i, sal + 3) * 0.42);
-        final tono = _mezcla(i, sal + 11);
+        final altoLomo = altoBalda * (0.46 + _mezcla(i, sal + 3) * 0.46);
 
-        // Uno de cada nueve lleva un dorado apenas insinuado, para que
-        // el mueble no sea todo del mismo color.
-        final dorado = _mezcla(i, sal + 17) > 0.89;
+        // El tono se elige al azar repetible, pero si le tocó el mismo
+        // que al lomo de al lado se corre uno. Sin esto aparecen manchas
+        // de tres o cuatro del mismo color y deja de verse un estante.
+        var cual =
+            (_mezcla(i, sal + 11) * _tonos.length).floor() % _tonos.length;
+        if (cual == tonoAnterior) cual = (cual + 1) % _tonos.length;
+        tonoAnterior = cual;
 
-        final lomo = Rect.fromLTWH(x, piso - 2 - altoLomo, anchoLomo, altoLomo);
+        final (matiz, saturacion) = _tonos[cual];
+        final luz = 0.085 + _mezcla(i, sal + 29) * 0.085;
 
         lienzo.drawRect(
-          lomo,
+          Rect.fromLTWH(x, piso - 2 - altoLomo, anchoLomo, altoLomo),
           Paint()
-            ..color = dorado
-                ? Paleta.oro.withValues(alpha: 0.055)
-                : _violeta(0.085 + tono * 0.105, 1),
+            ..color = HSLColor.fromAHSL(1, matiz, saturacion, luz).toColor(),
         );
 
         // La franja del título, que es lo que hace que se lea como un
-        // lomo y no como una barra.
-        if (anchoLomo > 22 && altoLomo > altoBalda * 0.6) {
+        // lomo y no como una barra. Va del mismo color pero más clara,
+        // como el estampado dorado de una tapa dura.
+        if (anchoLomo > 20 && altoLomo > altoBalda * 0.58) {
           lienzo.drawRect(
             Rect.fromLTWH(
               x + anchoLomo * 0.22,
@@ -136,11 +161,17 @@ class _Librero extends CustomPainter {
               anchoLomo * 0.56,
               1.5,
             ),
-            Paint()..color = _violeta(0.26, 0.45),
+            Paint()
+              ..color = HSLColor.fromAHSL(
+                0.5,
+                matiz,
+                saturacion * 0.6,
+                luz + 0.16,
+              ).toColor(),
           );
         }
 
-        x += anchoLomo + 2 + _mezcla(i, sal + 23) * 3;
+        x += anchoLomo + 2 + _mezcla(i, sal + 23) * 4;
         i++;
       }
     }
@@ -163,8 +194,7 @@ class _Librero extends CustomPainter {
     );
   }
 
-  /// Un violeta de la misma familia que el fondo, más oscuro o más claro
-  /// según la luminosidad que se pida. Nunca un color nuevo.
+  /// El violeta de la casa, para las tablas del mueble.
   Color _violeta(double luz, double opacidad) =>
       HSLColor.fromAHSL(opacidad, 250, 0.40, luz).toColor();
 
