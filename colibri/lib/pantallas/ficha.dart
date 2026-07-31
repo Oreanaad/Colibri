@@ -673,8 +673,11 @@ class _OtrasEscalas extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        fila(Escala.lagrimas, l.lagrimas),
+        // Corazones primero y lágrimas justo abajo: van de a pares.
+        // El romance y el llanto se leen juntos —un romance que te hace
+        // llorar es otra cosa que uno que no—, y el picante cierra.
         fila(Escala.corazones, l.romantico),
+        fila(Escala.lagrimas, l.lagrimas),
         fila(Escala.chiles, l.picante),
       ],
     );
