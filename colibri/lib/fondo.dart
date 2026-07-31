@@ -20,9 +20,9 @@ import 'tema.dart';
 ///
 /// - Solo aparece si hay margen de sobra. En un teléfono no se dibuja
 ///   nada: no hay lugar y sería ruido encima del contenido.
-/// - Los lomos son de colores distintos —índigo, ciruela, borravino,
-///   verde botella, ocre— pero todos oscurísimos y bajos de saturación.
-///   De lejos se lee "hay libros"; de cerca, ninguno se despega.
+/// - Los lomos son morados y dorados intercalados, los dos colores de la
+///   marca, en varios tonos de cada uno. Todos oscurísimos: de lejos se
+///   lee "hay libros"; de cerca, ninguno se despega del fondo.
 /// - Se desvanece hacia el centro, así el borde del contenido no queda
 ///   marcado por una línea de lomos cortados.
 /// - No se mueve al hacer scroll. Es el fondo de la habitación, no algo
@@ -60,24 +60,25 @@ class _Librero extends CustomPainter {
   /// Cuántas baldas tiene el mueble.
   static const _baldas = 3;
 
-  /// Los colores de los lomos, como matiz y saturación.
+  /// Los colores de los lomos: **solo morado y dorado**, los dos de la
+  /// marca, en varios tonos cada uno.
   ///
-  /// Son tonos de tela de encuadernación: índigo, ciruela, borravino,
-  /// verde botella, ocre. Es la misma familia que se propuso el primer
-  /// día para la identidad, cuando la app se iba a llamar Anaquel.
+  /// Cada entrada es matiz, saturación y el rango de luz que le toca. El
+  /// rango existe porque dos lomos del mismo tono con distinta luz ya se
+  /// leen como dos libros, y eso da variedad sin sumar colores nuevos.
   ///
-  /// Todos van con **poca saturación y muy poca luz**, y eso es lo que
-  /// los mantiene en su lugar: de lejos se lee "hay libros de colores
-  /// distintos", pero ninguno se despega del fondo ni compite con lo que
-  /// hay que leer. Un rojo o un verde plenos acá arruinarían la pantalla.
-  static const _tonos = <(double, double)>[
-    (250, 0.38), // violeta, el de la casa
-    (228, 0.34), // índigo
-    (292, 0.30), // ciruela
-    (342, 0.30), // borravino
-    (162, 0.26), // verde botella
-    (42, 0.34), // ocre
-    (205, 0.30), // azul de noche
+  /// Cinco morados y dos dorados: uno de cada tres o cuatro lomos sale
+  /// dorado, que es lo que hace que el mueble se vea de la app y no de
+  /// cualquier app. Al dorado se le da menos luz que al morado porque el
+  /// amarillo salta mucho más: con el mismo número se comería la pantalla.
+  static const _tonos = <(double, double, double, double)>[
+    (250, 0.40, 0.085, 0.20), // el morado de la casa
+    (238, 0.38, 0.085, 0.18), // morado azulado
+    (264, 0.34, 0.090, 0.19), // morado rojizo
+    (250, 0.44, 0.060, 0.11), // morado casi negro
+    (245, 0.28, 0.140, 0.22), // morado claro, apagado
+    (42, 0.40, 0.085, 0.155), // dorado
+    (38, 0.32, 0.100, 0.170), // dorado apagado
   ];
 
   /// Números repetibles a partir de un índice.
@@ -141,8 +142,8 @@ class _Librero extends CustomPainter {
         if (cual == tonoAnterior) cual = (cual + 1) % _tonos.length;
         tonoAnterior = cual;
 
-        final (matiz, saturacion) = _tonos[cual];
-        final luz = 0.085 + _mezcla(i, sal + 29) * 0.085;
+        final (matiz, saturacion, luzMin, luzMax) = _tonos[cual];
+        final luz = luzMin + _mezcla(i, sal + 29) * (luzMax - luzMin);
 
         lienzo.drawRect(
           Rect.fromLTWH(x, piso - 2 - altoLomo, anchoLomo, altoLomo),

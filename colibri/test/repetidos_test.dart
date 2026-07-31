@@ -14,9 +14,9 @@ Map<String, dynamic> ficha({
   'key': '/works/${titulo.hashCode}${autor.hashCode}$anio',
   'title': titulo,
   if (autor != null) 'author_name': <String>[autor],
-  if (tapa != null) 'cover_i': tapa,
+  'cover_i': ?tapa,
   if (editorial != null) 'publisher': [editorial],
-  if (anio != null) 'first_publish_year': anio,
+  'first_publish_year': ?anio,
   'edition_count': ediciones,
 };
 
