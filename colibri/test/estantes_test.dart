@@ -16,8 +16,10 @@ void main() {
 
   test('crear un estante devuelve su nombre limpio', () async {
     final b = Biblioteca();
-    expect(await b.crearEstante('  Los que me rompieron '),
-        'Los que me rompieron');
+    expect(
+      await b.crearEstante('  Los que me rompieron '),
+      'Los que me rompieron',
+    );
     expect(b.estantes, ['Los que me rompieron']);
   });
 
@@ -26,8 +28,11 @@ void main() {
     await b.crearEstante('Terror');
 
     expect(await b.crearEstante('   '), isNull);
-    expect(await b.crearEstante('terror'), isNull,
-        reason: 'repetido aunque cambien las mayúsculas');
+    expect(
+      await b.crearEstante('terror'),
+      isNull,
+      reason: 'repetido aunque cambien las mayúsculas',
+    );
     expect(b.estantes.length, 1);
   });
 
@@ -89,10 +94,14 @@ void main() {
     final otra = Biblioteca();
     await otra.cargar();
 
-    expect(otra.estantes, ['Me destruyó', 'Vacío a propósito'],
-        reason: 'un estante vacío no se pierde');
-    expect(otra.enEstante('Me destruyó').first.titulo,
-        'Nuestra parte de noche');
+    expect(otra.estantes, [
+      'Me destruyó',
+      'Vacío a propósito',
+    ], reason: 'un estante vacío no se pierde');
+    expect(
+      otra.enEstante('Me destruyó').first.titulo,
+      'Nuestra parte de noche',
+    );
   });
 
   test('lee bien las bibliotecas guardadas con el formato viejo', () {

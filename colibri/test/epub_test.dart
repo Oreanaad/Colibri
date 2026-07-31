@@ -65,8 +65,11 @@ void main() {
       final epub = Epub.abrir(epubDePrueba())!;
 
       expect(epub.parrafos.length, 2, reason: '"Corto." queda afuera');
-      expect(epub.parrafos.first, startsWith('Vine a Comala'),
-          reason: 'el spine manda, no el orden dentro del ZIP');
+      expect(
+        epub.parrafos.first,
+        startsWith('Vine a Comala'),
+        reason: 'el spine manda, no el orden dentro del ZIP',
+      );
       expect(epub.parrafos.last, contains('el olvido'));
     });
 
@@ -99,8 +102,11 @@ void main() {
     test('si no hay spine, ordena por nombre de archivo', () {
       final epub = Epub.abrir(epubDePrueba(conSpine: false))!;
       expect(epub.parrafos.length, 2);
-      expect(epub.parrafos.first, startsWith('Vine a Comala'),
-          reason: 'cap1 antes que cap2, por nombre');
+      expect(
+        epub.parrafos.first,
+        startsWith('Vine a Comala'),
+        reason: 'cap1 antes que cap2, por nombre',
+      );
     });
 
     test('un archivo que no es EPUB devuelve null en vez de romper', () {
@@ -126,8 +132,11 @@ void main() {
     });
 
     test('con menos de cuatro letras no busca nada', () {
-      expect(epub.buscar('de'), isEmpty,
-          reason: 'si no, cualquier palabra devuelve el libro entero');
+      expect(
+        epub.buscar('de'),
+        isEmpty,
+        reason: 'si no, cualquier palabra devuelve el libro entero',
+      );
     });
 
     test('sabe en qué parte del libro está', () {

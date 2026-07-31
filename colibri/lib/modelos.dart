@@ -96,9 +96,13 @@ class Libro {
   String? resena;
   bool resenaConSpoilers;
 
-  /// Tu personaje favorito. Hoy es un dato tuyo; el día que haya
-  /// comunidad se convierte en una coincidencia más.
-  String? personaje;
+  /// Tus personajes favoritos.
+  ///
+  /// Son varios porque en un libro coral quedarse con uno solo es una
+  /// tortura, y porque el día que haya comunidad la coincidencia va a
+  /// ser más fina cuantos más haya: compartir un personaje favorito dice
+  /// **cómo** leíste el libro, no solo qué leíste.
+  final List<String> personajes;
 
   /// Las frases que subrayaste de este libro.
   final List<Frase> frases;
@@ -127,12 +131,13 @@ class Libro {
     this.terminado,
     this.resena,
     this.resenaConSpoilers = false,
-    this.personaje,
     this.origen = Origen.catalogo,
     Set<String>? estantes,
     List<Frase>? frases,
+    List<String>? personajes,
   }) : estantes = estantes ?? <String>{},
-       frases = frases ?? <Frase>[];
+       frases = frases ?? <Frase>[],
+       personajes = personajes ?? <String>[];
 
   bool get tieneResena => (resena ?? '').trim().isNotEmpty;
 
@@ -214,7 +219,7 @@ class Libro {
     'terminado': terminado?.toIso8601String(),
     'resena': resena,
     'resenaConSpoilers': resenaConSpoilers,
-    'personaje': personaje,
+    'personajes': personajes,
     'frases': frases.map((f) => f.aJson()).toList(),
     'origen': origen.index,
   };
@@ -242,7 +247,11 @@ class Libro {
     terminado: _fecha(j['terminado']),
     resena: j['resena'] as String?,
     resenaConSpoilers: (j['resenaConSpoilers'] as bool?) ?? false,
-    personaje: j['personaje'] as String?,
+    // 'personaje' en singular es el nombre viejo, de cuando era uno
+    // solo: lo leemos para no perderle el dato a nadie.
+    personajes:
+        ((j['personajes'] as List?)?.cast<String>()) ??
+        [if (j['personaje'] != null) j['personaje'] as String],
     frases: ((j['frases'] as List?) ?? const [])
         .map((f) => Frase.desdeJson(f as Map<String, dynamic>))
         .toList(),
@@ -323,6 +332,20 @@ class Biblioteca extends ChangeNotifier {
   /// El parámetro [hoy] existe para que los tests no dependan del
   /// día en que se corran.
   Future<void> cambiarEstado(Libro libro, Estado nuevo, {DateTime? hoy}) async {
+    // Tocar el estado que ya estaba puesto lo deshace y vuelve a
+    // pendiente. Es la salida para el toque sin querer: sin esto, marcar
+    // "leído" por error deja una fecha de fin inventada y un "lo leíste
+    // en un día" que no pasó, y no hay forma de arreglarlo.
+    if (libro.estado == nuevo && nuevo != Estado.pendiente) {
+      libro.estado = Estado.pendiente;
+      // Se van solo las fechas que había puesto la app sola. Si la
+      // persona las eligió a mano, son suyas y se quedan.
+      if (nuevo == Estado.leido) libro.terminado = null;
+      if (nuevo == Estado.leyendo) libro.empezado = null;
+      await _guardar();
+      return;
+    }
+
     libro.estado = nuevo;
 
     final h = hoy ?? DateTime.now();

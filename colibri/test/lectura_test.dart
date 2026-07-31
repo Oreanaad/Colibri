@@ -44,8 +44,11 @@ void main() {
 
       await b.cambiarEstado(l, Estado.leido, hoy: _hoy);
 
-      expect(l.empezado, DateTime(2026, 1, 5),
-          reason: 'lo empezó en enero, no hoy');
+      expect(
+        l.empezado,
+        DateTime(2026, 1, 5),
+        reason: 'lo empezó en enero, no hoy',
+      );
       expect(l.terminado, DateTime(2026, 3, 12));
     });
 
@@ -54,8 +57,11 @@ void main() {
       final l = _libro();
       await b.agregar(l);
 
-      await b.cambiarEstado(l, Estado.leyendo,
-          hoy: DateTime(2026, 3, 12, 23, 47));
+      await b.cambiarEstado(
+        l,
+        Estado.leyendo,
+        hoy: DateTime(2026, 3, 12, 23, 47),
+      );
 
       expect(l.empezado!.hour, 0);
       expect(l.empezado!.minute, 0);
@@ -88,41 +94,45 @@ void main() {
       expect((_libro()..resena = 'Buenísimo').tieneResena, isTrue);
     });
 
-    test('la reseña, los spoilers y el personaje sobreviven al reinicio',
-        () async {
-      final b = Biblioteca();
-      final l = _libro('Pedro Páramo')
-        ..resena = 'Me lo leí de un tirón.'
-        ..resenaConSpoilers = true
-        ..personaje = 'Susana San Juan'
-        ..empezado = DateTime(2026, 2, 1)
-        ..terminado = DateTime(2026, 2, 4);
-      await b.agregar(l);
+    test(
+      'la reseña, los spoilers y el personaje sobreviven al reinicio',
+      () async {
+        final b = Biblioteca();
+        final l = _libro('Pedro Páramo')
+          ..resena = 'Me lo leí de un tirón.'
+          ..resenaConSpoilers = true
+          ..personajes.add('Susana San Juan')
+          ..empezado = DateTime(2026, 2, 1)
+          ..terminado = DateTime(2026, 2, 4);
+        await b.agregar(l);
 
-      final otra = Biblioteca();
-      await otra.cargar();
-      final guardado = otra.todos.first;
+        final otra = Biblioteca();
+        await otra.cargar();
+        final guardado = otra.todos.first;
 
-      expect(guardado.resena, 'Me lo leí de un tirón.');
-      expect(guardado.resenaConSpoilers, isTrue);
-      expect(guardado.personaje, 'Susana San Juan');
-      expect(guardado.empezado, DateTime(2026, 2, 1));
-      expect(guardado.diasDeLectura, 4);
-    });
+        expect(guardado.resena, 'Me lo leí de un tirón.');
+        expect(guardado.resenaConSpoilers, isTrue);
+        expect(guardado.personajes, ['Susana San Juan']);
+        expect(guardado.empezado, DateTime(2026, 2, 1));
+        expect(guardado.diasDeLectura, 4);
+      },
+    );
 
-    test('un libro guardado antes de que existieran estos campos se lee bien',
-        () {
-      final l = Libro.desdeJson({
-        'id': '1',
-        'titulo': 'Rayuela',
-        'autor': 'Julio Cortázar',
-        'estado': 1,
-      });
+    test(
+      'un libro guardado antes de que existieran estos campos se lee bien',
+      () {
+        final l = Libro.desdeJson({
+          'id': '1',
+          'titulo': 'Rayuela',
+          'autor': 'Julio Cortázar',
+          'estado': 1,
+        });
 
-      expect(l.empezado, isNull);
-      expect(l.resena, isNull);
-      expect(l.resenaConSpoilers, isFalse);
-      expect(l.personaje, isNull);
-    });
+        expect(l.empezado, isNull);
+        expect(l.resena, isNull);
+        expect(l.resenaConSpoilers, isFalse);
+        expect(l.personajes, isEmpty);
+      },
+    );
   });
 }

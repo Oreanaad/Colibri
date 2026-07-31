@@ -88,7 +88,7 @@ class _PantallaEdicionesState extends State<PantallaEdiciones> {
       terminado: viejo.terminado,
       resena: viejo.resena,
       resenaConSpoilers: viejo.resenaConSpoilers,
-      personaje: viejo.personaje,
+      personajes: viejo.personajes,
       estantes: viejo.estantes,
       frases: viejo.frases,
       origen: viejo.origen,

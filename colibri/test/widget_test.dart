@@ -6,9 +6,9 @@ import 'package:colibri/tema.dart';
 import 'package:colibri/widgets.dart';
 
 Widget _envolver(Widget hijo) => MaterialApp(
-      theme: construirTema(),
-      home: Scaffold(body: Center(child: hijo)),
-    );
+  theme: construirTema(),
+  home: Scaffold(body: Center(child: hijo)),
+);
 
 void main() {
   test('la clave ignora acentos, mayúsculas y puntuación', () {
@@ -27,8 +27,9 @@ void main() {
     expect(l.tapaId, isNull);
   });
 
-  testWidgets('el logotipo muestra las letras del secreto en oro',
-      (tester) async {
+  testWidgets('el logotipo muestra las letras del secreto en oro', (
+    tester,
+  ) async {
     await tester.pumpWidget(_envolver(const Logotipo()));
 
     final texto = tester.widget<Text>(find.byType(Text));
@@ -39,9 +40,11 @@ void main() {
   });
 
   testWidgets('un libro sin tapa igual dibuja una', (tester) async {
-    await tester.pumpWidget(_envolver(
-      Tapa(Libro(id: '1', titulo: 'Mugre rosa', autor: 'Fernanda Trías')),
-    ));
+    await tester.pumpWidget(
+      _envolver(
+        Tapa(Libro(id: '1', titulo: 'Mugre rosa', autor: 'Fernanda Trías')),
+      ),
+    );
 
     expect(find.text('Mugre rosa'), findsOneWidget);
     expect(find.text('Fernanda Trías'), findsOneWidget);
@@ -49,14 +52,14 @@ void main() {
 
   testWidgets('las estrellas se pueden puntuar y despuntuar', (tester) async {
     var puntaje = 0;
-    await tester.pumpWidget(_envolver(
-      StatefulBuilder(
-        builder: (_, setState) => Estrellas(
-          puntaje,
-          alTocar: (p) => setState(() => puntaje = p),
+    await tester.pumpWidget(
+      _envolver(
+        StatefulBuilder(
+          builder: (_, setState) =>
+              Estrellas(puntaje, alTocar: (p) => setState(() => puntaje = p)),
         ),
       ),
-    ));
+    );
 
     await tester.tap(find.byType(Icon).at(3)); // cuarta estrella
     await tester.pump();

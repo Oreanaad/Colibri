@@ -6,9 +6,9 @@ import 'package:colibri/tema.dart';
 import 'package:colibri/widgets.dart';
 
 List<Libro> _libros(int n) => List.generate(
-      n,
-      (i) => Libro(id: '$i', titulo: 'Libro $i', autor: 'Alguien'),
-    );
+  n,
+  (i) => Libro(id: '$i', titulo: 'Libro $i', autor: 'Alguien'),
+);
 
 /// Dibuja algo en una pantalla del ancho que se le pida.
 Future<void> enPantallaDe(
@@ -57,8 +57,9 @@ void main() {
       expect(columnas(tester), 3);
     });
 
-    testWidgets('en una computadora entran más, sin agrandar las tapas',
-        (tester) async {
+    testWidgets('en una computadora entran más, sin agrandar las tapas', (
+      tester,
+    ) async {
       await enPantallaDe(
         tester,
         390,
@@ -73,10 +74,16 @@ void main() {
       );
       final anchoEnCompu = tester.getSize(find.byType(Tapa).first).width;
 
-      expect(columnas(tester), greaterThan(4),
-          reason: 'con más lugar, más columnas');
-      expect((anchoEnCompu - anchoEnTelefono).abs(), lessThan(25),
-          reason: 'la tapa mide casi lo mismo: crece la grilla, no el libro');
+      expect(
+        columnas(tester),
+        greaterThan(4),
+        reason: 'con más lugar, más columnas',
+      );
+      expect(
+        (anchoEnCompu - anchoEnTelefono).abs(),
+        lessThan(25),
+        reason: 'la tapa mide casi lo mismo: crece la grilla, no el libro',
+      );
     });
   });
 
@@ -85,18 +92,20 @@ void main() {
       await enPantallaDe(
         tester,
         1400,
-        Columna(
-          hijo: Container(color: Paleta.nocheAlta, height: 200),
-        ),
+        Columna(hijo: Container(color: Paleta.nocheAlta, height: 200)),
       );
 
       final caja = tester.getSize(find.byType(Container).first);
-      expect(caja.width, lessThanOrEqualTo(Medidas.anchoComodo),
-          reason: 'una línea de texto de 1400 píxeles es ilegible');
+      expect(
+        caja.width,
+        lessThanOrEqualTo(Medidas.anchoComodo),
+        reason: 'una línea de texto de 1400 píxeles es ilegible',
+      );
 
       // Y centrado: el aire de un lado igual al del otro.
       final izquierda = tester.getTopLeft(find.byType(Container).first).dx;
-      final derecha = 1400 - tester.getTopRight(find.byType(Container).first).dx;
+      final derecha =
+          1400 - tester.getTopRight(find.byType(Container).first).dx;
       expect((izquierda - derecha).abs(), lessThan(2));
     });
 
@@ -104,13 +113,14 @@ void main() {
       await enPantallaDe(
         tester,
         390,
-        Columna(
-          hijo: Container(color: Paleta.nocheAlta, height: 200),
-        ),
+        Columna(hijo: Container(color: Paleta.nocheAlta, height: 200)),
       );
 
-      expect(tester.getSize(find.byType(Container).first).width, 390 - 40,
-          reason: 'en pantalla chica se usa todo, menos el margen');
+      expect(
+        tester.getSize(find.byType(Container).first).width,
+        390 - 40,
+        reason: 'en pantalla chica se usa todo, menos el margen',
+      );
     });
   });
 }

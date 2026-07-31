@@ -8,9 +8,9 @@ import 'package:colibri/tema.dart';
 import 'package:colibri/widgets.dart';
 
 Widget _pantalla({String buscado = ''}) => MaterialApp(
-      theme: construirTema(),
-      home: PantallaCargarLibro(textoBuscado: buscado),
-    );
+  theme: construirTema(),
+  home: PantallaCargarLibro(textoBuscado: buscado),
+);
 
 /// Una pantalla alta: el formulario vive en un ListView, que solo
 /// construye lo que se ve. En 800x600 el botón de guardar ni existe.
@@ -38,16 +38,24 @@ void main() {
   group('parecidos', () {
     test('encuentra el mismo libro escrito distinto', () async {
       final b = Biblioteca();
-      await b.agregar(Libro(
-        id: '1',
-        titulo: 'Las niñas del naranjel',
-        autor: 'Gabriela Cabezón Cámara',
-      ));
+      await b.agregar(
+        Libro(
+          id: '1',
+          titulo: 'Las niñas del naranjel',
+          autor: 'Gabriela Cabezón Cámara',
+        ),
+      );
 
-      expect(b.parecidos('las ninas del naranjel').length, 1,
-          reason: 'sin acentos ni mayúsculas');
-      expect(b.parecidos('Las niñas').length, 1,
-          reason: 'con una parte del título alcanza');
+      expect(
+        b.parecidos('las ninas del naranjel').length,
+        1,
+        reason: 'sin acentos ni mayúsculas',
+      );
+      expect(
+        b.parecidos('Las niñas').length,
+        1,
+        reason: 'con una parte del título alcanza',
+      );
       expect(b.parecidos('naranjel').length, 1);
     });
 
@@ -62,8 +70,11 @@ void main() {
       final b = Biblioteca();
       await b.agregar(Libro(id: '1', titulo: 'Rayuela', autor: 'Cortázar'));
 
-      expect(b.parecidos('ra'), isEmpty,
-          reason: 'si no, apenas empezás a tipear te avisa de todo');
+      expect(
+        b.parecidos('ra'),
+        isEmpty,
+        reason: 'si no, apenas empezás a tipear te avisa de todo',
+      );
     });
   });
 
@@ -71,17 +82,21 @@ void main() {
     testWidgets('arranca con lo que venías buscando', (tester) async {
       await abrir(tester, buscado: 'Cometierra');
 
-      expect(find.text('Cometierra'), findsWidgets,
-          reason: 'no se tipea dos veces lo mismo');
+      expect(
+        find.text('Cometierra'),
+        findsWidgets,
+        reason: 'no se tipea dos veces lo mismo',
+      );
     });
 
-    testWidgets('no deja guardar hasta que hay título y autora',
-        (tester) async {
+    testWidgets('no deja guardar hasta que hay título y autora', (
+      tester,
+    ) async {
       await abrir(tester);
 
       FilledButton boton() => tester.widget<FilledButton>(
-            find.widgetWithText(FilledButton, 'Agregar a mi biblioteca'),
-          );
+        find.widgetWithText(FilledButton, 'Agregar a mi biblioteca'),
+      );
 
       expect(boton().onPressed, isNull, reason: 'vacío, no se puede');
 
@@ -107,14 +122,14 @@ void main() {
     });
 
     testWidgets('avisa si ya tenés un libro parecido', (tester) async {
-      await biblioteca.agregar(Libro(
-        id: 'x',
-        titulo: 'Cometierra',
-        autor: 'Dolores Reyes',
-      ));
-      addTearDown(() => biblioteca.quitar(
-            Libro(id: 'x', titulo: 'Cometierra', autor: 'Dolores Reyes'),
-          ));
+      await biblioteca.agregar(
+        Libro(id: 'x', titulo: 'Cometierra', autor: 'Dolores Reyes'),
+      );
+      addTearDown(
+        () => biblioteca.quitar(
+          Libro(id: 'x', titulo: 'Cometierra', autor: 'Dolores Reyes'),
+        ),
+      );
 
       await abrir(tester);
       await tester.enterText(_campo(_ejemploTitulo), 'cometierra');
@@ -128,8 +143,11 @@ void main() {
       final boton = tester.widget<FilledButton>(
         find.widgetWithText(FilledButton, 'Agregar a mi biblioteca'),
       );
-      expect(boton.onPressed, isNotNull,
-          reason: 'a veces es otra edición y la persona tiene razón');
+      expect(
+        boton.onPressed,
+        isNotNull,
+        reason: 'a veces es otra edición y la persona tiene razón',
+      );
     });
   });
 
@@ -173,21 +191,26 @@ void main() {
 
     test('si eligió una tapa de internet, se guarda con ella', () async {
       final b = Biblioteca();
-      await b.agregar(Libro(
-        id: 'propio:1',
-        titulo: 'Cometierra',
-        autor: 'Dolores Reyes',
-        tapaId: 15227032, // la que eligió de las encontradas
-        origen: Origen.propio,
-      ));
+      await b.agregar(
+        Libro(
+          id: 'propio:1',
+          titulo: 'Cometierra',
+          autor: 'Dolores Reyes',
+          tapaId: 15227032, // la que eligió de las encontradas
+          origen: Origen.propio,
+        ),
+      );
 
       final otra = Biblioteca();
       await otra.cargar();
       final guardado = otra.todos.first;
 
       expect(guardado.tapaId, 15227032);
-      expect(guardado.origen, Origen.propio,
-          reason: 'la tapa vino de internet, la ficha la cargó ella');
+      expect(
+        guardado.origen,
+        Origen.propio,
+        reason: 'la tapa vino de internet, la ficha la cargó ella',
+      );
     });
   });
 }

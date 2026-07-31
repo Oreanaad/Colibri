@@ -38,7 +38,7 @@ void main() {
       terminado: DateTime(2026, 1, 22),
       resena: 'Lo leí de un tirón.',
       resenaConSpoilers: true,
-      personaje: 'Hermione',
+      personajes: ['Hermione'],
       estantes: {'De la infancia'},
       frases: [Frase(texto: 'Una frase que subrayé y no quiero perder.')],
     );
@@ -58,7 +58,7 @@ void main() {
       terminado: original.terminado,
       resena: original.resena,
       resenaConSpoilers: original.resenaConSpoilers,
-      personaje: original.personaje,
+      personajes: original.personajes,
       estantes: original.estantes,
       frases: original.frases,
       origen: original.origen,
@@ -79,7 +79,7 @@ void main() {
     expect(guardado.puntaje, 5);
     expect(guardado.resena, 'Lo leí de un tirón.');
     expect(guardado.resenaConSpoilers, isTrue);
-    expect(guardado.personaje, 'Hermione');
+    expect(guardado.personajes, ['Hermione']);
     expect(guardado.estantes, {'De la infancia'});
     expect(guardado.frases.length, 1);
     expect(guardado.diasDeLectura, 13);
@@ -104,7 +104,10 @@ void main() {
     );
 
     expect(ingles.clave, isNot(espanol.clave));
-    expect(ingles.id, espanol.id,
-        reason: 'la obra es la misma: por acá va a ir la coincidencia');
+    expect(
+      ingles.id,
+      espanol.id,
+      reason: 'la obra es la misma: por acá va a ir la coincidencia',
+    );
   });
 }

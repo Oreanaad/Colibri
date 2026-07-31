@@ -11,10 +11,37 @@ Libro _libro() => Libro(id: '1', titulo: 'Rayuela', autor: 'Julio Cortázar');
 /// comprimiría uno de verdad y no como mil veces la misma letra.
 List<String> novela({int parrafos = 2500}) {
   const palabras = [
-    'la', 'noche', 'y', 'el', 'agua', 'volvía', 'sobre', 'los', 'árboles',
-    'como', 'si', 'nadie', 'hubiera', 'estado', 'nunca', 'ahí', 'mirando',
-    'el', 'río', 'que', 'no', 'termina', 'de', 'pasar', 'entre', 'las',
-    'piedras', 'húmedas', 'del', 'fondo', 'oscuro',
+    'la',
+    'noche',
+    'y',
+    'el',
+    'agua',
+    'volvía',
+    'sobre',
+    'los',
+    'árboles',
+    'como',
+    'si',
+    'nadie',
+    'hubiera',
+    'estado',
+    'nunca',
+    'ahí',
+    'mirando',
+    'el',
+    'río',
+    'que',
+    'no',
+    'termina',
+    'de',
+    'pasar',
+    'entre',
+    'las',
+    'piedras',
+    'húmedas',
+    'del',
+    'fondo',
+    'oscuro',
   ];
   return List.generate(parrafos, (i) {
     final b = StringBuffer();
@@ -61,10 +88,16 @@ void main() {
 
     // Sin comprimir, una novela así pasa el tope de unos 5 MB que tiene
     // el guardado del navegador y la importación falla entera.
-    expect(guardado, lessThan(crudo ~/ 2),
-        reason: 'comprimido tiene que ocupar menos de la mitad');
-    expect(guardado, lessThan(2 * 1024 * 1024),
-        reason: 'y entrar cómodo en el tope del navegador');
+    expect(
+      guardado,
+      lessThan(crudo ~/ 2),
+      reason: 'comprimido tiene que ocupar menos de la mitad',
+    );
+    expect(
+      guardado,
+      lessThan(2 * 1024 * 1024),
+      reason: 'y entrar cómodo en el tope del navegador',
+    );
   });
 
   test('el libro sigue ahí después de cerrar y abrir la app', () async {
@@ -77,8 +110,11 @@ void main() {
     await otra.cargar();
     final guardado = otra.todos.first;
 
-    expect(otra.tieneTexto(guardado), isTrue,
-        reason: 'no hay que volver a importar el EPUB');
+    expect(
+      otra.tieneTexto(guardado),
+      isTrue,
+      reason: 'no hay que volver a importar el EPUB',
+    );
     expect((await otra.textoDe(guardado))!.length, 200);
   });
 

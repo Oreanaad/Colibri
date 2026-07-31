@@ -97,14 +97,14 @@ class _PantallaFichaState extends State<PantallaFicha> {
     await _guardar();
   }
 
-  Future<void> _elegirPersonaje() async {
-    final controlador = TextEditingController(text: l.personaje ?? '');
+  Future<void> _sumarPersonaje() async {
+    final controlador = TextEditingController();
 
     final nombre = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Paleta.nocheAlta,
-        title: Text('Tu personaje favorito', style: Tipo.subtitulo),
+        title: Text('Sumar un personaje', style: Tipo.subtitulo),
         content: TextField(
           controller: controlador,
           autofocus: true,
@@ -112,7 +112,7 @@ class _PantallaFichaState extends State<PantallaFicha> {
           style: const TextStyle(color: Paleta.luz),
           cursorColor: Paleta.lila,
           decoration: const InputDecoration(
-            hintText: 'Pedro Páramo',
+            hintText: 'Susana San Juan',
             hintStyle: TextStyle(color: Paleta.bruma),
             enabledBorder: UnderlineInputBorder(
               borderSide: BorderSide(color: Paleta.linea),
@@ -124,16 +124,15 @@ class _PantallaFichaState extends State<PantallaFicha> {
           onSubmitted: (v) => Navigator.of(context).pop(v),
         ),
         actions: [
-          if (l.personaje != null)
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(''),
-              style: TextButton.styleFrom(foregroundColor: Paleta.bruma),
-              child: const Text('Sacar'),
-            ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            style: TextButton.styleFrom(foregroundColor: Paleta.bruma),
+            child: const Text('Cancelar'),
+          ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(controlador.text),
             style: TextButton.styleFrom(foregroundColor: Paleta.lila),
-            child: const Text('Guardar'),
+            child: const Text('Sumar'),
           ),
         ],
       ),
@@ -143,7 +142,20 @@ class _PantallaFichaState extends State<PantallaFicha> {
     if (nombre == null) return;
 
     final limpio = nombre.trim();
-    setState(() => l.personaje = limpio.isEmpty ? null : limpio);
+    if (limpio.isEmpty) return;
+
+    // Sin repetidos, sin importar las mayúsculas.
+    final yaEsta = l.personajes.any(
+      (p) => p.toLowerCase() == limpio.toLowerCase(),
+    );
+    if (yaEsta) return;
+
+    setState(() => l.personajes.add(limpio));
+    await _guardar();
+  }
+
+  Future<void> _sacarPersonaje(String nombre) async {
+    setState(() => l.personajes.remove(nombre));
     await _guardar();
   }
 
@@ -205,9 +217,17 @@ class _PantallaFichaState extends State<PantallaFicha> {
                   ChipsDeEstantes(l),
                   const SizedBox(height: 22),
 
-                  const Rotulo('Tu personaje favorito'),
+                  Rotulo(
+                    l.personajes.length > 1
+                        ? 'Tus personajes favoritos'
+                        : 'Tu personaje favorito',
+                  ),
                   const SizedBox(height: 10),
-                  _Personaje(l, alTocar: _elegirPersonaje),
+                  _Personajes(
+                    l,
+                    alSumar: _sumarPersonaje,
+                    alSacar: _sacarPersonaje,
+                  ),
                   const SizedBox(height: 22),
 
                   const Rotulo('Tu reseña'),
@@ -496,52 +516,79 @@ class _Fecha extends StatelessWidget {
   }
 }
 
-/// El personaje favorito va en lila porque hoy es un dato tuyo.
-/// El día que la app diga "3 personas eligieron el mismo", eso ya es un
-/// encuentro y se pinta de oro.
-class _Personaje extends StatelessWidget {
+/// Los personajes favoritos van en lila porque hoy son un dato tuyo.
+///
+/// El día que la app diga "otras tres personas también eligieron a
+/// Susana San Juan", eso ya es un encuentro y se pinta de oro. Y va a ser
+/// una coincidencia más fina que compartir un libro: elegir el mismo
+/// personaje dice **cómo** lo leíste, no solo qué leíste.
+class _Personajes extends StatelessWidget {
   final Libro l;
-  final VoidCallback alTocar;
+  final VoidCallback alSumar;
+  final ValueChanged<String> alSacar;
 
-  const _Personaje(this.l, {required this.alTocar});
+  const _Personajes(this.l, {required this.alSumar, required this.alSacar});
 
   @override
   Widget build(BuildContext context) {
-    final elegido = l.personaje != null;
-
-    return InkWell(
-      onTap: alTocar,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-        decoration: BoxDecoration(
-          border: Border.all(color: elegido ? Paleta.lila : Paleta.linea),
-          color: elegido ? const Color(0x14B9A6E6) : null,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              elegido ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-              size: 17,
-              color: elegido ? Paleta.lila : Paleta.bruma,
-            ),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Text(
-                elegido ? l.personaje! : '¿Con quién te quedaste?',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: elegido ? Paleta.luz : Paleta.bruma,
-                  fontWeight: elegido ? FontWeight.w500 : FontWeight.w400,
-                ),
+    return Wrap(
+      spacing: 7,
+      runSpacing: 7,
+      children: [
+        for (final nombre in l.personajes)
+          InkWell(
+            onTap: () => alSacar(nombre),
+            borderRadius: BorderRadius.circular(30),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(12, 7, 9, 7),
+              decoration: BoxDecoration(
+                color: const Color(0x14B9A6E6),
+                border: Border.all(color: Paleta.lila),
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.favorite_rounded,
+                    size: 13,
+                    color: Paleta.lila,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    nombre,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Paleta.luz,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  const Icon(
+                    Icons.close_rounded,
+                    size: 13,
+                    color: Paleta.bruma,
+                  ),
+                ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded, size: 18, color: Paleta.bruma),
-          ],
+          ),
+        InkWell(
+          onTap: alSumar,
+          borderRadius: BorderRadius.circular(30),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+            decoration: BoxDecoration(
+              border: Border.all(color: Paleta.bruma),
+              borderRadius: BorderRadius.circular(30),
+            ),
+            child: Text(
+              l.personajes.isEmpty ? '¿Con quién te quedaste?' : '+ Sumar otro',
+              style: Tipo.meta.copyWith(fontSize: 12.5),
+            ),
+          ),
         ),
-      ),
+      ],
     );
   }
 }
@@ -599,6 +646,11 @@ class _Frases extends StatelessWidget {
   }
 }
 
+/// Los tres estados. Tocar el que ya está puesto lo deshace.
+///
+/// Es la salida para el toque sin querer: sin eso, marcar "leído" por
+/// error deja una fecha de fin inventada y un "lo leíste en un día" que
+/// nunca pasó, sin forma de arreglarlo.
 class _SelectorEstado extends StatelessWidget {
   final Estado activo;
   final ValueChanged<Estado> alCambiar;
