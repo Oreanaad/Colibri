@@ -20,9 +20,9 @@ import 'tema.dart';
 ///
 /// - Solo aparece si hay margen de sobra. En un teléfono no se dibuja
 ///   nada: no hay lugar y sería ruido encima del contenido.
-/// - Los lomos son morados y dorados intercalados, los dos colores de la
-///   marca, en varios tonos de cada uno. Todos oscurísimos: de lejos se
-///   lee "hay libros"; de cerca, ninguno se despega del fondo.
+/// - Los lomos son todos morados, en siete tonos distintos. Probamos con
+///   más colores y se veía más, pero el fondo empezaba a competir con las
+///   tapas, que son lo único que tiene que tener color acá.
 /// - Se desvanece hacia el centro, así el borde del contenido no queda
 ///   marcado por una línea de lomos cortados.
 /// - No se mueve al hacer scroll. Es el fondo de la habitación, no algo
@@ -67,25 +67,29 @@ class _Librero extends CustomPainter {
   /// rango existe porque dos lomos del mismo tono con distinta luz ya se
   /// leen como dos libros, y eso da variedad sin sumar colores nuevos.
   ///
-  /// Cinco morados y dos dorados: uno de cada tres o cuatro lomos sale
-  /// dorado, que es lo que hace que el mueble se vea de esta app y no de
-  /// cualquiera.
+  /// Los colores de los lomos: **solo morados**.
   ///
-  /// El dorado necesita **más saturación y más luz que el morado**, no
-  /// menos. Al principio se lo bajé para que no gritara y salió mal: un
-  /// amarillo oscuro y desaturado no se lee como dorado, se lee como
-  /// oliva sucio. Y peor todavía al lado de las tapas reales, que traen
-  /// dorados de verdad y hacen que el nuestro parezca un error.
+  /// Probamos con una paleta de tela de encuadernación —índigo, ciruela,
+  /// borravino, verde botella— y con morados y dorados intercalados. Las
+  /// dos se veían más, y las dos estaban peor: el fondo empezaba a
+  /// competir con las tapas de los libros, que son lo único que tiene que
+  /// tener color en esta pantalla.
   ///
-  /// La forma de que no grite no es apagarlo: es que sean pocos.
+  /// Un mueble de un solo color con muchos tonos se lee igual de bien
+  /// como estante y desaparece cuando no lo mirás, que es lo que tiene
+  /// que hacer un fondo.
+  ///
+  /// Cada entrada es matiz, saturación y el rango de luz que le toca. El
+  /// matiz se mueve poquito —de 232 a 268— porque dos morados apenas
+  /// distintos ya se leen como dos libros distintos.
   static const _tonos = <(double, double, double, double)>[
     (250, 0.40, 0.085, 0.20), // el morado de la casa
     (238, 0.38, 0.085, 0.18), // morado azulado
     (264, 0.34, 0.090, 0.19), // morado rojizo
     (250, 0.44, 0.060, 0.11), // morado casi negro
     (245, 0.28, 0.140, 0.22), // morado claro, apagado
-    (44, 0.62, 0.180, 0.265), // dorado
-    (40, 0.52, 0.150, 0.220), // dorado viejo
+    (232, 0.42, 0.075, 0.15), // morado frío
+    (268, 0.30, 0.110, 0.21), // morado tirando a ciruela
   ];
 
   /// Números repetibles a partir de un índice.
