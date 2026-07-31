@@ -705,7 +705,15 @@ class _Frases extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('“${l.frases.first.texto}”', style: Tipo.lectura),
+                // Cortada a cuatro renglones: es un adelanto, no la
+                // frase entera. Para leerla completa está el botón de
+                // abajo, que además lleva a todas las demás.
+                Text(
+                  '“${l.frases.first.texto}”',
+                  style: Tipo.lectura,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 if (cuantas > 1) ...[
                   const SizedBox(height: 8),
                   Text(

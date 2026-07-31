@@ -205,6 +205,15 @@ class ResenaPropia extends StatefulWidget {
 
 class _ResenaPropiaState extends State<ResenaPropia> {
   bool _destapada = false;
+  bool _abierta = false;
+
+  /// Cuántos renglones se ven antes del "ver más".
+  ///
+  /// Una reseña larga sin tope se come la pantalla entera y empuja hacia
+  /// abajo todo lo demás —las frases, las escalas, las etiquetas— así que
+  /// nadie llega. Seis renglones alcanzan para saber de qué va y decidir
+  /// si querés leerla completa.
+  static const _renglones = 6;
 
   void _editar() {
     Navigator.of(
@@ -268,7 +277,12 @@ class _ResenaPropiaState extends State<ResenaPropia> {
               ),
             )
           else
-            Text('“${l.resena}”', style: Tipo.lectura),
+            _TextoRecortable(
+              '“${l.resena}”',
+              abierta: _abierta,
+              renglones: _renglones,
+              alCambiar: () => setState(() => _abierta = !_abierta),
+            ),
           const SizedBox(height: 12),
           Row(
             children: [
@@ -299,6 +313,91 @@ class _ResenaPropiaState extends State<ResenaPropia> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Un texto que arranca cortado y se abre con «Ver más».
+///
+/// El botón aparece **solo si hace falta**: si la reseña entra en los
+/// renglones que le tocan, no se muestra nada. Un "ver más" que no
+/// muestra nada más es peor que no tenerlo.
+///
+/// Para saberlo hay que medir el texto antes de dibujarlo, que es lo que
+/// hace TextPainter: se le pide que lo arme con el tope de renglones y él
+/// avisa si algo quedó afuera.
+class _TextoRecortable extends StatelessWidget {
+  final String texto;
+  final bool abierta;
+  final int renglones;
+  final VoidCallback alCambiar;
+
+  const _TextoRecortable(
+    this.texto, {
+    required this.abierta,
+    required this.renglones,
+    required this.alCambiar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, medidas) {
+        final medidor = TextPainter(
+          text: TextSpan(text: texto, style: Tipo.lectura),
+          maxLines: renglones,
+          textDirection: TextDirection.ltr,
+        )..layout(maxWidth: medidas.maxWidth);
+
+        final sobra = medidor.didExceedMaxLines;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AnimatedSize(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOut,
+              alignment: Alignment.topLeft,
+              child: Text(
+                texto,
+                style: Tipo.lectura,
+                maxLines: abierta ? null : renglones,
+                overflow: abierta ? TextOverflow.clip : TextOverflow.ellipsis,
+              ),
+            ),
+            if (sobra) ...[
+              const SizedBox(height: 6),
+              InkWell(
+                onTap: alCambiar,
+                borderRadius: BorderRadius.circular(6),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        abierta ? 'Ver menos' : 'Ver más',
+                        style: Tipo.meta.copyWith(
+                          color: Paleta.lila,
+                          fontSize: 12.5,
+                        ),
+                      ),
+                      const SizedBox(width: 3),
+                      Icon(
+                        abierta
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.keyboard_arrow_down_rounded,
+                        size: 16,
+                        color: Paleta.lila,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }
