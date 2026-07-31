@@ -253,16 +253,21 @@ class _PantallaFichaState extends State<PantallaFicha> {
                   _Frases(l),
                   const SizedBox(height: 22),
 
-                  const Rotulo('Las otras dos'),
+                  const Rotulo('Y además'),
                   const SizedBox(height: 10),
                   _OtrasEscalas(
                     l,
                     alCambiar: (escala, v) {
                       setState(() {
-                        if (escala == Escala.lagrimas) {
-                          l.lagrimas = v;
-                        } else {
-                          l.picante = v;
+                        switch (escala) {
+                          case Escala.lagrimas:
+                            l.lagrimas = v;
+                          case Escala.corazones:
+                            l.romantico = v;
+                          case Escala.chiles:
+                            l.picante = v;
+                          case Escala.estrellas:
+                            l.puntaje = v;
                         }
                       });
                       _guardar();
@@ -631,7 +636,7 @@ class _Personajes extends StatelessWidget {
   }
 }
 
-/// Las lágrimas y el picante, cada una con su pregunta al lado.
+/// Las tres escalas de sensación, cada una con su pregunta al lado.
 ///
 /// Las tres escalas van en oro y se distinguen por la forma del ícono, no
 /// por el color: meter un azul para las lágrimas o un rojo para el chile
@@ -669,6 +674,7 @@ class _OtrasEscalas extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         fila(Escala.lagrimas, l.lagrimas),
+        fila(Escala.corazones, l.romantico),
         fila(Escala.chiles, l.picante),
       ],
     );

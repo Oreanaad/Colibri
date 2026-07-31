@@ -134,14 +134,19 @@ class Libro {
 
   Estado estado;
 
-  /// Las tres puntuaciones, todas de 0 a 5 y todas opcionales.
+  /// Las cuatro puntuaciones, todas de 0 a 5 y todas opcionales.
   ///
   /// Van juntas porque miden cosas distintas del mismo libro: [puntaje]
-  /// dice qué tan bueno es, [lagrimas] cuánto te hizo llorar y [picante]
-  /// cuánto calienta. Un libro puede ser flojo y hacerte llorar igual.
+  /// dice qué tan bueno es, [lagrimas] cuánto te hizo llorar, [romantico]
+  /// cuánto amor hay y [picante] cuánto calienta.
+  ///
+  /// Que sean independientes es el punto: un libro puede ser flojo y
+  /// hacerte llorar igual, o ser romántico sin nada de picante. Con una
+  /// sola nota, todo eso se pierde.
   int puntaje; // estrellas · 0 = sin puntuar
   int lagrimas; // gotas
-  int picante; // llamas
+  int romantico; // corazones
+  int picante; // chiles
 
   /// Cómo te dejó. Hasta [Animos.maximo].
   final List<String> animos;
@@ -188,6 +193,7 @@ class Libro {
     this.estado = Estado.pendiente,
     this.puntaje = 0,
     this.lagrimas = 0,
+    this.romantico = 0,
     this.picante = 0,
     this.paginaActual = 0,
     this.paginas,
@@ -279,6 +285,7 @@ class Libro {
     'estado': estado.index,
     'puntaje': puntaje,
     'lagrimas': lagrimas,
+    'romantico': romantico,
     'picante': picante,
     'animos': animos,
     'paginaActual': paginaActual,
@@ -308,6 +315,7 @@ class Libro {
     estado: Estado.values[(j['estado'] ?? j['estante'] ?? 2) as int],
     puntaje: (j['puntaje'] as int?) ?? 0,
     lagrimas: (j['lagrimas'] as int?) ?? 0,
+    romantico: (j['romantico'] as int?) ?? 0,
     picante: (j['picante'] as int?) ?? 0,
     animos: ((j['animos'] as List?)?.cast<String>()) ?? const [],
     paginaActual: (j['paginaActual'] as int?) ?? 0,

@@ -35,12 +35,13 @@ void main() {
     });
   });
 
-  group('las tres puntuaciones', () {
-    test('van juntas y miden cosas distintas', () async {
+  group('las cuatro puntuaciones', () {
+    test('son independientes: miden cosas distintas', () async {
       final b = Biblioteca();
       final l = _libro()
         ..puntaje = 3
         ..lagrimas = 5
+        ..romantico = 0
         ..picante = 0;
       await b.agregar(l);
 
@@ -50,7 +51,23 @@ void main() {
 
       expect(g.puntaje, 3, reason: 'no es la gran novela');
       expect(g.lagrimas, 5, reason: 'pero te destrozó igual');
+      expect(g.romantico, 0, reason: 'y no tiene nada de romance');
       expect(g.picante, 0);
+    });
+
+    test('romance sin picante es una combinación válida', () async {
+      final b = Biblioteca();
+      final l = _libro()
+        ..romantico = 5
+        ..picante = 0;
+      await b.agregar(l);
+
+      final otra = Biblioteca();
+      await otra.cargar();
+      final g = otra.todos.first;
+
+      expect(g.romantico, 5);
+      expect(g.picante, 0, reason: 'con una sola nota esto se perdía');
     });
 
     test('un libro viejo arranca las nuevas en cero', () {
@@ -63,8 +80,16 @@ void main() {
 
       expect(l.puntaje, 4);
       expect(l.lagrimas, 0);
+      expect(l.romantico, 0);
       expect(l.picante, 0);
       expect(l.animos, isEmpty);
+    });
+
+    test('cada escala tiene su pregunta', () {
+      for (final e in Escala.values) {
+        expect(e.pregunta, isNotEmpty);
+        expect(e.nombre, isNotEmpty);
+      }
     });
 
     testWidgets('el chile se dibuja, lleno y vacío', (tester) async {

@@ -105,33 +105,35 @@ class _TapaGenerada extends StatelessWidget {
   }
 }
 
-/// Las tres cosas que se puntúan de un libro.
+/// Las cuatro cosas que se puntúan de un libro.
 ///
-/// Miden cosas distintas y por eso conviven: [estrellas] dice qué tan
-/// bueno es, [lagrimas] cuánto te hizo llorar y [chiles] cuánto calienta.
-/// Un libro puede ser flojo y hacerte llorar igual.
-enum Escala { estrellas, lagrimas, chiles }
+/// Miden cosas distintas y por eso conviven. Un libro puede ser flojo y
+/// hacerte llorar igual, o ser romántico sin nada de picante: con una
+/// sola nota todo eso se pierde.
+enum Escala { estrellas, lagrimas, corazones, chiles }
 
 extension DatosDeEscala on Escala {
   String get nombre => switch (this) {
     Escala.estrellas => 'Puntaje',
     Escala.lagrimas => 'Lágrimas',
+    Escala.corazones => 'Romance',
     Escala.chiles => 'Picante',
   };
 
   String get pregunta => switch (this) {
     Escala.estrellas => '¿Qué tan bueno?',
     Escala.lagrimas => '¿Cuánto lloraste?',
+    Escala.corazones => '¿Cuánto romance?',
     Escala.chiles => '¿Cuánto calienta?',
   };
 }
 
 /// Una fila de cinco marcas que se tocan para puntuar.
 ///
-/// Las tres escalas van en oro y se distinguen por la forma del ícono, no
-/// por el color. Es la misma decisión de siempre: el oro es lo único
+/// Las cuatro escalas van en oro y se distinguen por la forma del ícono,
+/// no por el color. Es la misma decisión de siempre: el oro es lo único
 /// cálido de la app, y meter un azul para las lágrimas o un rojo para los
-/// chiles rompería lo que hace que el oro se vea.
+/// corazones rompería lo que hace que el oro se vea.
 class Puntuacion extends StatelessWidget {
   final Escala escala;
   final int valor;
@@ -159,7 +161,10 @@ class Puntuacion extends StatelessWidget {
           cuenta ? Icons.star_rounded : Icons.star_outline_rounded,
         Escala.lagrimas =>
           cuenta ? Icons.water_drop_rounded : Icons.water_drop_outlined,
-        Escala.chiles => Icons.circle, // no llega acá
+        Escala.corazones =>
+          cuenta ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+        // El chile se dibuja aparte, arriba: acá no llega nunca.
+        Escala.chiles => Icons.circle,
       },
       size: tamano,
       color: color,
