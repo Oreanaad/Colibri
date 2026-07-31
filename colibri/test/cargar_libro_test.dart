@@ -161,14 +161,33 @@ void main() {
       expect(l.origen, Origen.catalogo);
     });
 
-    test('sin tapa, igual se le dibuja una', () {
+    test('sin tapa elegida, se le dibuja una', () {
       final l = Libro(
         id: '1',
         titulo: 'Las niñas del naranjel',
         autor: 'Gabriela Cabezón Cámara',
         origen: Origen.propio,
       );
-      expect(l.tapaId, isNull, reason: 'un libro cargado a mano no la tiene');
+      expect(l.tapaId, isNull, reason: 'y ahí entra la tapa generada');
+    });
+
+    test('si eligió una tapa de internet, se guarda con ella', () async {
+      final b = Biblioteca();
+      await b.agregar(Libro(
+        id: 'propio:1',
+        titulo: 'Cometierra',
+        autor: 'Dolores Reyes',
+        tapaId: 15227032, // la que eligió de las encontradas
+        origen: Origen.propio,
+      ));
+
+      final otra = Biblioteca();
+      await otra.cargar();
+      final guardado = otra.todos.first;
+
+      expect(guardado.tapaId, 15227032);
+      expect(guardado.origen, Origen.propio,
+          reason: 'la tapa vino de internet, la ficha la cargó ella');
     });
   });
 }

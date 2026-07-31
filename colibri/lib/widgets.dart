@@ -229,39 +229,63 @@ class Rotulo extends StatelessWidget {
 
 /// El cartelito de abajo que confirma que algo pasó.
 ///
-/// Confirmar es más importante de lo que parece: sin esto, tocás "agregar"
-/// y no pasa nada visible, así que no sabés si funcionó y lo tocás de nuevo.
+/// Confirmar es más importante de lo que parece: sin esto, tocás
+/// "agregar" y no pasa nada visible, así que no sabés si funcionó.
+///
+/// Va en lila relleno con el texto oscuro. Antes iba del color de las
+/// tarjetas y se perdía contra el fondo: un aviso que no se ve no avisa.
+void avisar(
+  ScaffoldMessengerState mensajero,
+  String texto, {
+  String? accion,
+  VoidCallback? alAccionar,
+}) {
+  mensajero
+    ..hideCurrentSnackBar() // si había otro, no se apilan
+    ..showSnackBar(
+      SnackBar(
+        content: Text(
+          texto,
+          style: const TextStyle(
+            color: Paleta.noche,
+            fontSize: 13.5,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        backgroundColor: Paleta.lila,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        duration: const Duration(seconds: 3),
+        // Para que se pueda echar de un manotazo sin esperar.
+        dismissDirection: DismissDirection.horizontal,
+        action: accion == null
+            ? null
+            : SnackBarAction(
+                label: accion,
+                textColor: Paleta.noche,
+                onPressed: alAccionar ?? () {},
+              ),
+      ),
+    );
+}
+
+/// La forma cómoda, cuando la pantalla que avisa sigue en pie.
+///
+/// Ojo: si vas a cerrar la pantalla antes de avisar, no sirve. Después de
+/// un `Navigator.pop` el contexto ya no existe y buscar el mensajero
+/// desde ahí falla o se lo pide a una pantalla equivocada, y el aviso
+/// queda colgado sin que nadie lo apague. En ese caso, guardá el
+/// mensajero *antes* de cerrar y usá [avisar].
 void mostrarAviso(
   BuildContext context,
   String texto, {
   String? accion,
   VoidCallback? alAccionar,
 }) {
-  ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar() // si había otro, no se apilan
-    ..showSnackBar(
-      SnackBar(
-        content: Text(
-          texto,
-          style: const TextStyle(color: Paleta.luz, fontSize: 13.5),
-        ),
-        backgroundColor: Paleta.nocheAlta,
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(14),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-          side: const BorderSide(color: Paleta.linea),
-        ),
-        duration: const Duration(seconds: 4),
-        action: accion == null
-            ? null
-            : SnackBarAction(
-                label: accion,
-                textColor: Paleta.lila,
-                onPressed: alAccionar ?? () {},
-              ),
-      ),
-    );
+  final mensajero = ScaffoldMessenger.maybeOf(context);
+  if (mensajero == null) return;
+  avisar(mensajero, texto, accion: accion, alAccionar: alAccionar);
 }
 
 /// Hoja de abajo para elegir dónde va un libro. Se usa desde el aviso de

@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../api.dart';
 import '../modelos.dart';
 import '../tema.dart';
 import '../widgets.dart';
@@ -35,18 +38,74 @@ class _PantallaCargarLibroState extends State<PantallaCargarLibro> {
   final _anio = TextEditingController();
   final _paginas = TextEditingController();
 
+  /// Tapas encontradas en internet para lo que se está escribiendo.
+  ///
+  /// Que el libro no esté en el catálogo no quiere decir que no exista
+  /// en ningún lado: muchas veces Open Library tiene la tapa aunque la
+  /// ficha esté incompleta o mal escrita.
+  List<Libro> _tapasEncontradas = const [];
+  int? _tapaElegida;
+  bool _buscandoTapa = false;
+  Timer? _espera;
+
   @override
   void initState() {
     super.initState();
     // Redibuja mientras se escribe: así la tapa de vista previa y el
     // aviso de duplicados se actualizan solos.
     for (final c in [_titulo, _autor]) {
-      c.addListener(() => setState(() {}));
+      c.addListener(_alEscribir);
+    }
+    if (widget.textoBuscado.trim().length >= 4) _programarBusqueda();
+  }
+
+  void _alEscribir() {
+    setState(() {});
+    _programarBusqueda();
+  }
+
+  /// Busca la tapa medio segundo después de la última tecla, para no
+  /// pedirle una consulta a Open Library por cada letra.
+  void _programarBusqueda() {
+    _espera?.cancel();
+    if (_tituloLimpio.length < 4) {
+      setState(() {
+        _tapasEncontradas = const [];
+        _tapaElegida = null;
+      });
+      return;
+    }
+    _espera = Timer(const Duration(milliseconds: 600), _buscarTapas);
+  }
+
+  Future<void> _buscarTapas() async {
+    final consulta = '$_tituloLimpio $_autorLimpio'.trim();
+    setState(() => _buscandoTapa = true);
+
+    try {
+      final r = await Api.buscar(consulta);
+      if (!mounted) return;
+      setState(() {
+        // Solo las que efectivamente tienen imagen, y sin repetir.
+        final vistas = <int>{};
+        _tapasEncontradas = r
+            .where((l) => l.tapaId != null && vistas.add(l.tapaId!))
+            .take(6)
+            .toList();
+        _buscandoTapa = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _tapasEncontradas = const [];
+        _buscandoTapa = false;
+      });
     }
   }
 
   @override
   void dispose() {
+    _espera?.cancel();
     for (final c in [_titulo, _autor, _editorial, _anio, _paginas]) {
       c.dispose();
     }
@@ -66,21 +125,24 @@ class _PantallaCargarLibroState extends State<PantallaCargarLibro> {
     editorial: _editorial.text.trim().isEmpty ? null : _editorial.text.trim(),
     anio: int.tryParse(_anio.text.trim()),
     paginas: int.tryParse(_paginas.text.trim()),
+    tapaId: _tapaElegida,
     origen: Origen.propio,
   );
 
   Future<void> _guardar() async {
     final libro = _borrador;
-    await biblioteca.agregar(libro);
 
+    // El mensajero se guarda ANTES de cerrar la pantalla: después del
+    // pop este contexto ya no existe, y pedirlo desde ahí deja el aviso
+    // colgado sin que nadie lo apague.
+    final mensajero = ScaffoldMessenger.of(context);
+    final navegador = Navigator.of(context);
+
+    await biblioteca.agregar(libro);
     if (!mounted) return;
-    Navigator.of(context).pop(libro);
-    mostrarAviso(
-      context,
-      '«${libro.titulo}» se sumó a ${libro.estado.nombre}',
-      accion: 'Cambiar',
-      alAccionar: () => elegirEstado(context, libro),
-    );
+
+    navegador.pop(libro);
+    avisar(mensajero, '«${libro.titulo}» se sumó a ${libro.estado.nombre}');
   }
 
   @override
@@ -124,6 +186,17 @@ class _PantallaCargarLibroState extends State<PantallaCargarLibro> {
               if (parecidos.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 _AvisoDeParecidos(parecidos),
+              ],
+
+              if (_buscandoTapa || _tapasEncontradas.isNotEmpty) ...[
+                const SizedBox(height: 22),
+                _TapasEncontradas(
+                  tapas: _tapasEncontradas,
+                  buscando: _buscandoTapa,
+                  elegida: _tapaElegida,
+                  generada: _borrador,
+                  alElegir: (id) => setState(() => _tapaElegida = id),
+                ),
               ],
 
               const SizedBox(height: 22),
@@ -215,6 +288,140 @@ class _VistaPrevia extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Las tapas que aparecieron en internet para lo que se está escribiendo.
+///
+/// Nunca se elige una sola automáticamente. Un mismo libro tiene varias
+/// tapas según la editorial y el año, y si la app agarra una al azar va a
+/// poner la equivocada la mitad de las veces. Elige la lectora, que es la
+/// única que tiene el libro en la mano.
+class _TapasEncontradas extends StatelessWidget {
+  final List<Libro> tapas;
+  final bool buscando;
+  final int? elegida;
+  final Libro generada;
+  final ValueChanged<int?> alElegir;
+
+  const _TapasEncontradas({
+    required this.tapas,
+    required this.buscando,
+    required this.elegida,
+    required this.generada,
+    required this.alElegir,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Rotulo('Tapas encontradas'),
+            const SizedBox(width: 10),
+            if (buscando)
+              const SizedBox(
+                width: 11,
+                height: 11,
+                child: CircularProgressIndicator(
+                  strokeWidth: 1.6,
+                  valueColor: AlwaysStoppedAnimation<Color>(Paleta.lila),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          tapas.isEmpty && buscando
+              ? 'Buscando en internet…'
+              : '¿Alguna es la de tu edición?',
+          style: Tipo.meta.copyWith(fontSize: 11.5),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 128,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              for (final l in tapas)
+                _Opcion(
+                  libro: l,
+                  elegida: elegida == l.tapaId,
+                  pie: [
+                    if (l.editorial != null) l.editorial!,
+                    if (l.anio != null) '${l.anio}',
+                  ].join(' · '),
+                  alTocar: () => alElegir(l.tapaId),
+                ),
+              // La generada siempre está, como una más y no como el
+              // premio consuelo: hay quien la va a preferir.
+              _Opcion(
+                libro: generada,
+                elegida: elegida == null,
+                pie: 'la de Colibrí',
+                alTocar: () => alElegir(null),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Opcion extends StatelessWidget {
+  final Libro libro;
+  final bool elegida;
+  final String pie;
+  final VoidCallback alTocar;
+
+  const _Opcion({
+    required this.libro,
+    required this.elegida,
+    required this.pie,
+    required this.alTocar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: alTocar,
+      child: Padding(
+        padding: const EdgeInsets.only(right: 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: elegida ? Paleta.lila : Colors.transparent,
+                  width: 2,
+                ),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Tapa(libro, ancho: 62),
+            ),
+            const SizedBox(height: 4),
+            SizedBox(
+              width: 68,
+              child: Text(
+                pie.isEmpty ? 'sin datos' : pie,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Tipo.meta.copyWith(
+                  fontSize: 9.5,
+                  height: 1.2,
+                  color: elegida ? Paleta.lila : Paleta.bruma,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

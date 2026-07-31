@@ -31,12 +31,17 @@ class _PantallaResenaState extends State<PantallaResena> {
     final limpio = _texto.text.trim();
     widget.libro.resena = limpio.isEmpty ? null : limpio;
     widget.libro.resenaConSpoilers = limpio.isEmpty ? false : _conSpoilers;
-    await biblioteca.actualizar();
+    // Igual que al cargar un libro: el mensajero se guarda antes de
+    // cerrar, porque después del pop este contexto ya no existe.
+    final mensajero = ScaffoldMessenger.of(context);
+    final navegador = Navigator.of(context);
 
+    await biblioteca.actualizar();
     if (!mounted) return;
-    Navigator.of(context).pop();
-    mostrarAviso(
-      context,
+
+    navegador.pop();
+    avisar(
+      mensajero,
       limpio.isEmpty ? 'Reseña borrada' : 'Tu reseña quedó guardada',
     );
   }
