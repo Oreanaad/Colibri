@@ -18,9 +18,9 @@ enum _Seccion { buscar, guardadas }
 
 extension on _Seccion {
   String get nombre => switch (this) {
-        _Seccion.buscar => 'Buscar',
-        _Seccion.guardadas => 'Guardadas',
-      };
+    _Seccion.buscar => 'Buscar',
+    _Seccion.guardadas => 'Guardadas',
+  };
 }
 
 /// Subrayar frases de un libro digital.
@@ -103,8 +103,10 @@ class _PantallaFrasesState extends State<PantallaFrases> {
     if (bytes.isEmpty) {
       if (!mounted) return;
       setState(() => _importando = false);
-      mostrarAviso(context,
-          'El archivo llegó vacío. Si está en la nube, bajalo antes.');
+      mostrarAviso(
+        context,
+        'El archivo llegó vacío. Si está en la nube, bajalo antes.',
+      );
       return;
     }
 
@@ -134,8 +136,10 @@ class _PantallaFrasesState extends State<PantallaFrases> {
     if (epub == null) {
       if (!mounted) return;
       setState(() => _importando = false);
-      mostrarAviso(context,
-          'Es un EPUB pero no le encontré texto. ¿Será uno escaneado?');
+      mostrarAviso(
+        context,
+        'Es un EPUB pero no le encontré texto. ¿Será uno escaneado?',
+      );
       return;
     }
 
@@ -156,9 +160,9 @@ class _PantallaFrasesState extends State<PantallaFrases> {
       context,
       guardado
           ? 'Listo: ${epub.parrafos.length} párrafos. El archivo no se guardó, '
-              'y no hay que volver a sumarlo.'
+                'y no hay que volver a sumarlo.'
           : 'Es muy grande para guardarlo en este teléfono. Podés subrayar '
-              'ahora, pero al cerrar la app hay que sumarlo de nuevo.',
+                'ahora, pero al cerrar la app hay que sumarlo de nuevo.',
     );
   }
 
@@ -187,8 +191,7 @@ class _PantallaFrasesState extends State<PantallaFrases> {
   /// guardado.
   bool _yaSubrayada(String parrafo) {
     final p = Epub.normalizar(parrafo);
-    return widget.libro.frases
-        .any((f) => p.contains(Epub.normalizar(f.texto)));
+    return widget.libro.frases.any((f) => p.contains(Epub.normalizar(f.texto)));
   }
 
   /// Guarda un pedazo de párrafo como frase.
@@ -222,8 +225,10 @@ class _PantallaFrasesState extends State<PantallaFrases> {
         backgroundColor: Paleta.noche,
         foregroundColor: Paleta.lila,
         elevation: 0,
-        title: const Text('Frases',
-            style: TextStyle(color: Paleta.luz, fontSize: 17)),
+        title: const Text(
+          'Frases',
+          style: TextStyle(color: Paleta.luz, fontSize: 17),
+        ),
         actions: [
           if (_libroDigital != null)
             PopupMenuButton<String>(
@@ -236,14 +241,18 @@ class _PantallaFrasesState extends State<PantallaFrases> {
                   _libroDigital = null;
                   _seccion = _Seccion.buscar;
                 });
-                mostrarAviso(context,
-                    'Texto borrado. Tus frases guardadas siguen ahí.');
+                mostrarAviso(
+                  context,
+                  'Texto borrado. Tus frases guardadas siguen ahí.',
+                );
               },
               itemBuilder: (_) => [
                 const PopupMenuItem(
                   value: 'borrar',
-                  child: Text('Borrar el texto del libro',
-                      style: TextStyle(color: Paleta.oro)),
+                  child: Text(
+                    'Borrar el texto del libro',
+                    style: TextStyle(color: Paleta.oro),
+                  ),
                 ),
               ],
             ),
@@ -262,7 +271,9 @@ class _PantallaFrasesState extends State<PantallaFrases> {
             )
           : SafeArea(
               top: false,
-              child: _libroDigital == null ? _sinLibro() : _conLibro(),
+              child: Columna(
+                hijo: _libroDigital == null ? _sinLibro() : _conLibro(),
+              ),
             ),
     );
   }
@@ -276,11 +287,13 @@ class _PantallaFrasesState extends State<PantallaFrases> {
         if (widget.libro.frases.isNotEmpty) ...[
           const Rotulo('Tus frases'),
           const SizedBox(height: 12),
-          ...widget.libro.frases.map((f) => _TarjetaFrase(
-                f,
-                libro: widget.libro,
-                alBorrar: () => _borrar(f),
-              )),
+          ...widget.libro.frases.map(
+            (f) => _TarjetaFrase(
+              f,
+              libro: widget.libro,
+              alBorrar: () => _borrar(f),
+            ),
+          ),
           const SizedBox(height: 28),
         ],
         Container(
@@ -316,8 +329,9 @@ class _PantallaFrasesState extends State<PantallaFrases> {
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(Paleta.lila),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Paleta.lila,
+                            ),
                           ),
                         ),
                       ),
@@ -352,8 +366,9 @@ class _PantallaFrasesState extends State<PantallaFrases> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       decoration: BoxDecoration(
-                        border:
-                            Border.all(color: es ? Paleta.lila : Paleta.linea),
+                        border: Border.all(
+                          color: es ? Paleta.lila : Paleta.linea,
+                        ),
                         color: es ? const Color(0x22B9A6E6) : null,
                         borderRadius: BorderRadius.circular(30),
                       ),
@@ -398,8 +413,11 @@ class _PantallaFrasesState extends State<PantallaFrases> {
             decoration: InputDecoration(
               hintText: 'Escribí lo que te acuerdes…',
               hintStyle: Tipo.meta,
-              prefixIcon: const Icon(Icons.search_rounded,
-                  color: Paleta.bruma, size: 20),
+              prefixIcon: const Icon(
+                Icons.search_rounded,
+                color: Paleta.bruma,
+                size: 20,
+              ),
               isDense: true,
               filled: true,
               fillColor: Paleta.nocheAlta,
@@ -485,14 +503,15 @@ class _PantallaFrasesState extends State<PantallaFrases> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
       children: [
-        Text('Tocá una frase para compartirla.',
-            style: Tipo.meta.copyWith(fontSize: 11.5)),
+        Text(
+          'Tocá una frase para compartirla.',
+          style: Tipo.meta.copyWith(fontSize: 11.5),
+        ),
         const SizedBox(height: 14),
-        ...widget.libro.frases.map((f) => _TarjetaFrase(
-              f,
-              libro: widget.libro,
-              alBorrar: () => _borrar(f),
-            )),
+        ...widget.libro.frases.map(
+          (f) =>
+              _TarjetaFrase(f, libro: widget.libro, alBorrar: () => _borrar(f)),
+        ),
       ],
     );
   }
@@ -551,9 +570,7 @@ class _ParrafoState extends State<_Parrafo> {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Paleta.nocheAlta,
-        border: Border.all(
-          color: parcial ? Paleta.lila : Colors.transparent,
-        ),
+        border: Border.all(color: parcial ? Paleta.lila : Colors.transparent),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -570,9 +587,7 @@ class _ParrafoState extends State<_Parrafo> {
           Row(
             children: [
               Icon(
-                parcial
-                    ? Icons.content_cut_rounded
-                    : Icons.touch_app_outlined,
+                parcial ? Icons.content_cut_rounded : Icons.touch_app_outlined,
                 size: 13,
                 color: parcial ? Paleta.lila : Paleta.bruma,
               ),
@@ -603,8 +618,7 @@ class _ParrafoState extends State<_Parrafo> {
               ),
               if (widget.yaHayAlgo) ...[
                 const SizedBox(width: 10),
-                const Icon(Icons.bookmark_rounded,
-                    size: 17, color: Paleta.oro),
+                const Icon(Icons.bookmark_rounded, size: 17, color: Paleta.oro),
               ],
             ],
           ),
@@ -649,8 +663,11 @@ class _TarjetaFrase extends StatelessWidget {
   final Libro libro;
   final VoidCallback alBorrar;
 
-  const _TarjetaFrase(this.frase,
-      {required this.libro, required this.alBorrar});
+  const _TarjetaFrase(
+    this.frase, {
+    required this.libro,
+    required this.alBorrar,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -664,9 +681,7 @@ class _TarjetaFrase extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => PantallaCompartir(libro, frase),
-            ),
+            MaterialPageRoute(builder: (_) => PantallaCompartir(libro, frase)),
           ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(14, 12, 8, 8),
@@ -677,11 +692,16 @@ class _TarjetaFrase extends StatelessWidget {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Text(fechaCorta(frase.guardada),
-                        style: Tipo.meta.copyWith(fontSize: 11)),
+                    Text(
+                      fechaCorta(frase.guardada),
+                      style: Tipo.meta.copyWith(fontSize: 11),
+                    ),
                     const SizedBox(width: 10),
-                    const Icon(Icons.ios_share_rounded,
-                        size: 14, color: Paleta.bruma),
+                    const Icon(
+                      Icons.ios_share_rounded,
+                      size: 14,
+                      color: Paleta.bruma,
+                    ),
                     const Spacer(),
                     IconButton(
                       onPressed: alBorrar,
@@ -725,11 +745,16 @@ class _Promesa extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.lock_outline_rounded,
-                  size: 15, color: Paleta.lila),
+              const Icon(
+                Icons.lock_outline_rounded,
+                size: 15,
+                color: Paleta.lila,
+              ),
               const SizedBox(width: 8),
-              Text('Qué pasa con tu archivo',
-                  style: Tipo.cuerpo.copyWith(fontWeight: FontWeight.w600)),
+              Text(
+                'Qué pasa con tu archivo',
+                style: Tipo.cuerpo.copyWith(fontWeight: FontWeight.w600),
+              ),
             ],
           ),
           const SizedBox(height: 12),

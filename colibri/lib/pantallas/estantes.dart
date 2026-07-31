@@ -127,9 +127,9 @@ class _FilaEstante extends StatelessWidget {
     final libros = biblioteca.enEstante(nombre);
 
     return InkWell(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => PantallaEstante(nombre)),
-      ),
+      onTap: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => PantallaEstante(nombre))),
       borderRadius: BorderRadius.circular(12),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 10),
@@ -148,9 +148,7 @@ class _FilaEstante extends StatelessWidget {
                     )
                   : Stack(
                       children: [
-                        for (var i = libros.length.clamp(0, 3) - 1;
-                            i >= 0;
-                            i--)
+                        for (var i = libros.length.clamp(0, 3) - 1; i >= 0; i--)
                           Positioned(
                             left: i * 20.0,
                             child: Tapa(libros[i], ancho: 44),
@@ -234,8 +232,10 @@ class _PantallaEstanteState extends State<PantallaEstante> {
             backgroundColor: Paleta.noche,
             foregroundColor: Paleta.lila,
             elevation: 0,
-            title: Text(_nombre,
-                style: const TextStyle(color: Paleta.luz, fontSize: 17)),
+            title: Text(
+              _nombre,
+              style: const TextStyle(color: Paleta.luz, fontSize: 17),
+            ),
             actions: [
               PopupMenuButton<String>(
                 color: Paleta.nocheAlta,
@@ -256,44 +256,50 @@ class _PantallaEstanteState extends State<PantallaEstante> {
                 itemBuilder: (_) => [
                   const PopupMenuItem(
                     value: 'renombrar',
-                    child: Text('Cambiarle el nombre',
-                        style: TextStyle(color: Paleta.luz)),
+                    child: Text(
+                      'Cambiarle el nombre',
+                      style: TextStyle(color: Paleta.luz),
+                    ),
                   ),
                   const PopupMenuItem(
                     value: 'borrar',
-                    child: Text('Borrar el estante',
-                        style: TextStyle(color: Paleta.oro)),
+                    child: Text(
+                      'Borrar el estante',
+                      style: TextStyle(color: Paleta.oro),
+                    ),
                   ),
                 ],
               ),
             ],
           ),
-          body: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
-            children: [
-              Text(
-                libros.length == 1 ? '1 libro' : '${libros.length} libros',
-                style: Tipo.meta,
-              ),
-              const SizedBox(height: 16),
-              if (libros.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 40),
-                  child: Text(
-                    'Este estante está vacío.\n\nAbrí cualquier libro de tu '
-                    'biblioteca y sumalo desde ahí.',
-                    style: Tipo.meta,
-                    textAlign: TextAlign.center,
-                  ),
-                )
-              else
-                GrillaLibros(
-                  libros,
-                  alTocar: (l) => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => PantallaFicha(l)),
-                  ),
+          body: Columna(
+            hijo: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+              children: [
+                Text(
+                  libros.length == 1 ? '1 libro' : '${libros.length} libros',
+                  style: Tipo.meta,
                 ),
-            ],
+                const SizedBox(height: 16),
+                if (libros.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 40),
+                    child: Text(
+                      'Este estante está vacío.\n\nAbrí cualquier libro de tu '
+                      'biblioteca y sumalo desde ahí.',
+                      style: Tipo.meta,
+                      textAlign: TextAlign.center,
+                    ),
+                  )
+                else
+                  GrillaLibros(
+                    libros,
+                    alTocar: (l) => Navigator.of(
+                      context,
+                    ).push(MaterialPageRoute(builder: (_) => PantallaFicha(l))),
+                  ),
+              ],
+            ),
           ),
         );
       },

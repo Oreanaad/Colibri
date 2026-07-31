@@ -52,8 +52,9 @@ class _PantallaComunidadState extends State<PantallaComunidad> {
       try {
         final lista = jsonDecode(crudo) as List;
         setState(() {
-          _libros =
-              lista.map((j) => Libro.desdeJson(j as Map<String, dynamic>)).toList();
+          _libros = lista
+              .map((j) => Libro.desdeJson(j as Map<String, dynamic>))
+              .toList();
           _cargando = false;
         });
         return;
@@ -66,8 +67,9 @@ class _PantallaComunidadState extends State<PantallaComunidad> {
     for (final (titulo, autor) in _estanteDeCaro) {
       try {
         final l = await Api.primero(titulo, autor);
-        encontrados.add(l ??
-            Libro(id: titulo, titulo: titulo, autor: autor)); // tapa generada
+        encontrados.add(
+          l ?? Libro(id: titulo, titulo: titulo, autor: autor),
+        ); // tapa generada
       } catch (_) {
         encontrados.add(Libro(id: titulo, titulo: titulo, autor: autor));
       }
@@ -90,107 +92,128 @@ class _PantallaComunidadState extends State<PantallaComunidad> {
       animation: biblioteca,
       builder: (context, _) {
         final mias = biblioteca.todos.map((l) => l.clave).toSet();
-        final comunes =
-            _libros.where((l) => mias.contains(l.clave)).map((l) => l.clave).toSet();
+        final comunes = _libros
+            .where((l) => mias.contains(l.clave))
+            .map((l) => l.clave)
+            .toSet();
 
         return SafeArea(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Caro Vidal', style: Tipo.titulo),
-                        const SizedBox(height: 3),
-                        Text('${_libros.length} libros · sigue a 48',
-                            style: Tipo.meta),
-                      ],
+          child: Columna(
+            hijo: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Caro Vidal', style: Tipo.titulo),
+                          const SizedBox(height: 3),
+                          Text(
+                            '${_libros.length} libros · sigue a 48',
+                            style: Tipo.meta,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  // Seguir es secundario: la acción de esta pantalla es mirar.
-                  OutlinedButton(
-                    onPressed: () => setState(() => _siguiendo = !_siguiendo),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Paleta.lila,
-                      side: const BorderSide(color: Paleta.lila),
-                      shape: const StadiumBorder(),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 6),
-                    ),
-                    child: Text(_siguiendo ? 'Siguiendo' : 'Seguir',
-                        style: const TextStyle(fontSize: 12.5)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 18),
-
-              if (_cargando)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 40),
-                  child: Column(
-                    children: [
-                      SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Paleta.lila),
+                    // Seguir es secundario: la acción de esta pantalla es mirar.
+                    OutlinedButton(
+                      onPressed: () => setState(() => _siguiendo = !_siguiendo),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Paleta.lila,
+                        side: const BorderSide(color: Paleta.lila),
+                        shape: const StadiumBorder(),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 6,
                         ),
                       ),
-                      SizedBox(height: 16),
-                      Text('Armando la biblioteca de Caro…',
-                          style: Tipo.meta, textAlign: TextAlign.center),
-                    ],
-                  ),
-                )
-              else ...[
-                AvisoOro(
-                  hijo: comunes.isEmpty
-                      ? Text(
-                          'Todavía no tienen ningún libro en común. '
-                          'Agregá alguno a tu biblioteca y volvé: los que '
-                          'coincidan se encienden en oro.',
-                          style: Tipo.cuerpo
-                              .copyWith(color: Paleta.oroTexto, fontSize: 13),
-                        )
-                      : Text.rich(
-                          TextSpan(
-                            style: Tipo.cuerpo.copyWith(
-                                color: Paleta.oroTexto, fontSize: 13),
-                            children: [
-                              TextSpan(
-                                text: comunes.length == 1
-                                    ? 'Tienen 1 libro en común'
-                                    : 'Tienen ${comunes.length} libros en común',
-                                style: const TextStyle(
-                                    color: Paleta.oro,
-                                    fontWeight: FontWeight.w600),
-                              ),
-                              const TextSpan(
-                                  text:
-                                      '. Los marcados también están en tu biblioteca.'),
-                            ],
-                          ),
-                        ),
+                      child: Text(
+                        _siguiendo ? 'Siguiendo' : 'Seguir',
+                        style: const TextStyle(fontSize: 12.5),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 18),
-                GrillaLibros(
-                  _libros,
-                  marcados: comunes,
-                  alTocar: (l) => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => PantallaFicha(
-                          biblioteca.buscarPorClave(l.clave) ?? l),
+
+                if (_cargando)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 40),
+                    child: Column(
+                      children: [
+                        SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Paleta.lila,
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: 16),
+                        Text(
+                          'Armando la biblioteca de Caro…',
+                          style: Tipo.meta,
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  )
+                else ...[
+                  AvisoOro(
+                    hijo: comunes.isEmpty
+                        ? Text(
+                            'Todavía no tienen ningún libro en común. '
+                            'Agregá alguno a tu biblioteca y volvé: los que '
+                            'coincidan se encienden en oro.',
+                            style: Tipo.cuerpo.copyWith(
+                              color: Paleta.oroTexto,
+                              fontSize: 13,
+                            ),
+                          )
+                        : Text.rich(
+                            TextSpan(
+                              style: Tipo.cuerpo.copyWith(
+                                color: Paleta.oroTexto,
+                                fontSize: 13,
+                              ),
+                              children: [
+                                TextSpan(
+                                  text: comunes.length == 1
+                                      ? 'Tienen 1 libro en común'
+                                      : 'Tienen ${comunes.length} libros en común',
+                                  style: const TextStyle(
+                                    color: Paleta.oro,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const TextSpan(
+                                  text:
+                                      '. Los marcados también están en tu biblioteca.',
+                                ),
+                              ],
+                            ),
+                          ),
+                  ),
+                  const SizedBox(height: 18),
+                  GrillaLibros(
+                    _libros,
+                    marcados: comunes,
+                    alTocar: (l) => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => PantallaFicha(
+                          biblioteca.buscarPorClave(l.clave) ?? l,
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
-            ],
+            ),
           ),
         );
       },

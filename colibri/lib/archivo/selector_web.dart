@@ -54,10 +54,12 @@ Future<ArchivoElegido?> elegirArchivo() async {
       // arrayBuffer() devuelve una promesa de JavaScript; toDart la
       // convierte en algo que Dart sabe esperar.
       final buffer = await archivo.arrayBuffer().toDart;
-      terminar(ArchivoElegido(
-        nombre: archivo.name,
-        bytes: buffer.toDart.asUint8List(),
-      ));
+      terminar(
+        ArchivoElegido(
+          nombre: archivo.name,
+          bytes: buffer.toDart.asUint8List(),
+        ),
+      );
     } catch (_) {
       terminar(null);
     }
@@ -81,17 +83,19 @@ Future<ArchivoElegido?> elegirArchivo() async {
   //
   // El retraso inicial es necesario: abrir el selector ya produce un
   // blur y un focus, y sin esperar se cancelaría sola al instante.
-  unawaited(Future<void>.delayed(const Duration(seconds: 1)).then((_) {
-    if (resultado.isCompleted) return;
-    late final JSFunction alVolverElFoco;
-    alVolverElFoco = ((web.Event _) {
-      web.window.removeEventListener('focus', alVolverElFoco);
-      Future<void>.delayed(const Duration(seconds: 2)).then((_) {
-        if (!resultado.isCompleted) terminar(null);
-      });
-    }).toJS;
-    web.window.addEventListener('focus', alVolverElFoco);
-  }));
+  unawaited(
+    Future<void>.delayed(const Duration(seconds: 1)).then((_) {
+      if (resultado.isCompleted) return;
+      late final JSFunction alVolverElFoco;
+      alVolverElFoco = ((web.Event _) {
+        web.window.removeEventListener('focus', alVolverElFoco);
+        Future<void>.delayed(const Duration(seconds: 2)).then((_) {
+          if (!resultado.isCompleted) terminar(null);
+        });
+      }).toJS;
+      web.window.addEventListener('focus', alVolverElFoco);
+    }),
+  );
 
   return resultado.future;
 }

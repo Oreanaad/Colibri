@@ -4,8 +4,8 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:share_plus/share_plus.dart';
 
+import '../archivo/guardar_imagen.dart';
 import '../modelos.dart';
 import '../tema.dart';
 import '../widgets.dart';
@@ -16,18 +16,17 @@ enum Fondo { noche, papel, lomo }
 
 extension on Fondo {
   String get nombre => switch (this) {
-        Fondo.noche => 'Noche',
-        Fondo.papel => 'Papel',
-        Fondo.lomo => 'Lomo',
-      };
+    Fondo.noche => 'Noche',
+    Fondo.papel => 'Papel',
+    Fondo.lomo => 'Lomo',
+  };
 }
 
 /// Los dos formatos que usa la gente de verdad.
 enum Formato { cuadrado, historia }
 
 extension on Formato {
-  String get nombre =>
-      this == Formato.cuadrado ? 'Cuadrado' : 'Historia';
+  String get nombre => this == Formato.cuadrado ? 'Cuadrado' : 'Historia';
   double get proporcion => this == Formato.cuadrado ? 1.0 : 9 / 16;
 }
 
@@ -81,25 +80,22 @@ class _PantallaCompartirState extends State<PantallaCompartir> {
     setState(() => _trabajando = true);
     try {
       final bytes = await _dibujar();
-      if (bytes == null) throw Exception('no se pudo dibujar');
+      if (bytes == null) throw Exception('no se pudo dibujar la placa');
 
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [
-            XFile.fromData(
-              bytes,
-              mimeType: 'image/png',
-              name: _nombreArchivo,
-            ),
-          ],
-          fileNameOverrides: [_nombreArchivo],
-          text: '«${widget.frase.texto}»\n\n'
-              '${widget.libro.titulo} — ${widget.libro.autor}',
-        ),
+      await guardarImagen(
+        bytes,
+        nombre: _nombreArchivo,
+        texto:
+            '«${widget.frase.texto}»\n\n'
+            '${widget.libro.titulo} — ${widget.libro.autor}',
       );
+
+      if (mounted && kIsWeb) {
+        mostrarAviso(context, 'Imagen guardada en Descargas');
+      }
     } catch (e) {
       if (mounted) {
-        mostrarAviso(context, 'No se pudo compartir. Probá de nuevo.');
+        mostrarAviso(context, 'No se pudo guardar la imagen. Probá de nuevo.');
       }
     } finally {
       if (mounted) setState(() => _trabajando = false);
@@ -113,8 +109,10 @@ class _PantallaCompartirState extends State<PantallaCompartir> {
         backgroundColor: Paleta.noche,
         foregroundColor: Paleta.lila,
         elevation: 0,
-        title: const Text('Compartir',
-            style: TextStyle(color: Paleta.luz, fontSize: 17)),
+        title: const Text(
+          'Compartir',
+          style: TextStyle(color: Paleta.luz, fontSize: 17),
+        ),
       ),
       body: SafeArea(
         child: Column(
@@ -123,18 +121,28 @@ class _PantallaCompartirState extends State<PantallaCompartir> {
               child: Center(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 24, vertical: 16),
-                  child: AspectRatio(
-                    aspectRatio: _formato.proporcion,
-                    // RepaintBoundary es lo que permite fotografiar este
-                    // pedazo de pantalla y nada más.
-                    child: RepaintBoundary(
-                      key: _placa,
-                      child: Placa(
-                        libro: widget.libro,
-                        frase: widget.frase,
-                        fondo: _fondo,
-                        formato: _formato,
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
+                  child: ConstrainedBox(
+                    // Sin techo, en un monitor la placa se dibuja enorme
+                    // y la vista previa deja de parecerse a lo que sale.
+                    constraints: const BoxConstraints(
+                      maxWidth: 420,
+                      maxHeight: 600,
+                    ),
+                    child: AspectRatio(
+                      aspectRatio: _formato.proporcion,
+                      // RepaintBoundary es lo que permite fotografiar este
+                      // pedazo de pantalla y nada más.
+                      child: RepaintBoundary(
+                        key: _placa,
+                        child: Placa(
+                          libro: widget.libro,
+                          frase: widget.frase,
+                          fondo: _fondo,
+                          formato: _formato,
+                        ),
                       ),
                     ),
                   ),
@@ -143,40 +151,44 @@ class _PantallaCompartirState extends State<PantallaCompartir> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-              child: Column(
-                children: [
-                  _Opciones<Fondo>(
-                    valores: Fondo.values,
-                    activo: _fondo,
-                    nombre: (f) => f.nombre,
-                    alElegir: (f) => setState(() => _fondo = f),
-                  ),
-                  const SizedBox(height: 8),
-                  _Opciones<Formato>(
-                    valores: Formato.values,
-                    activo: _formato,
-                    nombre: (f) => f.nombre,
-                    alElegir: (f) => setState(() => _formato = f),
-                  ),
-                  const SizedBox(height: 16),
-                  _trabajando
-                      ? const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 12),
-                          child: SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Paleta.lila),
+              child: Columna(
+                ancho: 420,
+                hijo: Column(
+                  children: [
+                    _Opciones<Fondo>(
+                      valores: Fondo.values,
+                      activo: _fondo,
+                      nombre: (f) => f.nombre,
+                      alElegir: (f) => setState(() => _fondo = f),
+                    ),
+                    const SizedBox(height: 8),
+                    _Opciones<Formato>(
+                      valores: Formato.values,
+                      activo: _formato,
+                      nombre: (f) => f.nombre,
+                      alElegir: (f) => setState(() => _formato = f),
+                    ),
+                    const SizedBox(height: 16),
+                    _trabajando
+                        ? const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            child: SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Paleta.lila,
+                                ),
+                              ),
                             ),
+                          )
+                        : BotonLleno(
+                            kIsWeb ? 'Descargar la imagen' : 'Compartir',
+                            alTocar: _compartir,
                           ),
-                        )
-                      : BotonLleno(
-                          kIsWeb ? 'Descargar la imagen' : 'Compartir',
-                          alTocar: _compartir,
-                        ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],
@@ -275,7 +287,8 @@ class Placa extends StatelessWidget {
         // fijos: así la imagen se ve igual sea cual sea el tamaño en el
         // que se dibuje, y al exportarla al triple sigue proporcionada.
         final base = medidas.maxWidth * 0.056;
-        final margen = medidas.maxWidth * (formato == Formato.historia ? 0.10 : 0.08);
+        final margen =
+            medidas.maxWidth * (formato == Formato.historia ? 0.10 : 0.08);
 
         return Container(
           decoration: BoxDecoration(
@@ -354,7 +367,10 @@ class Placa extends StatelessWidget {
                       libro.autor,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: base * 0.58, color: Paleta.oro),
+                      style: TextStyle(
+                        fontSize: base * 0.58,
+                        color: Paleta.oro,
+                      ),
                     ),
 
                     // La marca va acá, pegada a la ficha del libro, y no

@@ -40,7 +40,11 @@ class Tipo {
     color: Paleta.luz,
     height: 1.25,
   );
-  static const cuerpo = TextStyle(fontSize: 14, color: Paleta.luz, height: 1.45);
+  static const cuerpo = TextStyle(
+    fontSize: 14,
+    color: Paleta.luz,
+    height: 1.45,
+  );
   static const meta = TextStyle(fontSize: 12, color: Paleta.bruma, height: 1.4);
   static const rotulo = TextStyle(
     fontSize: 10,
@@ -53,6 +57,67 @@ class Tipo {
     height: 1.5,
     color: Paleta.luz,
     fontStyle: FontStyle.italic,
+  );
+}
+
+/// Cómo se adapta la app al ancho de la pantalla.
+///
+/// El problema que resuelve: en una computadora, una app pensada para
+/// teléfono se estira y queda una línea de texto de treinta centímetros,
+/// imposible de leer, con tres tapas gigantes por fila.
+///
+/// La regla es simple y vale para todo: **el contenido no crece más allá
+/// de lo cómodo; lo que crece es el margen a los costados.** Y las
+/// grillas suman columnas en vez de agrandar cada tapa.
+class Medidas {
+  /// Lo más ancho que se pone una columna de contenido.
+  ///
+  /// Sale de la lectura, no del diseño: pasadas unas 70 letras por
+  /// renglón, el ojo pierde el salto de línea y hay que releer.
+  static const anchoComodo = 620.0;
+
+  /// A partir de acá la pantalla se considera grande.
+  static const pantallaGrande = 760.0;
+
+  static bool esGrande(BuildContext c) =>
+      MediaQuery.sizeOf(c).width >= pantallaGrande;
+
+  /// Cuánto aire a los costados. En un teléfono, lo justo; en una
+  /// pantalla grande, lo que sobre después del ancho cómodo.
+  static double margen(BuildContext c) =>
+      MediaQuery.sizeOf(c).width < 400 ? 16 : 20;
+
+  /// El ancho que le toca a cada tapa en una grilla.
+  ///
+  /// Al fijar el ancho de la tapa en vez de la cantidad de columnas, la
+  /// grilla suma columnas sola cuando hay lugar: tres en un teléfono,
+  /// cinco o seis en una computadora, y siempre tapas del mismo tamaño.
+  static double anchoDeTapa(BuildContext c) =>
+      MediaQuery.sizeOf(c).width < 380 ? 100 : 118;
+}
+
+/// Centra el contenido y le pone un techo de ancho.
+///
+/// Se usa en las pantallas que son una columna de contenido. Con esto,
+/// la misma pantalla se ve bien en un teléfono y en un monitor sin
+/// escribir dos veces el diseño.
+class Columna extends StatelessWidget {
+  final Widget hijo;
+  final double ancho;
+
+  const Columna({
+    super.key,
+    required this.hijo,
+    this.ancho = Medidas.anchoComodo,
+  });
+
+  @override
+  Widget build(BuildContext context) => Align(
+    alignment: Alignment.topCenter,
+    child: ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: ancho),
+      child: hijo,
+    ),
   );
 }
 

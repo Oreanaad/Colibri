@@ -9,10 +9,24 @@ enum Estado { leyendo, leido, pendiente }
 
 extension NombreEstado on Estado {
   String get nombre => switch (this) {
-        Estado.leyendo => 'Leyendo',
-        Estado.leido => 'Leídos',
-        Estado.pendiente => 'Pendientes',
-      };
+    Estado.leyendo => 'Leyendo',
+    Estado.leido => 'Leídos',
+    Estado.pendiente => 'Pendientes',
+  };
+}
+
+/// De dónde salió la ficha de un libro.
+///
+/// Se guarda porque permite confiar en un dato sin revisarlo a mano, y
+/// porque más adelante deja limpiar el catálogo sin romper nada. Hoy son
+/// dos; cuando haya servidor se suma el de las autoras verificadas.
+enum Origen {
+  /// Vino de Open Library: tiene ficha, tapa y datos verificados.
+  catalogo,
+
+  /// Lo cargó una lectora porque no estaba en ningún lado. Acá va a
+  /// vivir casi toda la narrativa latinoamericana reciente.
+  propio,
 }
 
 /// Una frase que alguien subrayó.
@@ -37,8 +51,8 @@ class Frase {
   final double? posicion;
 
   Frase({required String texto, DateTime? guardada, this.posicion})
-      : texto = _recortar(texto),
-        guardada = guardada ?? DateTime.now();
+    : texto = _recortar(texto),
+      guardada = guardada ?? DateTime.now();
 
   static String _recortar(String t) {
     final limpio = t.trim();
@@ -47,16 +61,16 @@ class Frase {
   }
 
   Map<String, dynamic> aJson() => {
-        'texto': texto,
-        'guardada': guardada.toIso8601String(),
-        'posicion': posicion,
-      };
+    'texto': texto,
+    'guardada': guardada.toIso8601String(),
+    'posicion': posicion,
+  };
 
   factory Frase.desdeJson(Map<String, dynamic> j) => Frase(
-        texto: j['texto'] as String,
-        guardada: DateTime.tryParse((j['guardada'] as String?) ?? ''),
-        posicion: (j['posicion'] as num?)?.toDouble(),
-      );
+    texto: j['texto'] as String,
+    guardada: DateTime.tryParse((j['guardada'] as String?) ?? ''),
+    posicion: (j['posicion'] as num?)?.toDouble(),
+  );
 }
 
 class Libro {
@@ -89,6 +103,9 @@ class Libro {
   /// Las frases que subrayaste de este libro.
   final List<Frase> frases;
 
+  /// De dónde salió esta ficha.
+  final Origen origen;
+
   /// Estantes propios: los nombres que inventa cada persona.
   ///
   /// A diferencia del estado, un libro puede estar en varios a la vez:
@@ -111,10 +128,11 @@ class Libro {
     this.resena,
     this.resenaConSpoilers = false,
     this.personaje,
+    this.origen = Origen.catalogo,
     Set<String>? estantes,
     List<Frase>? frases,
-  })  : estantes = estantes ?? <String>{},
-        frases = frases ?? <Frase>[];
+  }) : estantes = estantes ?? <String>{},
+       frases = frases ?? <Frase>[];
 
   bool get tieneResena => (resena ?? '').trim().isNotEmpty;
 
@@ -145,13 +163,25 @@ class Libro {
 
   static String _normalizar(String s) {
     const acentos = {
-      'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ú': 'u',
-      'ü': 'u', 'ñ': 'n', 'Á': 'a', 'É': 'e', 'Í': 'i',
-      'Ó': 'o', 'Ú': 'u', 'Ñ': 'n',
+      'á': 'a',
+      'é': 'e',
+      'í': 'i',
+      'ó': 'o',
+      'ú': 'u',
+      'ü': 'u',
+      'ñ': 'n',
+      'Á': 'a',
+      'É': 'e',
+      'Í': 'i',
+      'Ó': 'o',
+      'Ú': 'u',
+      'Ñ': 'n',
     };
     var r = s.toLowerCase().trim();
     acentos.forEach((k, v) => r = r.replaceAll(k, v));
-    return r.replaceAll(RegExp(r'[^a-z0-9 ]'), '').replaceAll(RegExp(r'\s+'), ' ');
+    return r
+        .replaceAll(RegExp(r'[^a-z0-9 ]'), '')
+        .replaceAll(RegExp(r'\s+'), ' ');
   }
 
   factory Libro.desdeOpenLibrary(Map<String, dynamic> d) {
@@ -169,53 +199,55 @@ class Libro {
   }
 
   Map<String, dynamic> aJson() => {
-        'id': id,
-        'titulo': titulo,
-        'autor': autor,
-        'tapaId': tapaId,
-        'editorial': editorial,
-        'anio': anio,
-        'estado': estado.index,
-        'puntaje': puntaje,
-        'paginaActual': paginaActual,
-        'paginas': paginas,
-        'estantes': estantes.toList(),
-        'empezado': empezado?.toIso8601String(),
-        'terminado': terminado?.toIso8601String(),
-        'resena': resena,
-        'resenaConSpoilers': resenaConSpoilers,
-        'personaje': personaje,
-        'frases': frases.map((f) => f.aJson()).toList(),
-      };
+    'id': id,
+    'titulo': titulo,
+    'autor': autor,
+    'tapaId': tapaId,
+    'editorial': editorial,
+    'anio': anio,
+    'estado': estado.index,
+    'puntaje': puntaje,
+    'paginaActual': paginaActual,
+    'paginas': paginas,
+    'estantes': estantes.toList(),
+    'empezado': empezado?.toIso8601String(),
+    'terminado': terminado?.toIso8601String(),
+    'resena': resena,
+    'resenaConSpoilers': resenaConSpoilers,
+    'personaje': personaje,
+    'frases': frases.map((f) => f.aJson()).toList(),
+    'origen': origen.index,
+  };
 
   static DateTime? _fecha(Object? v) =>
       v is String ? DateTime.tryParse(v) : null;
 
   factory Libro.desdeJson(Map<String, dynamic> j) => Libro(
-        id: j['id'] as String,
-        titulo: j['titulo'] as String,
-        autor: j['autor'] as String,
-        tapaId: j['tapaId'] as int?,
-        editorial: j['editorial'] as String?,
-        anio: j['anio'] as int?,
-        // 'estante' es el nombre viejo: lo leemos para no perder datos
-        // de quien ya venía usando la demo.
-        estado: Estado.values[(j['estado'] ?? j['estante'] ?? 2) as int],
-        puntaje: (j['puntaje'] as int?) ?? 0,
-        paginaActual: (j['paginaActual'] as int?) ?? 0,
-        paginas: j['paginas'] as int?,
-        estantes: ((j['estantes'] as List?) ?? const [])
-            .map((e) => e as String)
-            .toSet(),
-        empezado: _fecha(j['empezado']),
-        terminado: _fecha(j['terminado']),
-        resena: j['resena'] as String?,
-        resenaConSpoilers: (j['resenaConSpoilers'] as bool?) ?? false,
-        personaje: j['personaje'] as String?,
-        frases: ((j['frases'] as List?) ?? const [])
-            .map((f) => Frase.desdeJson(f as Map<String, dynamic>))
-            .toList(),
-      );
+    id: j['id'] as String,
+    titulo: j['titulo'] as String,
+    autor: j['autor'] as String,
+    tapaId: j['tapaId'] as int?,
+    editorial: j['editorial'] as String?,
+    anio: j['anio'] as int?,
+    // 'estante' es el nombre viejo: lo leemos para no perder datos
+    // de quien ya venía usando la demo.
+    estado: Estado.values[(j['estado'] ?? j['estante'] ?? 2) as int],
+    puntaje: (j['puntaje'] as int?) ?? 0,
+    paginaActual: (j['paginaActual'] as int?) ?? 0,
+    paginas: j['paginas'] as int?,
+    estantes: ((j['estantes'] as List?) ?? const [])
+        .map((e) => e as String)
+        .toSet(),
+    empezado: _fecha(j['empezado']),
+    terminado: _fecha(j['terminado']),
+    resena: j['resena'] as String?,
+    resenaConSpoilers: (j['resenaConSpoilers'] as bool?) ?? false,
+    personaje: j['personaje'] as String?,
+    frases: ((j['frases'] as List?) ?? const [])
+        .map((f) => Frase.desdeJson(f as Map<String, dynamic>))
+        .toList(),
+    origen: Origen.values[(j['origen'] as int?) ?? 0],
+  );
 }
 
 /// La biblioteca de quien usa la app. Se guarda en el teléfono.
@@ -246,6 +278,20 @@ class Biblioteca extends ChangeNotifier {
   }
 
   bool tiene(Libro libro) => _libros.any((l) => l.clave == libro.clave);
+
+  /// Libros de tu biblioteca que se parecen a este título.
+  ///
+  /// Se usa para avisar antes de cargar un duplicado. Sugiere, nunca
+  /// bloquea: a veces son ediciones distintas y la persona tiene razón.
+  List<Libro> parecidos(String titulo) {
+    final buscado = Libro._normalizar(titulo);
+    if (buscado.length < 3) return const [];
+
+    return _libros.where((l) {
+      final suyo = Libro._normalizar(l.titulo);
+      return suyo.contains(buscado) || buscado.contains(suyo);
+    }).toList();
+  }
 
   Libro? buscarPorClave(String clave) {
     for (final l in _libros) {
@@ -424,7 +470,9 @@ class Biblioteca extends ChangeNotifier {
         final lista = jsonDecode(crudoLibros) as List;
         _libros
           ..clear()
-          ..addAll(lista.map((j) => Libro.desdeJson(j as Map<String, dynamic>)));
+          ..addAll(
+            lista.map((j) => Libro.desdeJson(j as Map<String, dynamic>)),
+          );
       } catch (_) {
         // Si el formato guardado quedó viejo, arrancamos limpio en vez de romper.
       }
@@ -467,8 +515,18 @@ final biblioteca = Biblioteca();
 /// y evita arrastrar una dependencia entera por doce palabras.
 String fechaCorta(DateTime d) {
   const meses = [
-    'ene', 'feb', 'mar', 'abr', 'may', 'jun',
-    'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
+    'ene',
+    'feb',
+    'mar',
+    'abr',
+    'may',
+    'jun',
+    'jul',
+    'ago',
+    'sep',
+    'oct',
+    'nov',
+    'dic',
   ];
   return '${d.day} ${meses[d.month - 1]} ${d.year}';
 }

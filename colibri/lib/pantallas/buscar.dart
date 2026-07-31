@@ -73,57 +73,64 @@ class _PantallaBuscarState extends State<PantallaBuscar> {
         backgroundColor: Paleta.noche,
         foregroundColor: Paleta.lila,
         elevation: 0,
-        title: const Text('Agregar un libro',
-            style: TextStyle(color: Paleta.luz, fontSize: 17)),
+        title: const Text(
+          'Agregar un libro',
+          style: TextStyle(color: Paleta.luz, fontSize: 17),
+        ),
       ),
       body: SafeArea(
         top: false,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-              child: TextField(
-                controller: _controlador,
-                onChanged: _alEscribir,
-                autofocus: true,
-                style: const TextStyle(color: Paleta.luz, fontSize: 15),
-                cursorColor: Paleta.lila,
-                decoration: InputDecoration(
-                  hintText: 'Título, autora o ISBN',
-                  hintStyle: Tipo.meta,
-                  prefixIcon: const Icon(Icons.search_rounded,
-                      color: Paleta.bruma, size: 20),
-                  filled: true,
-                  fillColor: Paleta.nocheAlta,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: Paleta.linea),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: Paleta.linea),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: Paleta.lila),
-                  ),
-                ),
-              ),
-            ),
-            if (_buscando)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 6),
-                child: SizedBox(
-                  height: 2,
-                  child: LinearProgressIndicator(
-                    backgroundColor: Paleta.noche,
-                    valueColor: AlwaysStoppedAnimation<Color>(Paleta.lila),
+        child: Columna(
+          hijo: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                child: TextField(
+                  controller: _controlador,
+                  onChanged: _alEscribir,
+                  autofocus: true,
+                  style: const TextStyle(color: Paleta.luz, fontSize: 15),
+                  cursorColor: Paleta.lila,
+                  decoration: InputDecoration(
+                    hintText: 'Título, autora o ISBN',
+                    hintStyle: Tipo.meta,
+                    prefixIcon: const Icon(
+                      Icons.search_rounded,
+                      color: Paleta.bruma,
+                      size: 20,
+                    ),
+                    filled: true,
+                    fillColor: Paleta.nocheAlta,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Paleta.linea),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Paleta.linea),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Paleta.lila),
+                    ),
                   ),
                 ),
               ),
-            Expanded(child: _cuerpo()),
-          ],
+              if (_buscando)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 6),
+                  child: SizedBox(
+                    height: 2,
+                    child: LinearProgressIndicator(
+                      backgroundColor: Paleta.noche,
+                      valueColor: AlwaysStoppedAnimation<Color>(Paleta.lila),
+                    ),
+                  ),
+                ),
+              Expanded(child: _cuerpo()),
+            ],
+          ),
         ),
       ),
     );
@@ -154,11 +161,8 @@ class _PantallaBuscarState extends State<PantallaBuscar> {
       builder: (context, _) => ListView.separated(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         itemCount: _resultados.length,
-        separatorBuilder: (_, _) => const Divider(
-          color: Paleta.linea,
-          height: 22,
-          thickness: 1,
-        ),
+        separatorBuilder: (_, _) =>
+            const Divider(color: Paleta.linea, height: 22, thickness: 1),
         itemBuilder: (_, i) => _Resultado(_resultados[i]),
       ),
     );
@@ -187,10 +191,12 @@ class _Resultado extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(libro.titulo,
-                    style: Tipo.cuerpo.copyWith(fontWeight: FontWeight.w500),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis),
+                Text(
+                  libro.titulo,
+                  style: Tipo.cuerpo.copyWith(fontWeight: FontWeight.w500),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 const SizedBox(height: 3),
                 Text(
                   [
@@ -211,7 +217,10 @@ class _Resultado extends StatelessWidget {
               if (yaEsta) {
                 await biblioteca.quitar(libro);
                 if (context.mounted) {
-                  mostrarAviso(context, '«${libro.titulo}» salió de tu biblioteca');
+                  mostrarAviso(
+                    context,
+                    '«${libro.titulo}» salió de tu biblioteca',
+                  );
                 }
               } else {
                 await biblioteca.agregar(libro);

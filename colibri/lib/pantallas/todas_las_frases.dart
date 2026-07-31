@@ -23,8 +23,7 @@ class PantallaTodasLasFrases extends StatefulWidget {
   const PantallaTodasLasFrases({super.key});
 
   @override
-  State<PantallaTodasLasFrases> createState() =>
-      _PantallaTodasLasFrasesState();
+  State<PantallaTodasLasFrases> createState() => _PantallaTodasLasFrasesState();
 }
 
 class _PantallaTodasLasFrasesState extends State<PantallaTodasLasFrases> {
@@ -53,16 +52,24 @@ class _PantallaTodasLasFrasesState extends State<PantallaTodasLasFrases> {
     if (_filtro.trim().length < 3) return todas;
     final aguja = _normalizar(_filtro);
     return todas
-        .where((f) =>
-            _normalizar(f.frase.texto).contains(aguja) ||
-            _normalizar(f.libro.titulo).contains(aguja) ||
-            _normalizar(f.libro.autor).contains(aguja))
+        .where(
+          (f) =>
+              _normalizar(f.frase.texto).contains(aguja) ||
+              _normalizar(f.libro.titulo).contains(aguja) ||
+              _normalizar(f.libro.autor).contains(aguja),
+        )
         .toList();
   }
 
   static String _normalizar(String s) {
     const acentos = {
-      'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ú': 'u', 'ü': 'u', 'ñ': 'n',
+      'á': 'a',
+      'é': 'e',
+      'í': 'i',
+      'ó': 'o',
+      'ú': 'u',
+      'ü': 'u',
+      'ñ': 'n',
     };
     var r = s.toLowerCase();
     acentos.forEach((k, v) => r = r.replaceAll(k, v));
@@ -78,75 +85,83 @@ class _PantallaTodasLasFrasesState extends State<PantallaTodasLasFrases> {
         final visibles = _filtrar(todas);
 
         return SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text('Tus frases', style: Tipo.titulo),
-                    if (todas.isNotEmpty)
-                      Text(
-                        todas.length == 1 ? '1 frase' : '${todas.length} frases',
-                        style: Tipo.meta,
-                      ),
-                  ],
-                ),
-              ),
-              if (todas.length >= 5)
+          child: Columna(
+            hijo: Column(
+              children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 6),
-                  child: TextField(
-                    controller: _buscador,
-                    onChanged: (v) => setState(() => _filtro = v),
-                    style: const TextStyle(color: Paleta.luz, fontSize: 14),
-                    cursorColor: Paleta.lila,
-                    decoration: InputDecoration(
-                      hintText: 'Buscar en tus frases',
-                      hintStyle: Tipo.meta,
-                      prefixIcon: const Icon(Icons.search_rounded,
-                          color: Paleta.bruma, size: 19),
-                      isDense: true,
-                      filled: true,
-                      fillColor: Paleta.nocheAlta,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: Paleta.linea),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: Paleta.linea),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: Paleta.lila),
+                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text('Tus frases', style: Tipo.titulo),
+                      if (todas.isNotEmpty)
+                        Text(
+                          todas.length == 1
+                              ? '1 frase'
+                              : '${todas.length} frases',
+                          style: Tipo.meta,
+                        ),
+                    ],
+                  ),
+                ),
+                if (todas.length >= 5)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 10, 20, 6),
+                    child: TextField(
+                      controller: _buscador,
+                      onChanged: (v) => setState(() => _filtro = v),
+                      style: const TextStyle(color: Paleta.luz, fontSize: 14),
+                      cursorColor: Paleta.lila,
+                      decoration: InputDecoration(
+                        hintText: 'Buscar en tus frases',
+                        hintStyle: Tipo.meta,
+                        prefixIcon: const Icon(
+                          Icons.search_rounded,
+                          color: Paleta.bruma,
+                          size: 19,
+                        ),
+                        isDense: true,
+                        filled: true,
+                        fillColor: Paleta.nocheAlta,
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 12,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: Paleta.linea),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: Paleta.linea),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: Paleta.lila),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              Expanded(
-                child: todas.isEmpty
-                    ? const _SinFrases()
-                    : visibles.isEmpty
-                        ? Padding(
-                            padding: const EdgeInsets.fromLTRB(32, 50, 32, 0),
-                            child: Text(
-                              'Ninguna frase tuya dice eso.',
-                              style: Tipo.meta,
-                              textAlign: TextAlign.center,
-                            ),
-                          )
-                        : ListView.builder(
-                            padding:
-                                const EdgeInsets.fromLTRB(20, 12, 20, 28),
-                            itemCount: visibles.length,
-                            itemBuilder: (_, i) => _Tarjeta(visibles[i]),
+                Expanded(
+                  child: todas.isEmpty
+                      ? const _SinFrases()
+                      : visibles.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.fromLTRB(32, 50, 32, 0),
+                          child: Text(
+                            'Ninguna frase tuya dice eso.',
+                            style: Tipo.meta,
+                            textAlign: TextAlign.center,
                           ),
-              ),
-            ],
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+                          itemCount: visibles.length,
+                          itemBuilder: (_, i) => _Tarjeta(visibles[i]),
+                        ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -204,8 +219,11 @@ class _Tarjeta extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    const Icon(Icons.ios_share_rounded,
-                        size: 15, color: Paleta.bruma),
+                    const Icon(
+                      Icons.ios_share_rounded,
+                      size: 15,
+                      color: Paleta.bruma,
+                    ),
                   ],
                 ),
               ],
@@ -226,8 +244,7 @@ class _SinFrases extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(36, 70, 36, 0),
       child: Column(
         children: [
-          const Icon(Icons.format_quote_rounded,
-              size: 40, color: Paleta.linea),
+          const Icon(Icons.format_quote_rounded, size: 40, color: Paleta.linea),
           const SizedBox(height: 18),
           Text(
             'Todavía no subrayaste nada.',

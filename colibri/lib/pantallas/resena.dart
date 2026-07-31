@@ -16,8 +16,9 @@ class PantallaResena extends StatefulWidget {
 }
 
 class _PantallaResenaState extends State<PantallaResena> {
-  late final TextEditingController _texto =
-      TextEditingController(text: widget.libro.resena ?? '');
+  late final TextEditingController _texto = TextEditingController(
+    text: widget.libro.resena ?? '',
+  );
   late bool _conSpoilers = widget.libro.resenaConSpoilers;
 
   @override
@@ -47,73 +48,79 @@ class _PantallaResenaState extends State<PantallaResena> {
         backgroundColor: Paleta.noche,
         foregroundColor: Paleta.lila,
         elevation: 0,
-        title: const Text('Tu reseña',
-            style: TextStyle(color: Paleta.luz, fontSize: 17)),
+        title: const Text(
+          'Tu reseña',
+          style: TextStyle(color: Paleta.luz, fontSize: 17),
+        ),
         actions: [
           TextButton(
             onPressed: _guardar,
             style: TextButton.styleFrom(foregroundColor: Paleta.lila),
-            child: const Text('Guardar',
-                style: TextStyle(fontWeight: FontWeight.w600)),
+            child: const Text(
+              'Guardar',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(widget.libro.titulo, style: Tipo.subtitulo),
-              Text(widget.libro.autor, style: Tipo.meta),
-              const SizedBox(height: 18),
+        child: Columna(
+          hijo: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(widget.libro.titulo, style: Tipo.subtitulo),
+                Text(widget.libro.autor, style: Tipo.meta),
+                const SizedBox(height: 18),
 
-              // La reseña se escribe con la letra de lectura, la misma con
-              // la que después la va a leer otra persona.
-              Expanded(
-                child: TextField(
-                  controller: _texto,
-                  autofocus: true,
-                  maxLines: null,
-                  expands: true,
-                  textAlignVertical: TextAlignVertical.top,
-                  textCapitalization: TextCapitalization.sentences,
-                  cursorColor: Paleta.lila,
-                  style: const TextStyle(
-                    color: Paleta.luz,
-                    fontSize: 16,
-                    height: 1.5,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: '¿Qué te dejó?',
-                    hintStyle: Tipo.meta.copyWith(fontSize: 16),
-                    filled: true,
-                    fillColor: Paleta.nocheAlta,
-                    contentPadding: const EdgeInsets.all(16),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Paleta.linea),
+                // La reseña se escribe con la letra de lectura, la misma con
+                // la que después la va a leer otra persona.
+                Expanded(
+                  child: TextField(
+                    controller: _texto,
+                    autofocus: true,
+                    maxLines: null,
+                    expands: true,
+                    textAlignVertical: TextAlignVertical.top,
+                    textCapitalization: TextCapitalization.sentences,
+                    cursorColor: Paleta.lila,
+                    style: const TextStyle(
+                      color: Paleta.luz,
+                      fontSize: 16,
+                      height: 1.5,
                     ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Paleta.linea),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Paleta.lila),
+                    decoration: InputDecoration(
+                      hintText: '¿Qué te dejó?',
+                      hintStyle: Tipo.meta.copyWith(fontSize: 16),
+                      filled: true,
+                      fillColor: Paleta.nocheAlta,
+                      contentPadding: const EdgeInsets.all(16),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Paleta.linea),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Paleta.linea),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Paleta.lila),
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 14),
+                const SizedBox(height: 14),
 
-              _InterruptorSpoilers(
-                valor: _conSpoilers,
-                alCambiar: (v) => setState(() => _conSpoilers = v),
-              ),
-              const SizedBox(height: 14),
-              BotonLleno('Guardar reseña', alTocar: _guardar),
-            ],
+                _InterruptorSpoilers(
+                  valor: _conSpoilers,
+                  alCambiar: (v) => setState(() => _conSpoilers = v),
+                ),
+                const SizedBox(height: 14),
+                BotonLleno('Guardar reseña', alTocar: _guardar),
+              ],
+            ),
           ),
         ),
       ),
@@ -195,9 +202,9 @@ class _ResenaPropiaState extends State<ResenaPropia> {
   bool _destapada = false;
 
   void _editar() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => PantallaResena(widget.libro)),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => PantallaResena(widget.libro)));
   }
 
   @override
@@ -223,12 +230,16 @@ class _ResenaPropiaState extends State<ResenaPropia> {
           if (l.resenaConSpoilers) ...[
             Row(
               children: [
-                const Icon(Icons.visibility_off_outlined,
-                    size: 14, color: Paleta.oro),
+                const Icon(
+                  Icons.visibility_off_outlined,
+                  size: 14,
+                  color: Paleta.oro,
+                ),
                 const SizedBox(width: 6),
-                Text('Con spoilers',
-                    style: Tipo.meta
-                        .copyWith(color: Paleta.oro, fontSize: 11.5)),
+                Text(
+                  'Con spoilers',
+                  style: Tipo.meta.copyWith(color: Paleta.oro, fontSize: 11.5),
+                ),
               ],
             ),
             const SizedBox(height: 10),

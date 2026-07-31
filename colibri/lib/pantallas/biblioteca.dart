@@ -12,19 +12,19 @@ enum _Solapa { leyendo, leidos, pendientes, estantes }
 
 extension on _Solapa {
   String get nombre => switch (this) {
-        _Solapa.leyendo => 'Leyendo',
-        _Solapa.leidos => 'Leídos',
-        _Solapa.pendientes => 'Pendientes',
-        _Solapa.estantes => 'Estantes',
-      };
+    _Solapa.leyendo => 'Leyendo',
+    _Solapa.leidos => 'Leídos',
+    _Solapa.pendientes => 'Pendientes',
+    _Solapa.estantes => 'Estantes',
+  };
 
   /// Null en la solapa de estantes: esa no filtra por estado.
   Estado? get estado => switch (this) {
-        _Solapa.leyendo => Estado.leyendo,
-        _Solapa.leidos => Estado.leido,
-        _Solapa.pendientes => Estado.pendiente,
-        _Solapa.estantes => null,
-      };
+    _Solapa.leyendo => Estado.leyendo,
+    _Solapa.leidos => Estado.leido,
+    _Solapa.pendientes => Estado.pendiente,
+    _Solapa.estantes => null,
+  };
 }
 
 class PantallaBiblioteca extends StatefulWidget {
@@ -38,15 +38,15 @@ class _PantallaBibliotecaState extends State<PantallaBiblioteca> {
   _Solapa _activa = _Solapa.leyendo;
 
   void _irABuscar() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const PantallaBuscar()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const PantallaBuscar()));
   }
 
   void _abrir(Libro libro) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => PantallaFicha(libro)),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => PantallaFicha(libro)));
   }
 
   @override
@@ -78,9 +78,11 @@ class _PantallaBibliotecaState extends State<PantallaBiblioteca> {
                 alCambiar: (s) => setState(() => _activa = s),
               ),
               Expanded(
-                child: _activa == _Solapa.estantes
-                    ? const VistaEstantes()
-                    : _listaDeEstado(_activa.estado!),
+                child: Columna(
+                  hijo: _activa == _Solapa.estantes
+                      ? const VistaEstantes()
+                      : _listaDeEstado(_activa.estado!),
+                ),
               ),
             ],
           ),
@@ -171,7 +173,9 @@ class _TarjetaLeyendo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final total = libro.paginas ?? 0;
-    final avance = total > 0 ? (libro.paginaActual / total).clamp(0.0, 1.0) : 0.0;
+    final avance = total > 0
+        ? (libro.paginaActual / total).clamp(0.0, 1.0)
+        : 0.0;
 
     return InkWell(
       onTap: alTocar,
@@ -191,10 +195,12 @@ class _TarjetaLeyendo extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(libro.titulo,
-                      style: Tipo.subtitulo,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis),
+                  Text(
+                    libro.titulo,
+                    style: Tipo.subtitulo,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   const SizedBox(height: 3),
                   Text(libro.autor, style: Tipo.meta, maxLines: 1),
                   const SizedBox(height: 14),
@@ -206,8 +212,9 @@ class _TarjetaLeyendo extends StatelessWidget {
                       value: avance,
                       minHeight: 5,
                       backgroundColor: Paleta.linea,
-                      valueColor:
-                          const AlwaysStoppedAnimation<Color>(Paleta.lila),
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        Paleta.lila,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -234,10 +241,10 @@ class _Vacio extends StatelessWidget {
   const _Vacio({required this.estado, required this.alTocar});
 
   String get _texto => switch (estado) {
-        Estado.leyendo => 'No estás leyendo nada todavía.',
-        Estado.leido => 'Todavía no marcaste ningún libro como leído.',
-        Estado.pendiente => 'No tenés nada esperando.',
-      };
+    Estado.leyendo => 'No estás leyendo nada todavía.',
+    Estado.leido => 'Todavía no marcaste ningún libro como leído.',
+    Estado.pendiente => 'No tenés nada esperando.',
+  };
 
   @override
   Widget build(BuildContext context) {

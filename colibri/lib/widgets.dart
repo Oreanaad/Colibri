@@ -152,11 +152,16 @@ class Logotipo extends StatelessWidget {
       fontWeight: FontWeight.w400,
     );
     return Text.rich(
-      TextSpan(children: [
-        TextSpan(text: 'co', style: base),
-        TextSpan(text: 'libr', style: base.copyWith(color: Paleta.oro)),
-        TextSpan(text: 'í', style: base),
-      ]),
+      TextSpan(
+        children: [
+          TextSpan(text: 'co', style: base),
+          TextSpan(
+            text: 'libr',
+            style: base.copyWith(color: Paleta.oro),
+          ),
+          TextSpan(text: 'í', style: base),
+        ],
+      ),
     );
   }
 }
@@ -236,8 +241,10 @@ void mostrarAviso(
     ..hideCurrentSnackBar() // si había otro, no se apilan
     ..showSnackBar(
       SnackBar(
-        content: Text(texto,
-            style: const TextStyle(color: Paleta.luz, fontSize: 13.5)),
+        content: Text(
+          texto,
+          style: const TextStyle(color: Paleta.luz, fontSize: 13.5),
+        ),
         backgroundColor: Paleta.nocheAlta,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(14),
@@ -320,8 +327,11 @@ class GrillaLibros extends StatelessWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: libros.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
+      // Fijamos el ancho de cada tapa, no la cantidad de columnas: así
+      // la grilla suma columnas sola cuando hay lugar —tres en un
+      // teléfono, seis en un monitor— y las tapas nunca se agrandan.
+      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: Medidas.anchoDeTapa(context),
         crossAxisSpacing: 10,
         mainAxisSpacing: 14,
         childAspectRatio: 2 / 3,
@@ -331,11 +341,8 @@ class GrillaLibros extends StatelessWidget {
         return GestureDetector(
           onTap: () => alTocar(l),
           child: LayoutBuilder(
-            builder: (_, c) => Tapa(
-              l,
-              ancho: c.maxWidth,
-              marcada: marcados.contains(l.clave),
-            ),
+            builder: (_, c) =>
+                Tapa(l, ancho: c.maxWidth, marcada: marcados.contains(l.clave)),
           ),
         );
       },

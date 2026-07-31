@@ -11,13 +11,15 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // La app es oscura siempre: los íconos de la barra de estado van claros.
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    statusBarBrightness: Brightness.dark, // iOS
-    statusBarIconBrightness: Brightness.light, // Android
-    systemNavigationBarColor: Paleta.noche,
-    systemNavigationBarIconBrightness: Brightness.light,
-  ));
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarBrightness: Brightness.dark, // iOS
+      statusBarIconBrightness: Brightness.light, // Android
+      systemNavigationBarColor: Paleta.noche,
+      systemNavigationBarIconBrightness: Brightness.light,
+    ),
+  );
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
@@ -91,7 +93,10 @@ class _MarcoState extends State<Marco> {
             ),
             NavigationDestination(
               icon: Icon(Icons.format_quote_outlined, color: Paleta.bruma),
-              selectedIcon: Icon(Icons.format_quote_rounded, color: Paleta.lila),
+              selectedIcon: Icon(
+                Icons.format_quote_rounded,
+                color: Paleta.lila,
+              ),
               label: 'Frases',
             ),
             NavigationDestination(

@@ -147,88 +147,90 @@ class _PantallaFichaState extends State<PantallaFicha> {
             foregroundColor: Paleta.lila,
             elevation: 0,
           ),
-          body: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
-            children: [
-              _Encabezado(
-                l,
-                alPuntuar: (p) {
-                  l.puntaje = p;
-                  _guardar();
-                },
-              ),
-              const SizedBox(height: 24),
-
-              if (!enBiblioteca)
-                BotonLleno('Agregar a mi biblioteca', alTocar: _agregar)
-              else ...[
-                _SelectorEstado(
-                  l.estado,
-                  alCambiar: (e) async {
-                    await biblioteca.cambiarEstado(l, e);
-                    if (mounted) setState(() {});
-                  },
-                ),
-                const SizedBox(height: 22),
-
-                const Rotulo('Tu lectura'),
-                const SizedBox(height: 10),
-                _Fechas(
+          body: Columna(
+            hijo: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+              children: [
+                _Encabezado(
                   l,
-                  alTocar: (esInicio) => _elegirFecha(esInicio: esInicio),
-                  alBorrar: (esInicio) => _borrarFecha(esInicio: esInicio),
-                ),
-
-                if (l.estado == Estado.leyendo) ...[
-                  const SizedBox(height: 16),
-                  _avanceLectura(),
-                ],
-                const SizedBox(height: 22),
-
-                const Rotulo('Tus estantes'),
-                const SizedBox(height: 10),
-                ChipsDeEstantes(l),
-                const SizedBox(height: 22),
-
-                const Rotulo('Tu personaje favorito'),
-                const SizedBox(height: 10),
-                _Personaje(l, alTocar: _elegirPersonaje),
-                const SizedBox(height: 22),
-
-                const Rotulo('Tu reseña'),
-                const SizedBox(height: 10),
-                ResenaPropia(l),
-                const SizedBox(height: 22),
-
-                const Rotulo('Tus frases'),
-                const SizedBox(height: 10),
-                _Frases(l),
-                const SizedBox(height: 22),
-
-                BotonContorno(
-                  'Sacar de mi biblioteca',
-                  alTocar: () async {
-                    await biblioteca.quitar(l);
-                    if (context.mounted) Navigator.of(context).pop();
+                  alPuntuar: (p) {
+                    l.puntaje = p;
+                    _guardar();
                   },
                 ),
+                const SizedBox(height: 24),
+
+                if (!enBiblioteca)
+                  BotonLleno('Agregar a mi biblioteca', alTocar: _agregar)
+                else ...[
+                  _SelectorEstado(
+                    l.estado,
+                    alCambiar: (e) async {
+                      await biblioteca.cambiarEstado(l, e);
+                      if (mounted) setState(() {});
+                    },
+                  ),
+                  const SizedBox(height: 22),
+
+                  const Rotulo('Tu lectura'),
+                  const SizedBox(height: 10),
+                  _Fechas(
+                    l,
+                    alTocar: (esInicio) => _elegirFecha(esInicio: esInicio),
+                    alBorrar: (esInicio) => _borrarFecha(esInicio: esInicio),
+                  ),
+
+                  if (l.estado == Estado.leyendo) ...[
+                    const SizedBox(height: 16),
+                    _avanceLectura(),
+                  ],
+                  const SizedBox(height: 22),
+
+                  const Rotulo('Tus estantes'),
+                  const SizedBox(height: 10),
+                  ChipsDeEstantes(l),
+                  const SizedBox(height: 22),
+
+                  const Rotulo('Tu personaje favorito'),
+                  const SizedBox(height: 10),
+                  _Personaje(l, alTocar: _elegirPersonaje),
+                  const SizedBox(height: 22),
+
+                  const Rotulo('Tu reseña'),
+                  const SizedBox(height: 10),
+                  ResenaPropia(l),
+                  const SizedBox(height: 22),
+
+                  const Rotulo('Tus frases'),
+                  const SizedBox(height: 10),
+                  _Frases(l),
+                  const SizedBox(height: 22),
+
+                  BotonContorno(
+                    'Sacar de mi biblioteca',
+                    alTocar: () async {
+                      await biblioteca.quitar(l);
+                      if (context.mounted) Navigator.of(context).pop();
+                    },
+                  ),
+                ],
+
+                const SizedBox(height: 34),
+                const Rotulo('Cómo te deja'),
+                const SizedBox(height: 10),
+                const _Animos(),
+
+                const SizedBox(height: 30),
+                const Rotulo('Reseñas de la comunidad'),
+                const SizedBox(height: 12),
+                _Capas(avance: _avance, leyendo: l.estado == Estado.leyendo),
+
+                const SizedBox(height: 30),
+                const Rotulo('La frase más subrayada'),
+                const SizedBox(height: 12),
+                const _FraseSubrayada(),
               ],
-
-              const SizedBox(height: 34),
-              const Rotulo('Cómo te deja'),
-              const SizedBox(height: 10),
-              const _Animos(),
-
-              const SizedBox(height: 30),
-              const Rotulo('Reseñas de la comunidad'),
-              const SizedBox(height: 12),
-              _Capas(avance: _avance, leyendo: l.estado == Estado.leyendo),
-
-              const SizedBox(height: 30),
-              const Rotulo('La frase más subrayada'),
-              const SizedBox(height: 12),
-              const _FraseSubrayada(),
-            ],
+            ),
           ),
         );
       },
@@ -244,8 +246,10 @@ class _PantallaFichaState extends State<PantallaFicha> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Rotulo('Por dónde vas'),
-            Text('página ${l.paginaActual} de $total',
-                style: Tipo.meta.copyWith(fontSize: 11)),
+            Text(
+              'página ${l.paginaActual} de $total',
+              style: Tipo.meta.copyWith(fontSize: 11),
+            ),
           ],
         ),
         SliderTheme(
@@ -463,8 +467,7 @@ class _Personaje extends StatelessWidget {
                 ),
               ),
             ),
-            Icon(Icons.chevron_right_rounded,
-                size: 18, color: Paleta.bruma),
+            Icon(Icons.chevron_right_rounded, size: 18, color: Paleta.bruma),
           ],
         ),
       ),
@@ -499,9 +502,13 @@ class _Frases extends StatelessWidget {
                 Text('“${l.frases.first.texto}”', style: Tipo.lectura),
                 if (cuantas > 1) ...[
                   const SizedBox(height: 8),
-                  Text('y ${cuantas - 1} más',
-                      style: Tipo.meta
-                          .copyWith(color: Paleta.oro, fontSize: 11.5)),
+                  Text(
+                    'y ${cuantas - 1} más',
+                    style: Tipo.meta.copyWith(
+                      color: Paleta.oro,
+                      fontSize: 11.5,
+                    ),
+                  ),
                 ],
               ],
             ),
@@ -512,9 +519,9 @@ class _Frases extends StatelessWidget {
           cuantas == 0
               ? (digital ? 'Buscar una frase' : 'Sumar mis frases')
               : 'Ver las $cuantas frases',
-          alTocar: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => PantallaFrases(l)),
-          ),
+          alTocar: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => PantallaFrases(l))),
         ),
       ],
     );
@@ -579,16 +586,19 @@ class _Animos extends StatelessWidget {
       spacing: 7,
       runSpacing: 7,
       children: _etiquetas
-          .map((e) => Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Paleta.linea),
-                  borderRadius: BorderRadius.circular(30),
-                ),
-                child: Text('${e.$1} · ${e.$2}',
-                    style: Tipo.meta.copyWith(fontSize: 11.5)),
-              ))
+          .map(
+            (e) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+              decoration: BoxDecoration(
+                border: Border.all(color: Paleta.linea),
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: Text(
+                '${e.$1} · ${e.$2}',
+                style: Tipo.meta.copyWith(fontSize: 11.5),
+              ),
+            ),
+          )
           .toList(),
     );
   }
@@ -656,16 +666,20 @@ class _CapasState extends State<_Capas> {
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
                       color: es ? Paleta.lila : null,
-                      border:
-                          Border.all(color: es ? Paleta.lila : Paleta.linea),
+                      border: Border.all(
+                        color: es ? Paleta.lila : Paleta.linea,
+                      ),
                       borderRadius: BorderRadius.circular(7),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         if (!abierta) ...[
-                          const Icon(Icons.lock_outline_rounded,
-                              size: 11, color: Paleta.bruma),
+                          const Icon(
+                            Icons.lock_outline_rounded,
+                            size: 11,
+                            color: Paleta.bruma,
+                          ),
                           const SizedBox(width: 3),
                         ],
                         Flexible(
@@ -678,8 +692,9 @@ class _CapasState extends State<_Capas> {
                               color: es
                                   ? Paleta.noche
                                   : (abierta ? Paleta.luz : Paleta.bruma),
-                              fontWeight:
-                                  es ? FontWeight.w600 : FontWeight.w400,
+                              fontWeight: es
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
                             ),
                           ),
                         ),
@@ -712,16 +727,19 @@ class _CapasState extends State<_Capas> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.lock_outline_rounded,
-                    size: 13, color: Paleta.bruma),
+                const Icon(
+                  Icons.lock_outline_rounded,
+                  size: 13,
+                  color: Paleta.bruma,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     widget.leyendo
                         ? 'Los tramos cerrados se abren solos cuando llegues. '
-                            'Moviendo la barra de arriba lo podés probar.'
+                              'Moviendo la barra de arriba lo podés probar.'
                         : 'Poné el libro en “Leyendo” y anotá por dónde vas: '
-                            'los otros tramos se abren solos.',
+                              'los otros tramos se abren solos.',
                     style: Tipo.meta.copyWith(fontSize: 11.5),
                   ),
                 ),
@@ -757,8 +775,10 @@ class _FraseSubrayada extends StatelessWidget {
             style: Tipo.lectura,
           ),
           const SizedBox(height: 8),
-          Text('subrayada por 43 personas',
-              style: Tipo.meta.copyWith(color: Paleta.oro, fontSize: 11.5)),
+          Text(
+            'subrayada por 43 personas',
+            style: Tipo.meta.copyWith(color: Paleta.oro, fontSize: 11.5),
+          ),
         ],
       ),
     );

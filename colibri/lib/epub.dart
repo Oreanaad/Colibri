@@ -99,9 +99,9 @@ class Epub {
   static List<String> _ordenDeLectura(Archive zip) {
     try {
       final contenedor = _buscar(zip, 'META-INF/container.xml');
-      final rutaOpf = RegExp(r'full-path="([^"]+)"')
-          .firstMatch(_texto(contenedor!)!)
-          ?.group(1);
+      final rutaOpf = RegExp(
+        r'full-path="([^"]+)"',
+      ).firstMatch(_texto(contenedor!)!)?.group(1);
       if (rutaOpf == null) throw Exception();
 
       final xml = _texto(_buscar(zip, rutaOpf)!)!;
@@ -129,12 +129,17 @@ class Epub {
       // seguimos con el plan B
     }
 
-    final sueltos = zip.files
-        .map((f) => f.name)
-        .where((n) =>
-            n.endsWith('.xhtml') || n.endsWith('.html') || n.endsWith('.htm'))
-        .toList()
-      ..sort();
+    final sueltos =
+        zip.files
+            .map((f) => f.name)
+            .where(
+              (n) =>
+                  n.endsWith('.xhtml') ||
+                  n.endsWith('.html') ||
+                  n.endsWith('.htm'),
+            )
+            .toList()
+          ..sort();
     return sueltos;
   }
 
@@ -152,9 +157,9 @@ class Epub {
       final xml = _texto(f);
       if (xml == null) continue;
       String? sacar(String etiqueta) => RegExp(
-            '<dc:$etiqueta[^>]*>(.*?)</dc:$etiqueta>',
-            dotAll: true,
-          ).firstMatch(xml)?.group(1)?.trim();
+        '<dc:$etiqueta[^>]*>(.*?)</dc:$etiqueta>',
+        dotAll: true,
+      ).firstMatch(xml)?.group(1)?.trim();
       return (sacar('title'), sacar('creator'));
     }
     return (null, null);
@@ -166,25 +171,40 @@ class Epub {
 
     // Lo que no es texto para leer se va entero, con contenido y todo.
     t = t.replaceAll(
-        RegExp(r'<(script|style|head)[^>]*>.*?</\1>',
-            dotAll: true, caseSensitive: false),
-        ' ');
+      RegExp(
+        r'<(script|style|head)[^>]*>.*?</\1>',
+        dotAll: true,
+        caseSensitive: false,
+      ),
+      ' ',
+    );
 
     // Los cortes de párrafo se marcan antes de borrar las etiquetas,
     // porque si no el libro entero queda como un solo bloque.
     t = t.replaceAll(
-        RegExp(r'</(p|div|h[1-6]|li|blockquote|br)\s*/?>',
-            caseSensitive: false),
-        '\n\n');
+      RegExp(r'</(p|div|h[1-6]|li|blockquote|br)\s*/?>', caseSensitive: false),
+      '\n\n',
+    );
 
     t = t.replaceAll(RegExp(r'<[^>]+>'), ' '); // el resto de las etiquetas
 
     // Las entidades más comunes de un libro.
     const entidades = {
-      '&nbsp;': ' ', '&amp;': '&', '&lt;': '<', '&gt;': '>',
-      '&quot;': '"', '&apos;': "'", '&mdash;': '—', '&ndash;': '–',
-      '&hellip;': '…', '&laquo;': '«', '&raquo;': '»',
-      '&ldquo;': '“', '&rdquo;': '”', '&lsquo;': '‘', '&rsquo;': '’',
+      '&nbsp;': ' ',
+      '&amp;': '&',
+      '&lt;': '<',
+      '&gt;': '>',
+      '&quot;': '"',
+      '&apos;': "'",
+      '&mdash;': '—',
+      '&ndash;': '–',
+      '&hellip;': '…',
+      '&laquo;': '«',
+      '&raquo;': '»',
+      '&ldquo;': '“',
+      '&rdquo;': '”',
+      '&lsquo;': '‘',
+      '&rsquo;': '’',
     };
     entidades.forEach((k, v) => t = t.replaceAll(k, v));
     t = t.replaceAllMapped(
@@ -205,10 +225,27 @@ class Epub {
   /// encuentra "corazón" y «hola» encuentra "hola".
   static String normalizar(String s) {
     const reemplazos = {
-      'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ú': 'u', 'ü': 'u', 'ñ': 'n',
-      'à': 'a', 'è': 'e', 'ì': 'i', 'ò': 'o', 'ù': 'u',
-      '“': '"', '”': '"', '‘': "'", '’': "'", '«': '"', '»': '"',
-      '—': '-', '–': '-', '…': '...',
+      'á': 'a',
+      'é': 'e',
+      'í': 'i',
+      'ó': 'o',
+      'ú': 'u',
+      'ü': 'u',
+      'ñ': 'n',
+      'à': 'a',
+      'è': 'e',
+      'ì': 'i',
+      'ò': 'o',
+      'ù': 'u',
+      '“': '"',
+      '”': '"',
+      '‘': "'",
+      '’': "'",
+      '«': '"',
+      '»': '"',
+      '—': '-',
+      '–': '-',
+      '…': '...',
     };
     var r = s.toLowerCase();
     reemplazos.forEach((k, v) => r = r.replaceAll(k, v));
