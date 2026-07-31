@@ -68,17 +68,24 @@ class _Librero extends CustomPainter {
   /// leen como dos libros, y eso da variedad sin sumar colores nuevos.
   ///
   /// Cinco morados y dos dorados: uno de cada tres o cuatro lomos sale
-  /// dorado, que es lo que hace que el mueble se vea de la app y no de
-  /// cualquier app. Al dorado se le da menos luz que al morado porque el
-  /// amarillo salta mucho más: con el mismo número se comería la pantalla.
+  /// dorado, que es lo que hace que el mueble se vea de esta app y no de
+  /// cualquiera.
+  ///
+  /// El dorado necesita **más saturación y más luz que el morado**, no
+  /// menos. Al principio se lo bajé para que no gritara y salió mal: un
+  /// amarillo oscuro y desaturado no se lee como dorado, se lee como
+  /// oliva sucio. Y peor todavía al lado de las tapas reales, que traen
+  /// dorados de verdad y hacen que el nuestro parezca un error.
+  ///
+  /// La forma de que no grite no es apagarlo: es que sean pocos.
   static const _tonos = <(double, double, double, double)>[
     (250, 0.40, 0.085, 0.20), // el morado de la casa
     (238, 0.38, 0.085, 0.18), // morado azulado
     (264, 0.34, 0.090, 0.19), // morado rojizo
     (250, 0.44, 0.060, 0.11), // morado casi negro
     (245, 0.28, 0.140, 0.22), // morado claro, apagado
-    (42, 0.40, 0.085, 0.155), // dorado
-    (38, 0.32, 0.100, 0.170), // dorado apagado
+    (44, 0.62, 0.180, 0.265), // dorado
+    (40, 0.52, 0.150, 0.220), // dorado viejo
   ];
 
   /// Números repetibles a partir de un índice.
