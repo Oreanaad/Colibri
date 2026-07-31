@@ -25,6 +25,18 @@ class _PantallaFichaState extends State<PantallaFicha> {
     super.initState();
     l = biblioteca.buscarPorClave(widget.libro.clave) ?? widget.libro;
     l.paginas ??= 320; // la demo necesita un total para mostrar el avance
+
+    // Queda anotado que estabas acá, para que recargar no te devuelva a
+    // la biblioteca.
+    sesion.anotar(libro: l.clave);
+  }
+
+  @override
+  void dispose() {
+    // Al cerrar la ficha se limpia, así la próxima vez abrís donde
+    // corresponde y no en un libro que ya dejaste.
+    if (sesion.libro == l.clave) sesion.anotar(cerrarLibro: true);
+    super.dispose();
   }
 
   double get _avance {

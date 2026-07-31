@@ -643,6 +643,80 @@ class Biblioteca extends ChangeNotifier {
 /// Una sola instancia para toda la app. Alcanza para una demo.
 final biblioteca = Biblioteca();
 
+/// Dónde estabas la última vez.
+///
+/// # El problema
+///
+/// En la web, recargar la página arranca la app de cero: si estabas
+/// mirando un libro, volvés a la biblioteca y perdés el lugar. Y no pasa
+/// solo al recargar: cuando el teléfono se queda sin memoria y cierra la
+/// app en segundo plano, al volver hace lo mismo.
+///
+/// # Por qué no lo resolvemos con direcciones
+///
+/// Lo prolijo sería que cada pantalla tenga su URL —`/libro/rayuela`— y
+/// que el navegador se encargue. Eso además haría andar los botones de
+/// atrás y adelante del navegador.
+///
+/// Pero es un cambio grande y hoy no hace falta: **guardar dónde estabas
+/// alcanza para que recargar no duela.** Cuando la app tenga que
+/// compartir enlaces a un libro, ahí sí van a hacer falta direcciones de
+/// verdad, y este archivo se tira.
+class Sesion extends ChangeNotifier {
+  static const _clave = 'colibri.sesion.v1';
+
+  /// Qué sección de la barra de abajo: biblioteca, frases o comunidad.
+  int seccion = 0;
+
+  /// Qué solapa dentro de la biblioteca: leyendo, leídos, pendientes,
+  /// estantes.
+  int solapa = 0;
+
+  /// Qué libro estabas mirando, o null si estabas en una lista.
+  String? libro;
+
+  Future<void> cargar() async {
+    final prefs = await SharedPreferences.getInstance();
+    final crudo = prefs.getString(_clave);
+    if (crudo == null) return;
+    try {
+      final j = jsonDecode(crudo) as Map<String, dynamic>;
+      seccion = (j['seccion'] as int?) ?? 0;
+      solapa = (j['solapa'] as int?) ?? 0;
+      libro = j['libro'] as String?;
+    } catch (_) {
+      // Formato viejo o roto: arrancamos en la biblioteca y listo.
+    }
+  }
+
+  Future<void> anotar({
+    int? seccion,
+    int? solapa,
+    String? libro,
+    bool cerrarLibro = false,
+  }) async {
+    if (seccion != null) this.seccion = seccion;
+    if (solapa != null) this.solapa = solapa;
+    if (cerrarLibro) {
+      this.libro = null;
+    } else if (libro != null) {
+      this.libro = libro;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _clave,
+      jsonEncode({
+        'seccion': this.seccion,
+        'solapa': this.solapa,
+        'libro': this.libro,
+      }),
+    );
+  }
+}
+
+final sesion = Sesion();
+
 /// "12 mar 2026". Sin paquetes de fechas: para tres usos alcanza y sobra,
 /// y evita arrastrar una dependencia entera por doce palabras.
 String fechaCorta(DateTime d) {

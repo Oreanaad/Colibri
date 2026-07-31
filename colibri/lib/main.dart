@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'modelos.dart';
 import 'pantallas/biblioteca.dart';
 import 'pantallas/comunidad.dart';
+import 'pantallas/ficha.dart';
 import 'pantallas/todas_las_frases.dart';
 import 'tema.dart';
 
@@ -26,6 +27,7 @@ Future<void> main() async {
   ]);
 
   await biblioteca.cargar();
+  await sesion.cargar();
   runApp(const AppColibri());
 }
 
@@ -62,13 +64,40 @@ class Marco extends StatefulWidget {
 }
 
 class _MarcoState extends State<Marco> {
-  int _indice = 0;
+  late int _indice = sesion.seccion.clamp(0, _pantallas.length - 1);
 
   static const _pantallas = [
     PantallaBiblioteca(),
     PantallaTodasLasFrases(),
     PantallaComunidad(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Después del primer dibujo, no antes: hasta que la pantalla no
+    // existe no hay a dónde apilar la ficha.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _volverAlLibro());
+  }
+
+  /// Si estabas mirando un libro, lo vuelve a abrir.
+  ///
+  /// Se busca por clave y no por posición: entre que cerraste y volviste,
+  /// la biblioteca pudo cambiar de orden o el libro pudo no estar más.
+  void _volverAlLibro() {
+    final clave = sesion.libro;
+    if (clave == null || !mounted) return;
+
+    final libro = biblioteca.buscarPorClave(clave);
+    if (libro == null) {
+      sesion.anotar(cerrarLibro: true); // ya no está: limpiamos
+      return;
+    }
+
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => PantallaFicha(libro)));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -80,7 +109,10 @@ class _MarcoState extends State<Marco> {
         ),
         child: NavigationBar(
           selectedIndex: _indice,
-          onDestinationSelected: (i) => setState(() => _indice = i),
+          onDestinationSelected: (i) {
+            setState(() => _indice = i);
+            sesion.anotar(seccion: i);
+          },
           backgroundColor: Paleta.noche,
           indicatorColor: const Color(0x22B9A6E6),
           height: 62,

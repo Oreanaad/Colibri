@@ -35,7 +35,8 @@ class PantallaBiblioteca extends StatefulWidget {
 }
 
 class _PantallaBibliotecaState extends State<PantallaBiblioteca> {
-  _Solapa _activa = _Solapa.leyendo;
+  late _Solapa _activa =
+      _Solapa.values[sesion.solapa.clamp(0, _Solapa.values.length - 1)];
 
   void _irABuscar() {
     Navigator.of(
@@ -75,7 +76,10 @@ class _PantallaBibliotecaState extends State<PantallaBiblioteca> {
               ),
               _Solapas(
                 activa: _activa,
-                alCambiar: (s) => setState(() => _activa = s),
+                alCambiar: (s) {
+                  setState(() => _activa = s);
+                  sesion.anotar(solapa: s.index);
+                },
               ),
               Expanded(
                 child: Columna(
