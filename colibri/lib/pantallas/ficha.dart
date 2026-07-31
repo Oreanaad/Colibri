@@ -186,144 +186,185 @@ class _PantallaFichaState extends State<PantallaFicha> {
             elevation: 0,
           ),
           body: Columna(
-            hijo: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
-              children: [
-                _Encabezado(
-                  l,
-                  alPuntuar: (p) {
-                    l.puntaje = p;
-                    _guardar();
-                  },
-                  alCambiarEdicion: _cambiarEdicion,
-                ),
-                const SizedBox(height: 24),
-
-                if (!enBiblioteca)
-                  BotonLleno('Agregar a mi biblioteca', alTocar: _agregar)
-                else ...[
-                  _SelectorEstado(
-                    l.estado,
-                    alCambiar: (e) async {
-                      final eraOtro = l.estado != e;
-                      await biblioteca.cambiarEstado(l, e);
-                      if (!mounted) return;
-                      setState(() {});
-
-                      // El único momento en que el libro está fresco.
-                      // Solo la primera vez, y siempre se puede saltear.
-                      if (eraOtro &&
-                          l.estado == Estado.leido &&
-                          l.animos.isEmpty &&
-                          context.mounted) {
-                        await preguntarComoTeDejo(context, l);
-                        if (mounted) setState(() {});
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 22),
-
-                  const Rotulo('Tu lectura'),
-                  const SizedBox(height: 10),
-                  _Fechas(
-                    l,
-                    alTocar: (esInicio) => _elegirFecha(esInicio: esInicio),
-                    alBorrar: (esInicio) => _borrarFecha(esInicio: esInicio),
-                  ),
-
-                  if (l.estado == Estado.leyendo) ...[
-                    const SizedBox(height: 16),
-                    _avanceLectura(),
-                  ],
-                  const SizedBox(height: 22),
-
-                  const Rotulo('Tus estantes'),
-                  const SizedBox(height: 10),
-                  ChipsDeEstantes(l),
-                  const SizedBox(height: 22),
-
-                  Rotulo(
-                    l.personajes.length > 1
-                        ? 'Tus personajes favoritos'
-                        : 'Tu personaje favorito',
-                  ),
-                  const SizedBox(height: 10),
-                  _Personajes(
-                    l,
-                    alSumar: _sumarPersonaje,
-                    alSacar: _sacarPersonaje,
-                  ),
-                  const SizedBox(height: 22),
-
-                  const Rotulo('Tu reseña'),
-                  const SizedBox(height: 10),
-                  ResenaPropia(l),
-                  const SizedBox(height: 22),
-
-                  const Rotulo('Tus frases'),
-                  const SizedBox(height: 10),
-                  _Frases(l),
-                  const SizedBox(height: 22),
-
-                  const Rotulo('Y además'),
-                  const SizedBox(height: 10),
-                  _OtrasEscalas(
-                    l,
-                    alCambiar: (escala, v) {
-                      setState(() {
-                        switch (escala) {
-                          case Escala.lagrimas:
-                            l.lagrimas = v;
-                          case Escala.corazones:
-                            l.romantico = v;
-                          case Escala.chiles:
-                            l.picante = v;
-                          case Escala.estrellas:
-                            l.puntaje = v;
-                        }
-                      });
-                      _guardar();
-                    },
-                  ),
-                  const SizedBox(height: 22),
-
-                  const Rotulo('Cómo te dejó'),
-                  const SizedBox(height: 10),
-                  ChipsDeAnimo(
-                    elegidas: l.animos.toSet(),
-                    alAlternar: (a) {
-                      setState(() {
-                        if (!l.animos.remove(a) &&
-                            l.animos.length < Animos.maximo) {
-                          l.animos.add(a);
-                        }
-                      });
-                      _guardar();
-                    },
-                  ),
-                  const SizedBox(height: 22),
-                ],
-
-                const SizedBox(height: 34),
-                const Rotulo('Lo que dice la comunidad'),
-                const SizedBox(height: 10),
-                const _AnimosDeLaComunidad(),
-
-                const SizedBox(height: 30),
-                const Rotulo('Reseñas de la comunidad'),
-                const SizedBox(height: 12),
-                _Capas(avance: _avance, leyendo: l.estado == Estado.leyendo),
-
-                const SizedBox(height: 30),
-                const Rotulo('La frase más subrayada'),
-                const SizedBox(height: 12),
-                const _FraseSubrayada(),
-              ],
+            // ListView.builder y no ListView con children.
+            //
+            // Con `children`, Flutter construye TODAS las secciones de
+            // una: medido, eran 1340 widgets de golpe contra 418 de la
+            // biblioteca, y 78 ms en una máquina rápida sin navegador.
+            // En Chrome eso se sentía como que la pantalla se trababa
+            // antes de abrir el libro.
+            //
+            // Con `builder` se construye solo lo que se ve, y el resto
+            // aparece a medida que se baja.
+            hijo: Builder(
+              builder: (context) {
+                final secciones = _secciones(enBiblioteca);
+                return ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+                  itemCount: secciones.length,
+                  itemBuilder: (_, i) => secciones[i](),
+                );
+              },
             ),
           ),
         );
       },
     );
+  }
+
+  /// Las secciones de la ficha, como funciones que todavía no se
+  /// ejecutaron.
+  ///
+  /// Devolver funciones y no widgets es lo que permite que ListView
+  /// construya solo las que entran en pantalla. Si devolviera widgets ya
+  /// armados, el trabajo de construirlos ya estaría hecho y no
+  /// habríamos ganado nada.
+  List<Widget Function()> _secciones(bool enBiblioteca) {
+    Widget conAire(Widget hijo, [double abajo = 22]) => Padding(
+      padding: EdgeInsets.only(bottom: abajo),
+      child: hijo,
+    );
+
+    Widget rotulado(String rotulo, Widget hijo, [double abajo = 22]) => Padding(
+      padding: EdgeInsets.only(bottom: abajo),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [Rotulo(rotulo), const SizedBox(height: 10), hijo],
+      ),
+    );
+
+    return [
+      () => conAire(
+        _Encabezado(
+          l,
+          alPuntuar: (p) {
+            l.puntaje = p;
+            _guardar();
+          },
+          alCambiarEdicion: _cambiarEdicion,
+        ),
+        24,
+      ),
+
+      if (!enBiblioteca)
+        () => conAire(BotonLleno('Agregar a mi biblioteca', alTocar: _agregar))
+      else ...[
+        () => conAire(
+          _SelectorEstado(
+            l.estado,
+            alCambiar: (e) async {
+              final eraOtro = l.estado != e;
+              await biblioteca.cambiarEstado(l, e);
+              if (!mounted) return;
+              setState(() {});
+
+              // El único momento en que el libro está fresco.
+              // Solo la primera vez, y siempre se puede saltear.
+              if (eraOtro &&
+                  l.estado == Estado.leido &&
+                  l.animos.isEmpty &&
+                  context.mounted) {
+                await preguntarComoTeDejo(context, l);
+                if (mounted) setState(() {});
+              }
+            },
+          ),
+        ),
+
+        () => rotulado(
+          'Tu lectura',
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _Fechas(
+                l,
+                alTocar: (esInicio) => _elegirFecha(esInicio: esInicio),
+                alBorrar: (esInicio) => _borrarFecha(esInicio: esInicio),
+              ),
+              if (l.estado == Estado.leyendo) ...[
+                const SizedBox(height: 16),
+                _avanceLectura(),
+              ],
+            ],
+          ),
+        ),
+
+        () => rotulado('Tus estantes', ChipsDeEstantes(l)),
+
+        () => rotulado(
+          l.personajes.length > 1
+              ? 'Tus personajes favoritos'
+              : 'Tu personaje favorito',
+          _Personajes(l, alSumar: _sumarPersonaje, alSacar: _sacarPersonaje),
+        ),
+
+        () => rotulado('Tu reseña', ResenaPropia(l)),
+        () => rotulado('Tus frases', _Frases(l)),
+
+        () => rotulado(
+          'Y además',
+          _OtrasEscalas(
+            l,
+            alCambiar: (escala, v) {
+              setState(() {
+                switch (escala) {
+                  case Escala.lagrimas:
+                    l.lagrimas = v;
+                  case Escala.corazones:
+                    l.romantico = v;
+                  case Escala.chiles:
+                    l.picante = v;
+                  case Escala.estrellas:
+                    l.puntaje = v;
+                }
+              });
+              _guardar();
+            },
+          ),
+        ),
+
+        () => rotulado(
+          'Cómo te dejó',
+          ChipsDeAnimo(
+            elegidas: l.animos.toSet(),
+            alAlternar: (a) {
+              setState(() {
+                if (!l.animos.remove(a) && l.animos.length < Animos.maximo) {
+                  l.animos.add(a);
+                }
+              });
+              _guardar();
+            },
+          ),
+        ),
+      ],
+
+      // De acá para abajo es lo que dice la comunidad, todavía de
+      // mentira. Va al final a propósito: primero lo tuyo.
+      () => rotulado(
+        'Lo que dice la comunidad',
+        const _AnimosDeLaComunidad(),
+        30,
+      ),
+      () => rotulado(
+        'Reseñas de la comunidad',
+        _Capas(avance: _avance, leyendo: l.estado == Estado.leyendo),
+        30,
+      ),
+      () => rotulado('La frase más subrayada', const _FraseSubrayada(), 0),
+
+      if (enBiblioteca)
+        () => Padding(
+          padding: const EdgeInsets.only(top: 34),
+          child: BotonContorno(
+            'Sacar de mi biblioteca',
+            alTocar: () async {
+              await biblioteca.quitar(l);
+              if (mounted) Navigator.of(context).pop();
+            },
+          ),
+        ),
+    ];
   }
 
   Widget _avanceLectura() {

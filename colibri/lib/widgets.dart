@@ -40,13 +40,43 @@ class Tapa extends StatelessWidget {
         borderRadius: BorderRadius.circular(marcada ? 2 : 4),
         child: url == null
             ? _TapaGenerada(libro, ancho: ancho)
-            : Image.network(
-                url,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => _TapaGenerada(libro, ancho: ancho),
-                loadingBuilder: (_, hijo, progreso) => progreso == null
-                    ? hijo
-                    : Container(color: Paleta.nocheAlta),
+            : Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Debajo de todo, la tapa dibujada: se ve al instante y
+                  // hace que nunca haya un rectángulo vacío.
+                  _TapaGenerada(libro, ancho: ancho),
+
+                  // En la ficha pedimos la tapa grande, que es una
+                  // descarga distinta a la de la grilla. Mientras llega,
+                  // mostramos la mediana, que ya está en memoria de haber
+                  // pasado por la lista: así abrir un libro es inmediato
+                  // en vez de quedarse pensando.
+                  if (tamano != 'M')
+                    Image.network(
+                      Api.urlTapa(libro.tapaId)!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                    ),
+
+                  Image.network(
+                    url,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                    // Sin esto la tapa aparece de golpe cuando termina de
+                    // bajar, y el salto se nota más que la espera.
+                    frameBuilder: (_, hijo, cuadro, yaEstaba) {
+                      if (yaEstaba || cuadro != null) {
+                        return AnimatedOpacity(
+                          opacity: 1,
+                          duration: const Duration(milliseconds: 220),
+                          child: hijo,
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                ],
               ),
       ),
     );
