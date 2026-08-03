@@ -168,3 +168,52 @@ class _Librero extends CustomPainter {
   @override
   bool shouldRepaint(_Librero anterior) => false;
 }
+
+/// Hace que cada pantalla que se abre traiga su propio fondo.
+///
+/// # El bug que arregla
+///
+/// Para que se viera el librero, las pantallas quedaron transparentes.
+/// Y durante la animación de abrir un libro, Flutter dibuja las dos
+/// pantallas al mismo tiempo: la que se va y la que llega. Si la que
+/// llega es transparente, se ven **las dos superpuestas** durante toda la
+/// animación, y parece que la app se colgó.
+///
+/// La solución no es sacar la transparencia —ahí se pierde el librero—
+/// sino que cada pantalla que se abre pinte su propio fondo. Así es opaca
+/// aunque el Scaffold no lo sea.
+///
+/// Se hace acá, en un solo lugar, y no pantalla por pantalla: cualquier
+/// pantalla nueva lo hereda sin que haya que acordarse.
+class _PaginaConFondo extends PageTransitionsBuilder {
+  const _PaginaConFondo();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> ruta,
+    BuildContext context,
+    Animation<double> animacion,
+    Animation<double> animacionSecundaria,
+    Widget hijo,
+  ) {
+    // Un fundido y no un deslizado, y esto importa.
+    //
+    // Si la pantalla nueva se deslizara desde el costado, su librero se
+    // deslizaría con ella y se vería el mueble moviéndose por encima del
+    // otro. Con el fundido las dos quedan alineadas: como el librero es
+    // idéntico en ambas, se ve quieto y lo único que cambia es el
+    // contenido.
+    return FadeTransition(
+      opacity: CurvedAnimation(parent: animacion, curve: Curves.easeOutCubic),
+      child: Fondo(hijo: hijo),
+    );
+  }
+}
+
+/// La transición para todas las plataformas.
+final transicionesConFondo = PageTransitionsTheme(
+  builders: {
+    for (final plataforma in TargetPlatform.values)
+      plataforma: const _PaginaConFondo(),
+  },
+);

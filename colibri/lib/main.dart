@@ -40,7 +40,11 @@ class AppColibri extends StatelessWidget {
     return MaterialApp(
       title: 'Colibrí',
       debugShowCheckedModeBanner: false,
-      theme: construirTema(),
+      // copyWith y no dentro de construirTema porque el tema no puede
+      // conocer al fondo: el fondo ya usa la paleta, y se harían un nudo.
+      theme: construirTema().copyWith(
+        pageTransitionsTheme: transicionesConFondo,
+      ),
 
       // Sin esto, el calendario que elige las fechas aparece en inglés:
       // "Select date", "Cancel", los meses y hasta el orden de los días.
