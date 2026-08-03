@@ -126,21 +126,25 @@ void main() {
       final s = Sesion();
       await s.cargar();
 
-      expect(s.seccion, 1);
+      // La sección 1 era Frases; ahora Frases es la 2, porque Fanfics
+      // entró segunda en la barra de abajo.
+      expect(s.seccion, 2);
       expect(s.libro, '/works/OL1W');
     });
 
-    test('si hay formato nuevo, el viejo se ignora', () async {
-      // Si se leyeran los dos, cada arranque volvería a correr la solapa
-      // un lugar y terminarías siempre en Estantes.
+    test('si hay formato nuevo, los viejos se ignoran', () async {
+      // Si se leyeran todos, cada arranque volvería a correr un lugar y
+      // terminarías siempre en la última sección.
       SharedPreferences.setMockInitialValues({
         'colibri.sesion.v1': '{"seccion":0,"solapa":3}',
-        'colibri.sesion.v2': '{"seccion":0,"solapa":1}',
+        'colibri.sesion.v2': '{"seccion":1,"solapa":2}',
+        'colibri.sesion.v3': '{"seccion":0,"solapa":1}',
       });
       final s = Sesion();
       await s.cargar();
 
       expect(s.solapa, 1);
+      expect(s.seccion, 0);
     });
 
     test('guardar dos veces no vuelve a correr la solapa', () async {
@@ -157,6 +161,63 @@ void main() {
       final segunda = Sesion();
       await segunda.cargar();
       expect(segunda.solapa, 3);
+    });
+  });
+
+  group('la sección Fanfics y lo que ya estaba guardado', () {
+    test('las secciones de después de la biblioteca se corren una', () async {
+      // Fanfics entró segunda. Biblioteca sigue siendo la 0; Frases pasó
+      // de 1 a 2 y Comunidad de 2 a 3.
+      for (final caso in {0: 0, 1: 2, 2: 3}.entries) {
+        SharedPreferences.setMockInitialValues({
+          'colibri.sesion.v2': '{"seccion":${caso.key},"solapa":0}',
+        });
+        final s = Sesion();
+        await s.cargar();
+
+        expect(
+          s.seccion,
+          caso.value,
+          reason: 'la sección ${caso.key} de antes es la ${caso.value}',
+        );
+      }
+    });
+
+    test('la biblioteca se queda donde estaba', () async {
+      // Es la 0 y sigue siendo la 0: correrla también dejaría a todo el
+      // mundo abriendo la app en Fanfics.
+      SharedPreferences.setMockInitialValues({
+        'colibri.sesion.v2': '{"seccion":0,"solapa":3}',
+      });
+      final s = Sesion();
+      await s.cargar();
+
+      expect(s.seccion, 0);
+      expect(s.solapa, 3, reason: 'la solapa no se toca en este salto');
+    });
+
+    test(
+      'desde el formato más viejo se aplican los dos corrimientos',
+      () async {
+        // Alguien que no abrió la app en mucho tiempo. Solapa 2 -> 3 por
+        // «Todos», y sección 2 -> 3 por «Fanfics».
+        SharedPreferences.setMockInitialValues({
+          'colibri.sesion.v1': '{"seccion":2,"solapa":2}',
+        });
+        final s = Sesion();
+        await s.cargar();
+
+        expect(s.solapa, 3);
+        expect(s.seccion, 3);
+      },
+    );
+
+    test('sin nada guardado se abre en la biblioteca', () async {
+      SharedPreferences.setMockInitialValues({});
+      final s = Sesion();
+      await s.cargar();
+
+      expect(s.seccion, 0);
     });
   });
 }

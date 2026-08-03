@@ -5,6 +5,7 @@ import 'fondo.dart';
 import 'modelos.dart';
 import 'pantallas/biblioteca.dart';
 import 'pantallas/comunidad.dart';
+import 'pantallas/fanfics.dart';
 import 'pantallas/ficha.dart';
 import 'pantallas/todas_las_frases.dart';
 import 'tema.dart';
@@ -76,6 +77,7 @@ class _MarcoState extends State<Marco> {
 
   static const _pantallas = [
     PantallaBiblioteca(),
+    PantallaFanfics(),
     PantallaTodasLasFrases(),
     PantallaComunidad(),
   ];
@@ -130,6 +132,20 @@ class _MarcoState extends State<Marco> {
               icon: Icon(Icons.menu_book_outlined, color: Paleta.bruma),
               selectedIcon: Icon(Icons.menu_book_rounded, color: Paleta.lila),
               label: 'Biblioteca',
+            ),
+            // Sección propia y no una solapa de la biblioteca: los
+            // fanfics se cargan distinto —con su enlace, que es lo que
+            // impide que el mismo entre mil veces— y si el botón viviera
+            // mezclado con el de buscar libros, la mitad de las veces
+            // alguien cargaría un fic como si fuera un libro y ahí se
+            // pierde la garantía.
+            NavigationDestination(
+              icon: Icon(Icons.auto_stories_outlined, color: Paleta.bruma),
+              selectedIcon: Icon(
+                Icons.auto_stories_rounded,
+                color: Paleta.lila,
+              ),
+              label: 'Fanfics',
             ),
             NavigationDestination(
               icon: Icon(Icons.format_quote_outlined, color: Paleta.bruma),

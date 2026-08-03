@@ -469,17 +469,40 @@ class Biblioteca extends ChangeNotifier {
   /// recién creado, todavía vacío, no desaparezca.
   final List<String> _estantes = [];
 
+  /// Todo lo que leíste: libros y fanfics juntos.
+  ///
+  /// Casi nunca es lo que se quiere mostrar —las dos cosas viven en
+  /// secciones distintas— pero sí es lo que hay que mirar para contar,
+  /// para buscar y para saber si algo ya está.
   List<Libro> get todos => List.unmodifiable(_libros);
+
+  /// Los libros, sin los fanfics.
+  List<Libro> get libros =>
+      _libros.where((l) => l.origen != Origen.fanfic).toList();
+
+  /// Los fanfics, que tienen su propia sección.
+  List<Libro> get fanfics =>
+      _libros.where((l) => l.origen == Origen.fanfic).toList();
+
   List<String> get estantes => List.unmodifiable(_estantes);
 
-  List<Libro> enEstado(Estado e) =>
-      _libros.where((l) => l.estado == e).toList();
+  /// Los libros en un estado. **Sin fanfics**: esos tienen su sección, y
+  /// mostrarlos en los dos lados sería contar dos veces lo mismo.
+  List<Libro> enEstado(Estado e) => libros.where((l) => l.estado == e).toList();
+
+  List<Libro> fanficsEnEstado(Estado e) =>
+      fanfics.where((l) => l.estado == e).toList();
 
   List<Libro> enEstante(String nombre) =>
       _libros.where((l) => l.estantes.contains(nombre)).toList();
 
   Libro? get leyendoAhora {
     final l = enEstado(Estado.leyendo);
+    return l.isEmpty ? null : l.first;
+  }
+
+  Libro? get ficLeyendoAhora {
+    final l = fanficsEnEstado(Estado.leyendo);
     return l.isEmpty ? null : l.first;
   }
 
@@ -508,6 +531,10 @@ class Biblioteca extends ChangeNotifier {
   /// No filtra por solapa a propósito. Si estás en «Leyendo» y buscás un
   /// libro que tenés en pendientes, lo que querés es encontrarlo, no que
   /// la app te diga que no lo tenés.
+  ///
+  /// Y **sí incluye los fanfics**, aunque vivan en otra sección. Que la
+  /// app te diga «no lo tenés» cuando lo tenés es el peor resultado
+  /// posible de una búsqueda, y peor que mezclar.
   List<Libro> buscarEnMiBiblioteca(String texto) {
     final aguja = Libro._normalizar(texto);
     if (aguja.length < 2) return const [];
@@ -825,14 +852,25 @@ final biblioteca = Biblioteca();
 /// compartir enlaces a un libro, ahí sí van a hacer falta direcciones de
 /// verdad, y este archivo se tira.
 class Sesion extends ChangeNotifier {
-  static const _clave = 'colibri.sesion.v2';
+  static const _clave = 'colibri.sesion.v3';
 
-  /// El formato anterior, de cuando la biblioteca no tenía la solapa
-  /// «Todos». Se sigue leyendo una vez para no mandar a nadie a una
-  /// pantalla que no era la que había dejado abierta.
-  static const _claveVieja = 'colibri.sesion.v1';
+  /// Los formatos anteriores. Se leen una vez, corriendo lo que haya que
+  /// correr, para no mandar a nadie a una pantalla que no era la que había
+  /// dejado abierta.
+  ///
+  /// - **v1**: la biblioteca no tenía la solapa «Todos», así que las
+  ///   solapas se corrieron un lugar.
+  /// - **v2**: no existía la sección «Fanfics», que entró segunda, así que
+  ///   las secciones de la barra de abajo se corrieron un lugar.
+  ///
+  /// Si esto pasa una tercera vez, conviene dejar de guardar números y
+  /// guardar nombres: un número solo significa algo si la lista no cambia
+  /// nunca, y esta lista ya cambió dos veces.
+  static const _v2 = 'colibri.sesion.v2';
+  static const _v1 = 'colibri.sesion.v1';
 
-  /// Qué sección de la barra de abajo: biblioteca, frases o comunidad.
+  /// Qué sección de la barra de abajo: biblioteca, fanfics, frases o
+  /// comunidad.
   int seccion = 0;
 
   /// Qué solapa dentro de la biblioteca: todos, leyendo, leídos,
@@ -851,16 +889,24 @@ class Sesion extends ChangeNotifier {
       return;
     }
 
-    // Nunca se guardó en el formato nuevo: puede haber uno viejo. Ahí las
-    // solapas eran cuatro y «Todos» todavía no existía, así que la que
-    // estaba en el lugar 0 ahora está en el 1, y así con todas. Sin este
-    // corrimiento, quien había dejado abierto «Estantes» volvía a
-    // «Pendientes» sin entender por qué.
-    final viejo = prefs.getString(_claveVieja);
-    if (viejo == null) return;
+    // Nunca se guardó en el formato nuevo: puede haber uno anterior.
+    final v2 = prefs.getString(_v2);
+    if (v2 != null) {
+      _leer(v2);
+      // «Fanfics» entró segunda en la barra de abajo: Frases y Comunidad
+      // se corrieron un lugar.
+      if (seccion >= 1) seccion = seccion + 1;
+      return;
+    }
 
-    _leer(viejo);
+    final v1 = prefs.getString(_v1);
+    if (v1 == null) return;
+
+    _leer(v1);
+    // Los dos corrimientos, en orden: primero la solapa «Todos», después
+    // la sección «Fanfics».
     solapa = solapa + 1;
+    if (seccion >= 1) seccion = seccion + 1;
   }
 
   void _leer(String crudo) {
