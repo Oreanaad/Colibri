@@ -104,14 +104,6 @@ class _PantallaBuscarState extends State<PantallaBuscar> {
           'Agregar un libro',
           style: TextStyle(color: Paleta.luz, fontSize: 17),
         ),
-        actions: [
-          IconButton(
-            onPressed: _escanear,
-            icon: const Icon(Icons.qr_code_scanner_rounded),
-            color: Paleta.lila,
-            tooltip: 'Escanear el código de barras',
-          ),
-        ],
       ),
       body: SafeArea(
         top: false,
@@ -120,36 +112,19 @@ class _PantallaBuscarState extends State<PantallaBuscar> {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-                child: TextField(
-                  controller: _controlador,
-                  onChanged: _alEscribir,
-                  autofocus: true,
-                  style: const TextStyle(color: Paleta.luz, fontSize: 15),
-                  cursorColor: Paleta.lila,
-                  decoration: InputDecoration(
-                    hintText: 'Título, autora o ISBN',
-                    hintStyle: Tipo.meta,
-                    prefixIcon: const Icon(
-                      Icons.search_rounded,
-                      color: Paleta.bruma,
-                      size: 20,
-                    ),
-                    filled: true,
-                    fillColor: Paleta.nocheAlta,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: Paleta.linea),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: Paleta.linea),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: Paleta.lila),
-                    ),
-                  ),
+                child: Row(
+                  children: [
+                    Expanded(child: _campo()),
+                    const SizedBox(width: 10),
+                    // Al lado de la barra y no arriba en una esquina.
+                    //
+                    // Arriba pasaba desapercibido: la vista va al campo de
+                    // texto, que es donde parpadea el cursor, y lo de la
+                    // esquina no existe. Acá está en el mismo renglón que
+                    // lo que estás mirando, y del tamaño de un botón que
+                    // se toca con el pulgar.
+                    _BotonEscanear(alTocar: _escanear),
+                  ],
                 ),
               ),
               if (_buscando)
@@ -166,6 +141,40 @@ class _PantallaBuscarState extends State<PantallaBuscar> {
               Expanded(child: _cuerpo()),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _campo() {
+    return TextField(
+      controller: _controlador,
+      onChanged: _alEscribir,
+      autofocus: true,
+      style: const TextStyle(color: Paleta.luz, fontSize: 15),
+      cursorColor: Paleta.lila,
+      decoration: InputDecoration(
+        hintText: 'Título, autora o ISBN',
+        hintStyle: Tipo.meta,
+        prefixIcon: const Icon(
+          Icons.search_rounded,
+          color: Paleta.bruma,
+          size: 20,
+        ),
+        filled: true,
+        fillColor: Paleta.nocheAlta,
+        contentPadding: const EdgeInsets.symmetric(vertical: 14),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Paleta.linea),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Paleta.linea),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Paleta.lila),
         ),
       ),
     );
@@ -345,6 +354,42 @@ class _NingunoEsElQueTengo extends StatelessWidget {
           const SizedBox(height: 12),
           BotonContorno('Cargalo vos, son 30 segundos', alTocar: alCargar),
         ],
+      ),
+    );
+  }
+}
+
+/// El botón de escanear, al lado del campo.
+///
+/// Del mismo alto que la barra de búsqueda a propósito: en un renglón, dos
+/// cosas de distinto alto se leen como que una es más importante, y acá las
+/// dos hacen lo mismo por caminos distintos —una escribiendo, la otra
+/// apuntando.
+class _BotonEscanear extends StatelessWidget {
+  final VoidCallback alTocar;
+  const _BotonEscanear({required this.alTocar});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Escanear el código de barras',
+      child: InkWell(
+        onTap: alTocar,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: Paleta.nocheAlta,
+            border: Border.all(color: Paleta.linea),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(
+            Icons.qr_code_scanner_rounded,
+            color: Paleta.lila,
+            size: 22,
+          ),
+        ),
       ),
     );
   }

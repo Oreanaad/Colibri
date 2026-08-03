@@ -332,9 +332,21 @@ class Api {
     int maximo = 40,
   }) async {
     // El id de la obra viene de la búsqueda, con la forma /works/OL123W.
-    if (!obra.id.startsWith('/works/')) return const [];
+    var obraId = obra.id;
 
-    final uri = Uri.https('openlibrary.org', '${obra.id}/editions.json', {
+    if (!obraId.startsWith('/works/')) {
+      // Vino de Google o lo cargó alguien a mano: no tiene obra en Open
+      // Library, así que primero hay que encontrarla por título y autoría.
+      // Sin esto, justo los libros del segundo catálogo —que son los que
+      // más se escanean— eran los únicos que no podían cambiar de edición.
+      final enOpenLibrary = await primero(obra.titulo, obra.autor);
+      if (enOpenLibrary == null || !enOpenLibrary.id.startsWith('/works/')) {
+        return const [];
+      }
+      obraId = enOpenLibrary.id;
+    }
+
+    final uri = Uri.https('openlibrary.org', '$obraId/editions.json', {
       'limit': '200',
     });
 
@@ -360,7 +372,7 @@ class Api {
 
       salida.add(
         Libro(
-          id: (e['key'] as String?) ?? '${obra.id}-${salida.length}',
+          id: (e['key'] as String?) ?? '$obraId-${salida.length}',
           titulo: (e['title'] as String?) ?? obra.titulo,
           autor: obra.autor,
           tapaId: (tapas == null || tapas.isEmpty) ? null : tapas.first,

@@ -8,6 +8,7 @@ import '../modelos.dart';
 import '../tema.dart';
 import '../widgets.dart';
 import 'cargar_libro.dart';
+import 'ediciones.dart';
 import 'ficha.dart';
 
 /// Cargar libros apuntando la cámara a la contratapa.
@@ -117,6 +118,28 @@ class _PantallaEscanearState extends State<PantallaEscanear> {
     });
   }
 
+  /// Elegir cuál de todas las tapas es la del libro que tenés en la mano.
+  ///
+  /// # Por qué está acá y no escondida en la ficha
+  ///
+  /// El código de barras identifica **una edición concreta**, pero los
+  /// catálogos casi siempre contestan con la obra: escaneás tu edición
+  /// argentina en castellano y te sale la tapa verde en inglés. El libro
+  /// está bien, la portada no es la tuya.
+  ///
+  /// Y el único momento en que se puede arreglar sin esfuerzo es este, con
+  /// el libro todavía en la mano. Después habría que acordarse.
+  Future<void> _elegirEdicion(_Leido fila) async {
+    final libro = fila.libro;
+    if (libro == null) return;
+
+    final cambiado = await Navigator.of(
+      context,
+    ).push<Libro>(MaterialPageRoute(builder: (_) => PantallaEdiciones(libro)));
+
+    if (cambiado != null && mounted) setState(() => fila.libro = cambiado);
+  }
+
   Future<void> _deshacer(_Leido fila) async {
     final libro = fila.libro;
     if (libro == null) return;
@@ -184,6 +207,7 @@ class _PantallaEscanearState extends State<PantallaEscanear> {
                         itemBuilder: (_, i) => _Fila(
                           _leidos[i],
                           alDeshacer: () => _deshacer(_leidos[i]),
+                          alElegirEdicion: () => _elegirEdicion(_leidos[i]),
                         ),
                       ),
               ),
@@ -339,8 +363,13 @@ class _Leido {
 class _Fila extends StatelessWidget {
   final _Leido leido;
   final VoidCallback alDeshacer;
+  final VoidCallback alElegirEdicion;
 
-  const _Fila(this.leido, {required this.alDeshacer});
+  const _Fila(
+    this.leido, {
+    required this.alDeshacer,
+    required this.alElegirEdicion,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -361,7 +390,11 @@ class _Fila extends StatelessWidget {
 
       _Que.noEncontrado => _NoEsta(leido.codigo),
 
-      _ => _Encontrado(leido, alDeshacer: alDeshacer),
+      _ => _Encontrado(
+        leido,
+        alDeshacer: alDeshacer,
+        alElegirEdicion: alElegirEdicion,
+      ),
     };
   }
 }
@@ -386,8 +419,13 @@ class _Aviso extends StatelessWidget {
 class _Encontrado extends StatelessWidget {
   final _Leido leido;
   final VoidCallback alDeshacer;
+  final VoidCallback alElegirEdicion;
 
-  const _Encontrado(this.leido, {required this.alDeshacer});
+  const _Encontrado(
+    this.leido, {
+    required this.alDeshacer,
+    required this.alElegirEdicion,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -421,6 +459,26 @@ class _Encontrado extends StatelessWidget {
                   style: Tipo.meta,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+
+                // El ofrecimiento va siempre, encuentre lo que encuentre.
+                // Si solo apareciera cuando la tapa «parece de otro
+                // idioma», habría que adivinar cuándo, y adivinar mal es
+                // peor que preguntar siempre.
+                InkWell(
+                  onTap: alElegirEdicion,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Text(
+                      '¿No es tu tapa? Elegí tu edición',
+                      style: Tipo.meta.copyWith(
+                        color: Paleta.lila,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),

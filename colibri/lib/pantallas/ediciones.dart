@@ -73,26 +73,7 @@ class _PantallaEdicionesState extends State<PantallaEdiciones> {
     final mensajero = ScaffoldMessenger.of(context);
     final navegador = Navigator.of(context);
 
-    final actualizado = Libro(
-      id: viejo.id, // la obra sigue siendo la misma
-      titulo: edicion.titulo,
-      autor: viejo.autor,
-      tapaId: edicion.tapaId ?? viejo.tapaId,
-      editorial: edicion.editorial ?? viejo.editorial,
-      anio: edicion.anio ?? viejo.anio,
-      paginas: edicion.paginas ?? viejo.paginas,
-      estado: viejo.estado,
-      puntaje: viejo.puntaje,
-      paginaActual: viejo.paginaActual,
-      empezado: viejo.empezado,
-      terminado: viejo.terminado,
-      resena: viejo.resena,
-      resenaConSpoilers: viejo.resenaConSpoilers,
-      personajes: viejo.personajes,
-      estantes: viejo.estantes,
-      frases: viejo.frases,
-      origen: viejo.origen,
-    );
+    final actualizado = combinarEdicion(viejo, edicion);
 
     await biblioteca.quitar(viejo);
     await biblioteca.agregar(actualizado);
@@ -124,9 +105,9 @@ class _PantallaEdicionesState extends State<PantallaEdiciones> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Open Library guarda el título de la obra original. '
-                      'Si tenés una traducción, buscala acá y la ficha pasa '
-                      'a estar en tu idioma.',
+                      'Buscá la portada igual a la del libro que tenés en la '
+                      'mano. Al elegirla, la ficha pasa a ser la de tu '
+                      'edición: el título en tu idioma y tu tapa.',
                       style: Tipo.meta,
                     ),
                     const SizedBox(height: 14),
@@ -188,13 +169,22 @@ class _PantallaEdicionesState extends State<PantallaEdiciones> {
       );
     }
 
-    return ListView.separated(
+    final ordenadas = paraMirar(lista);
+
+    return GridView.builder(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
-      itemCount: lista.length,
-      separatorBuilder: (_, _) =>
-          const Divider(color: Paleta.linea, height: 20, thickness: 1),
-      itemBuilder: (_, i) =>
-          _Edicion(lista[i], alElegir: () => _elegir(lista[i])),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 132,
+        childAspectRatio: 0.52,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 18,
+      ),
+      itemCount: ordenadas.length,
+      itemBuilder: (_, i) => _Edicion(
+        ordenadas[i],
+        esLaTuya: ordenadas[i].tapaId == widget.libro.tapaId,
+        alElegir: () => _elegir(ordenadas[i]),
+      ),
     );
   }
 }
@@ -243,47 +233,120 @@ class _Idiomas extends StatelessWidget {
   }
 }
 
+/// Una edición, como se ve en la grilla.
+///
+/// La portada es lo grande y el texto es la aclaración, no al revés. Nadie
+/// reconoce su libro leyendo «Salamandra, 2005»: lo reconoce viéndolo.
 class _Edicion extends StatelessWidget {
   final Libro edicion;
+  final bool esLaTuya;
   final VoidCallback alElegir;
 
-  const _Edicion(this.edicion, {required this.alElegir});
+  const _Edicion(
+    this.edicion, {
+    required this.esLaTuya,
+    required this.alElegir,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: alElegir,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Tapa(edicion, ancho: 52),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  edicion.titulo,
-                  style: Tipo.cuerpo.copyWith(fontWeight: FontWeight.w500),
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  [
-                    if (edicion.editorial != null) edicion.editorial!,
-                    if (edicion.anio != null) '${edicion.anio}',
-                    if (edicion.paginas != null) '${edicion.paginas} pág.',
-                  ].join(' · '),
-                  style: Tipo.meta,
-                ),
-              ],
+    return LayoutBuilder(
+      builder: (context, medidas) => InkWell(
+        onTap: alElegir,
+        borderRadius: BorderRadius.circular(6),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // El marco dorado sobre la que ya tenés puesta: en esta app el
+            // oro es lo que involucra a otra persona o a una decisión ya
+            // tomada, y esta es la decisión anterior tuya.
+            Tapa(edicion, ancho: medidas.maxWidth, marcada: esLaTuya),
+            const SizedBox(height: 6),
+            SizedBox(
+              height: 30,
+              child: Text(
+                [
+                  if (edicion.editorial != null) edicion.editorial!,
+                  if (edicion.anio != null) '${edicion.anio}',
+                ].join(' · '),
+                style: Tipo.meta.copyWith(fontSize: 11, height: 1.25),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          const Icon(Icons.chevron_right_rounded, color: Paleta.bruma),
-        ],
+          ],
+        ),
       ),
     );
   }
+}
+
+/// Prepara la lista para elegir mirando, que es distinto de leerla.
+///
+/// Dos reglas, las dos por el mismo motivo:
+///
+/// - **Las que tienen tapa van primero.** Si estás buscando la portada
+///   azul que tenés en la mano, una fila de rectángulos vacíos arriba de
+///   todo no te sirve para nada.
+/// - **Una tapa, una vez.** Open Library tiene la misma edición cargada
+///   varias veces con la misma imagen. Mostrar seis veces la misma
+///   portada no da a elegir: da a dudar.
+List<Libro> paraMirar(List<Libro> ediciones) {
+  final vistas = <int>{};
+  final conTapa = <Libro>[];
+  final sinTapa = <Libro>[];
+
+  for (final e in ediciones) {
+    final tapa = e.tapaId;
+    if (tapa == null) {
+      sinTapa.add(e);
+    } else if (vistas.add(tapa)) {
+      conTapa.add(e);
+    }
+  }
+  return [...conTapa, ...sinTapa];
+}
+
+/// Junta el libro que ya tenías con la edición que elegiste.
+///
+/// # Qué se queda de cada uno
+///
+/// De la edición viene **cómo es el libro**: el título en su idioma, la
+/// tapa, la editorial, el año, las páginas. De lo que ya tenías viene
+/// **todo lo tuyo**, y eso incluye lo que es fácil de olvidar: cuánto
+/// lloraste, cuánto picaba, cuánto romance y cómo te dejó.
+///
+/// Está separada de la pantalla para poder probarla. Antes vivía adentro
+/// del botón, y ahí se le habían escapado cuatro campos: cambiar de
+/// edición borraba las cuatro escalas y las etiquetas, en silencio.
+Libro combinarEdicion(Libro viejo, Libro edicion) {
+  return Libro(
+    id: viejo.id, // la obra sigue siendo la misma
+    titulo: edicion.titulo,
+    autor: viejo.autor,
+    tapaId: edicion.tapaId ?? viejo.tapaId,
+    // Si la edición elegida trae tapa, esa manda y la anterior se va. Si
+    // no se borrara, un libro que vino de Google se quedaría con la
+    // portada de Google para siempre: la dirección propia le gana al
+    // número, y elegir tapa nueva no cambiaría nada.
+    tapaUrl: edicion.tapaId != null ? null : viejo.tapaUrl,
+    editorial: edicion.editorial ?? viejo.editorial,
+    anio: edicion.anio ?? viejo.anio,
+    paginas: edicion.paginas ?? viejo.paginas,
+    estado: viejo.estado,
+    puntaje: viejo.puntaje,
+    lagrimas: viejo.lagrimas,
+    romantico: viejo.romantico,
+    picante: viejo.picante,
+    animos: viejo.animos,
+    paginaActual: viejo.paginaActual,
+    empezado: viejo.empezado,
+    terminado: viejo.terminado,
+    resena: viejo.resena,
+    resenaConSpoilers: viejo.resenaConSpoilers,
+    personajes: viejo.personajes,
+    estantes: viejo.estantes,
+    frases: viejo.frases,
+    origen: viejo.origen,
+  );
 }
