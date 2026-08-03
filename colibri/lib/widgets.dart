@@ -486,6 +486,54 @@ Future<void> elegirEstado(BuildContext context, Libro libro) async {
   if (elegido != null) await biblioteca.cambiarEstado(libro, elegido);
 }
 
+/// El estante donde está un libro, para tocar y moverlo.
+///
+/// Lo usan la búsqueda y el escáner, que son los dos lugares donde se
+/// cargan libros de a muchos y donde hace falta ver de un vistazo dónde
+/// quedó cada uno. Vive acá para que los dos se vean igual: si en una
+/// pantalla fuera un botón y en la otra un texto, habría que aprender dos
+/// veces lo mismo.
+class ChipDeEstante extends StatelessWidget {
+  final Estado estado;
+  final VoidCallback alTocar;
+
+  const ChipDeEstante(this.estado, {super.key, required this.alTocar});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Moverlo o sacarlo',
+      child: InkWell(
+        onTap: alTocar,
+        borderRadius: BorderRadius.circular(30),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+          decoration: BoxDecoration(
+            color: const Color(0x22B9A6E6),
+            border: Border.all(color: Paleta.lila),
+            borderRadius: BorderRadius.circular(30),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.check_rounded, size: 14, color: Paleta.lila),
+              const SizedBox(width: 5),
+              Text(
+                estado.nombre,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Paleta.lila,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Elegir dónde va un libro, desde una lista de resultados.
 ///
 /// # Por qué no alcanza con un más que suma a pendientes

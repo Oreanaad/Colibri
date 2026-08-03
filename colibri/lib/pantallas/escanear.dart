@@ -140,6 +140,29 @@ class _PantallaEscanearState extends State<PantallaEscanear> {
     if (cambiado != null && mounted) setState(() => fila.libro = cambiado);
   }
 
+  /// Mover un libro recién escaneado a otro estante.
+  ///
+  /// Escaneando de a treinta, todos caen en pendientes, y está bien como
+  /// punto de partida. Pero la mitad de esa pila son libros que ya leíste
+  /// —por eso los tenés en el estante— y corregirlo después, uno por uno,
+  /// desde la biblioteca, es más trabajo que escanearlos.
+  Future<void> _cambiarEstante(_Leido fila) async {
+    final libro = fila.libro;
+    if (libro == null) return;
+
+    final cambio = await dondeVa(context, libro);
+    if (!cambio || !mounted) return;
+
+    // Si lo sacó de la biblioteca desde la hoja, la fila se va con él y el
+    // código vuelve a quedar libre para escanearlo de nuevo.
+    if (!biblioteca.tiene(libro)) {
+      _yaVistos.remove(fila.codigo);
+      setState(() => _leidos.remove(fila));
+    } else {
+      setState(() {});
+    }
+  }
+
   Future<void> _deshacer(_Leido fila) async {
     final libro = fila.libro;
     if (libro == null) return;
@@ -208,6 +231,7 @@ class _PantallaEscanearState extends State<PantallaEscanear> {
                           _leidos[i],
                           alDeshacer: () => _deshacer(_leidos[i]),
                           alElegirEdicion: () => _elegirEdicion(_leidos[i]),
+                          alCambiarEstante: () => _cambiarEstante(_leidos[i]),
                         ),
                       ),
               ),
@@ -364,11 +388,13 @@ class _Fila extends StatelessWidget {
   final _Leido leido;
   final VoidCallback alDeshacer;
   final VoidCallback alElegirEdicion;
+  final VoidCallback alCambiarEstante;
 
   const _Fila(
     this.leido, {
     required this.alDeshacer,
     required this.alElegirEdicion,
+    required this.alCambiarEstante,
   });
 
   @override
@@ -390,10 +416,12 @@ class _Fila extends StatelessWidget {
 
       _Que.noEncontrado => _NoEsta(leido.codigo),
 
-      _ => _Encontrado(
-        leido,
+      _ => FilaEscaneada(
+        libro: leido.libro!,
+        yaEstaba: leido.que == _Que.yaEstaba,
         alDeshacer: alDeshacer,
         alElegirEdicion: alElegirEdicion,
+        alCambiarEstante: alCambiarEstante,
       ),
     };
   }
@@ -416,22 +444,35 @@ class _Aviso extends StatelessWidget {
   }
 }
 
-class _Encontrado extends StatelessWidget {
-  final _Leido leido;
+/// Un libro que el escáner encontró.
+///
+/// Es pública y no recibe el estado interno de la pantalla, sino el libro
+/// pelado, para poder dibujarla en una prueba. La razón es concreta:
+/// alguien dijo «no veo el más» y no había forma de contestar sin
+/// adivinar, porque la fila no se podía renderizar sin cámara.
+class FilaEscaneada extends StatelessWidget {
+  final Libro libro;
+
+  /// Si el libro ya estaba en la biblioteca antes de escanearlo. Cambia
+  /// qué se dice y si se ofrece deshacer: sacar de la biblioteca un libro
+  /// que ya tenías no es «deshacer», es borrar algo que era tuyo.
+  final bool yaEstaba;
+
   final VoidCallback alDeshacer;
   final VoidCallback alElegirEdicion;
+  final VoidCallback alCambiarEstante;
 
-  const _Encontrado(
-    this.leido, {
+  const FilaEscaneada({
+    super.key,
+    required this.libro,
+    required this.yaEstaba,
     required this.alDeshacer,
     required this.alElegirEdicion,
+    required this.alCambiarEstante,
   });
 
   @override
   Widget build(BuildContext context) {
-    final libro = leido.libro!;
-    final yaEstaba = leido.que == _Que.yaEstaba;
-
     return InkWell(
       onTap: () => Navigator.of(
         context,
@@ -453,32 +494,46 @@ class _Encontrado extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  yaEstaba
-                      ? 'Ya lo tenías en ${libro.estado.nombre}'
-                      : '${libro.autor} · se sumó a pendientes',
+                  yaEstaba ? '${libro.autor} · ya lo tenías' : libro.autor,
                   style: Tipo.meta,
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 8),
 
-                // El ofrecimiento va siempre, encuentre lo que encuentre.
-                // Si solo apareciera cuando la tapa «parece de otro
-                // idioma», habría que adivinar cuándo, y adivinar mal es
-                // peor que preguntar siempre.
-                InkWell(
-                  onTap: alElegirEdicion,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Text(
-                      '¿No es tu tapa? Elegí tu edición',
-                      style: Tipo.meta.copyWith(
-                        color: Paleta.lila,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12,
+                // El estante y la edición, en el mismo renglón.
+                //
+                // Escaneando de a treinta todo cae en pendientes, y está
+                // bien como punto de partida. Pero la mitad de esa pila
+                // son libros que ya leíste —por eso están en el estante— y
+                // corregirlo después uno por uno desde la biblioteca es
+                // más trabajo que escanearlos.
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    ChipDeEstante(libro.estado, alTocar: alCambiarEstante),
+
+                    // El ofrecimiento va siempre, encuentre lo que
+                    // encuentre. Si solo apareciera cuando la tapa
+                    // «parece de otro idioma», habría que adivinar cuándo,
+                    // y adivinar mal es peor que preguntar siempre.
+                    InkWell(
+                      onTap: alElegirEdicion,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Text(
+                          '¿No es tu tapa?',
+                          style: Tipo.meta.copyWith(
+                            color: Paleta.lila,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
               ],
             ),

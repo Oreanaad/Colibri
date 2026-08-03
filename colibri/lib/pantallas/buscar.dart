@@ -301,35 +301,9 @@ class _Destino extends StatelessWidget {
       );
     }
 
-    return Tooltip(
-      message: 'Moverlo o sacarlo',
-      child: InkWell(
-        onTap: () => dondeVa(context, puesto),
-        borderRadius: BorderRadius.circular(30),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
-          decoration: BoxDecoration(
-            color: const Color(0x22B9A6E6),
-            border: Border.all(color: Paleta.lila),
-            borderRadius: BorderRadius.circular(30),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.check_rounded, size: 14, color: Paleta.lila),
-              const SizedBox(width: 5),
-              Text(
-                puesto.estado.nombre,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Paleta.lila,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return ChipDeEstante(
+      puesto.estado,
+      alTocar: () => dondeVa(context, puesto),
     );
   }
 }
