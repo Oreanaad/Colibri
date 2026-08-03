@@ -5,6 +5,7 @@ import '../modelos.dart';
 import '../tema.dart';
 import '../widgets.dart';
 import 'cargar_libro.dart';
+import 'escanear.dart';
 import 'ficha.dart';
 
 /// Buscar y agregar. La búsqueda arranca sola mientras se escribe:
@@ -67,6 +68,20 @@ class _PantallaBuscarState extends State<PantallaBuscar> {
     }
   }
 
+  /// La cámara vive en su propia pantalla y no acá.
+  ///
+  /// Escanear no es «buscar más rápido»: es otra postura, con el libro en
+  /// la mano y sin teclado. Meterla en esta pantalla la habría dejado
+  /// compitiendo con el campo de texto en cada renglón.
+  Future<void> _escanear() async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const PantallaEscanear()));
+    // Al volver puede haber libros nuevos: los resultados que están en
+    // pantalla tienen que mostrar el tilde de «ya lo tenés».
+    if (mounted) setState(() {});
+  }
+
   Future<void> _cargarAMano() async {
     final cargado = await Navigator.of(context).push<Libro>(
       MaterialPageRoute(
@@ -89,6 +104,14 @@ class _PantallaBuscarState extends State<PantallaBuscar> {
           'Agregar un libro',
           style: TextStyle(color: Paleta.luz, fontSize: 17),
         ),
+        actions: [
+          IconButton(
+            onPressed: _escanear,
+            icon: const Icon(Icons.qr_code_scanner_rounded),
+            color: Paleta.lila,
+            tooltip: 'Escanear el código de barras',
+          ),
+        ],
       ),
       body: SafeArea(
         top: false,

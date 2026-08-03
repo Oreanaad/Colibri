@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
+import 'isbn.dart';
 import 'modelos.dart';
 
 /// Open Library: abierta, gratis y sin clave.
@@ -203,6 +204,60 @@ class Api {
         .replaceAll(RegExp(r'[^a-z0-9 ]'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
+  }
+
+  /// El libro de un código de barras.
+  ///
+  /// # Por qué el buscador y no el registro de la edición
+  ///
+  /// Open Library tiene tres formas de preguntar por un ISBN:
+  /// `/api/books`, `/isbn/x.json` y el buscador con `q=isbn:`. Probamos las
+  /// tres con veintitrés códigos reales y **contestaron lo mismo siempre**,
+  /// así que la pregunta no era cuál sabe más sino cuál contesta mejor.
+  ///
+  /// El buscador gana porque devuelve la autoría y la tapa en el mismo
+  /// formato que la búsqueda por título, que la app ya sabe leer. Los otros
+  /// dos devuelven la ficha cruda de la edición, con la autoría como una
+  /// referencia que habría que ir a buscar en otra consulta.
+  ///
+  /// # Lo que hay que saber antes de usarlo
+  ///
+  /// Falla seguido, y no por un error nuestro. Medimos cuántas ediciones
+  /// con ISBN tiene Open Library de cada libro: de los clásicos en
+  /// castellano tiene unas cincuenta, pero de la narrativa latinoamericana
+  /// de ahora tiene **una**, y de los éxitos traducidos del inglés, dos.
+  /// Escanear *Pedro Páramo* casi siempre anda; escanear *Las malas* casi
+  /// nunca. Por eso la pantalla que lo usa está armada para que no
+  /// encontrar nada sea una salida más y no un callejón.
+  static Future<Libro?> porIsbn(String isbn) async {
+    // De diez a trece antes de preguntar: las fichas viejas están cargadas
+    // de las dos formas y el de trece es el que más veces está.
+    final codigo = Isbn.aTrece(isbn);
+    if (codigo == null) return null;
+
+    final uri = Uri.https('openlibrary.org', '/search.json', {
+      'q': 'isbn:$codigo',
+      'limit': '1',
+      'fields': _campos,
+    });
+
+    try {
+      final respuesta = await http
+          .get(uri, headers: _cabeceras)
+          .timeout(const Duration(seconds: 12));
+
+      if (respuesta.statusCode != 200) return null;
+
+      final datos = jsonDecode(utf8.decode(respuesta.bodyBytes));
+      final docs = (datos['docs'] as List?) ?? const [];
+      if (docs.isEmpty) return null;
+
+      return Libro.desdeOpenLibrary(docs.first as Map<String, dynamic>);
+    } catch (_) {
+      // Sin internet o con la consulta caída: es lo mismo que no
+      // encontrarlo, y la pantalla ya sabe qué hacer con eso.
+      return null;
+    }
   }
 
   /// Un solo resultado, para resolver los libros de la biblioteca de ejemplo.
