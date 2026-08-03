@@ -27,7 +27,7 @@ class Tapa extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final url = Api.urlTapa(libro.tapaId, tamano: tamano);
+    final url = Api.tapaDe(libro, tamano: tamano);
 
     return Container(
       width: ancho,
@@ -54,7 +54,7 @@ class Tapa extends StatelessWidget {
                   // en vez de quedarse pensando.
                   if (tamano != 'M')
                     Image.network(
-                      Api.urlTapa(libro.tapaId)!,
+                      Api.tapaDe(libro)!,
                       fit: BoxFit.cover,
                       errorBuilder: (_, _, _) => const SizedBox.shrink(),
                     ),

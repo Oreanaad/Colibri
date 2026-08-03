@@ -38,7 +38,10 @@ void main() {
     await agregar('Cometierra', 'Dolores Reyes');
     await agregar('Las malas', 'Camila Sosa Villada');
 
-    expect(biblioteca.buscarEnMiBiblioteca('tierra').single.titulo, 'Cometierra');
+    expect(
+      biblioteca.buscarEnMiBiblioteca('tierra').single.titulo,
+      'Cometierra',
+    );
   });
 
   test('no importan los acentos ni las mayúsculas', () async {

@@ -18,3 +18,8 @@ tapas/
 fotos_*/
 
 # Flutter: la carpeta colibri/ tiene su propio .gitignore
+
+# Claves de APIs. Nunca al repositorio: este es público.
+# El molde está en colibri/claves.ejemplo.json
+claves.json
+*.claves.json

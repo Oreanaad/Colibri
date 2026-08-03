@@ -129,6 +129,14 @@ class Libro {
   final String titulo;
   final String autor;
   final int? tapaId;
+
+  /// La dirección de la tapa, cuando viene de Google Books.
+  ///
+  /// Open Library da un número y la dirección se arma con él. Google da la
+  /// dirección entera y ya. Conviven porque cada catálogo entrega lo que
+  /// entrega, y la app pregunta por [Api.tapaDe] sin tener que saber de
+  /// dónde salió cada libro.
+  final String? tapaUrl;
   final String? editorial;
   final int? anio;
 
@@ -188,6 +196,7 @@ class Libro {
     required this.titulo,
     required this.autor,
     this.tapaId,
+    this.tapaUrl,
     this.editorial,
     this.anio,
     this.estado = Estado.pendiente,
@@ -275,11 +284,59 @@ class Libro {
     );
   }
 
+  /// Un libro como lo cuenta Google Books.
+  ///
+  /// # Qué trae distinto
+  ///
+  /// Google devuelve **la edición**, no la obra. Open Library, buscando lo
+  /// mismo, devuelve el título original: pedís «la piedra filosofal» y te
+  /// contesta «the Philosopher's Stone». Google contesta con el título de
+  /// la edición que existe, en el idioma en que existe. Para una app que
+  /// se lee en castellano, eso no es un detalle.
+  ///
+  /// # Las tapas vienen con dos vicios
+  ///
+  /// Llegan por `http`, y una página segura no muestra imágenes inseguras:
+  /// se verían todas rotas. Y traen `edge=curl`, que le dibuja encima una
+  /// esquina doblada de papel, simpática en 2010 y fuera de lugar acá.
+  factory Libro.desdeGoogle(Map<String, dynamic> v) {
+    final info = (v['volumeInfo'] as Map?)?.cast<String, dynamic>() ?? {};
+    final autores = (info['authors'] as List?)?.cast<String>() ?? const [];
+
+    return Libro(
+      // Con prefijo para que nunca choque con una clave de Open Library.
+      id: 'google:${v['id']}',
+      titulo: (info['title'] as String?) ?? 'Sin título',
+      autor: autores.isEmpty ? 'Autor desconocido' : autores.first,
+      tapaUrl: _tapaDeGoogle(info),
+      editorial: info['publisher'] as String?,
+      anio: _anioDeGoogle(info['publishedDate'] as String?),
+      paginas: info['pageCount'] as int?,
+    );
+  }
+
+  static String? _tapaDeGoogle(Map<String, dynamic> info) {
+    final imagenes = (info['imageLinks'] as Map?)?.cast<String, dynamic>();
+    final url =
+        (imagenes?['thumbnail'] ?? imagenes?['smallThumbnail']) as String?;
+    if (url == null) return null;
+
+    return url.replaceFirst('http://', 'https://').replaceAll('&edge=curl', '');
+  }
+
+  /// La fecha viene de tres formas: «2019», «2019-03» y «2019-03-15».
+  /// De las tres nos sirve lo mismo.
+  static int? _anioDeGoogle(String? fecha) {
+    if (fecha == null || fecha.length < 4) return null;
+    return int.tryParse(fecha.substring(0, 4));
+  }
+
   Map<String, dynamic> aJson() => {
     'id': id,
     'titulo': titulo,
     'autor': autor,
     'tapaId': tapaId,
+    'tapaUrl': tapaUrl,
     'editorial': editorial,
     'anio': anio,
     'estado': estado.index,
@@ -308,6 +365,7 @@ class Libro {
     titulo: j['titulo'] as String,
     autor: j['autor'] as String,
     tapaId: j['tapaId'] as int?,
+    tapaUrl: j['tapaUrl'] as String?,
     editorial: j['editorial'] as String?,
     anio: j['anio'] as int?,
     // 'estante' es el nombre viejo: lo leemos para no perder datos

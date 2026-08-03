@@ -24,18 +24,22 @@ void main() {
     '7790123450006': 'un producto que no es un libro',
   };
 
-  test('la búsqueda por ISBN contra Open Library', () async {
-    for (final caso in casos.entries) {
-      final que = Isbn.queEs(caso.key);
-      final libro = await Api.porIsbn(caso.key);
-      final resultado = libro == null
-          ? '— nada —'
-          : '${libro.titulo} / ${libro.autor}';
-      // ignore: avoid_print
-      print(
-        '${caso.key.padRight(18)} ${que.name.padRight(10)} '
-        '${resultado.padRight(46)} (${caso.value})',
-      );
-    }
-  }, timeout: const Timeout(Duration(minutes: 2)));
+  test(
+    'la búsqueda por ISBN contra Open Library',
+    () async {
+      for (final caso in casos.entries) {
+        final que = Isbn.queEs(caso.key);
+        final libro = await Api.porIsbn(caso.key);
+        final resultado = libro == null
+            ? '— nada —'
+            : '${libro.titulo} / ${libro.autor}';
+        // ignore: avoid_print
+        print(
+          '${caso.key.padRight(18)} ${que.name.padRight(10)} '
+          '${resultado.padRight(46)} (${caso.value})',
+        );
+      }
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
 }

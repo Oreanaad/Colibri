@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
+import 'google.dart';
 import 'isbn.dart';
 import 'modelos.dart';
 
@@ -26,6 +27,18 @@ class Api {
   static Map<String, String> get _cabeceras =>
       kIsWeb ? const {} : const {'User-Agent': 'Colibri/0.1 (demo)'};
 
+  /// Cuántos resultados de Open Library alcanzan para no molestar a Google.
+  ///
+  /// Google entra **solo cuando Open Library queda corto**, y no siempre,
+  /// por una razón concreta: los dos devuelven el mismo libro con títulos
+  /// distintos —Open Library el de la obra original, Google el de la
+  /// edición traducida— y mezclarlos siempre llenaría la lista de pares
+  /// que parecen repetidos. Eso ya lo probamos y era un desastre.
+  ///
+  /// De paso, la clave gratis de Google trae mil consultas por día. Usarla
+  /// solo cuando hace falta es la diferencia entre que alcance y que no.
+  static const _suficientes = 5;
+
   static Future<List<Libro>> buscar(String consulta) async {
     if (consulta.trim().length < 3) return [];
 
@@ -45,7 +58,31 @@ class Api {
 
     final datos = jsonDecode(utf8.decode(respuesta.bodyBytes));
     final docs = (datos['docs'] as List?) ?? const [];
-    return sinRepetidos(docs.cast<Map<String, dynamic>>());
+    final abiertos = sinRepetidos(docs.cast<Map<String, dynamic>>());
+
+    if (abiertos.length >= _suficientes) return abiertos;
+
+    return unir(abiertos, await Google.buscar(consulta));
+  }
+
+  /// Junta dos catálogos sin repetir libros.
+  ///
+  /// El orden importa: primero lo que ya estaba. Quien busca casi siempre
+  /// quiere el primer resultado, y mover de lugar lo que Open Library puso
+  /// arriba para meter algo nuevo sería peor que no traer nada.
+  static List<Libro> unir(
+    List<Libro> primero,
+    List<Libro> segundo, {
+    int maximo = 15,
+  }) {
+    final vistos = <String>{};
+    final juntos = <Libro>[];
+
+    for (final libro in [...primero, ...segundo]) {
+      if (juntos.length >= maximo) break;
+      if (vistos.add(libro.clave)) juntos.add(libro);
+    }
+    return juntos;
   }
 
   /// Agrupa los resultados repetidos y se queda con el mejor de cada uno.
@@ -250,9 +287,15 @@ class Api {
 
       final datos = jsonDecode(utf8.decode(respuesta.bodyBytes));
       final docs = (datos['docs'] as List?) ?? const [];
-      if (docs.isEmpty) return null;
+      if (docs.isNotEmpty) {
+        return Libro.desdeOpenLibrary(docs.first as Map<String, dynamic>);
+      }
 
-      return Libro.desdeOpenLibrary(docs.first as Map<String, dynamic>);
+      // Acá es donde Google gana de verdad. Medimos que Open Library tiene
+      // una sola edición con ISBN de la narrativa latinoamericana reciente
+      // —y de algunos títulos, ninguna—, así que el escáner falla
+      // justamente con los libros que lee esta comunidad.
+      return Google.porIsbn(codigo);
     } catch (_) {
       // Sin internet o con la consulta caída: es lo mismo que no
       // encontrarlo, y la pantalla ya sabe qué hacer con eso.
@@ -353,6 +396,14 @@ class Api {
   /// El `?default=false` es clave: sin eso Open Library devuelve un
   /// cuadradito gris en vez de un 404 cuando no tiene la tapa, y terminás
   /// mostrando basura que parece una portada.
+  /// La tapa de un libro, venga del catálogo que venga.
+  ///
+  /// Google entrega la dirección entera y Open Library un número con el
+  /// que hay que armarla. Todo lo que dibuja tapas pregunta por acá y no
+  /// tiene que enterarse de la diferencia.
+  static String? tapaDe(Libro libro, {String tamano = 'M'}) =>
+      libro.tapaUrl ?? urlTapa(libro.tapaId, tamano: tamano);
+
   static String? urlTapa(int? tapaId, {String tamano = 'M'}) {
     if (tapaId == null) return null;
     return 'https://covers.openlibrary.org/b/id/$tapaId-$tamano.jpg?default=false';
