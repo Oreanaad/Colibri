@@ -200,20 +200,30 @@ class _PantallaBuscarState extends State<PantallaBuscar> {
       animation: biblioteca,
       builder: (context, _) => ListView.separated(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-        itemCount: _resultados.length,
+        // Uno más que los resultados: el último renglón es «ninguno de
+        // estos es el que tengo». Decía `_resultados.length` a secas, así
+        // que ese renglón se dibujaba en una posición que la lista nunca
+        // pedía y no apareció nunca desde que se escribió.
+        itemCount: _resultados.length + 1,
         separatorBuilder: (_, _) =>
             const Divider(color: Paleta.linea, height: 22, thickness: 1),
         itemBuilder: (_, i) => i == _resultados.length
             ? _NingunoEsElQueTengo(alCargar: _cargarAMano)
-            : _Resultado(_resultados[i]),
+            : FilaDeResultado(_resultados[i]),
       ),
     );
   }
 }
 
-class _Resultado extends StatelessWidget {
+/// Una fila de la lista de resultados.
+///
+/// Es pública para poder dibujarla en una prueba sin salir a internet.
+/// Cuando alguien reportó que no veía el más, la única forma de contestar
+/// sin adivinar fue esa: renderizar la fila y preguntarle a Flutter si el
+/// botón está.
+class FilaDeResultado extends StatelessWidget {
   final Libro libro;
-  const _Resultado(this.libro);
+  const FilaDeResultado(this.libro, {super.key});
 
   @override
   Widget build(BuildContext context) {
