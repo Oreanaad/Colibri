@@ -20,7 +20,9 @@ void main() {
       origen: Origen.propio,
     );
 
-    expect(await Api.ediciones(propio), isEmpty);
+    final r = await Api.ediciones(propio);
+    expect(r.confirmadas, isEmpty);
+    expect(r.sinIdioma, isEmpty);
   });
 
   test('cambiar de edición no te borra nada tuyo', () async {

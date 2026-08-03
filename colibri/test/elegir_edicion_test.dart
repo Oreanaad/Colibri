@@ -165,4 +165,60 @@ void main() {
       expect(nuevo.tapaUrl, 'https://books.google.com/verde.jpg');
     });
   });
+
+  group('las ediciones sin idioma cargado', () {
+    // Reporte: «si pongo todos veo portadas en español que si pongo
+    // español no salen». Medido: de las 200 ediciones de Harry Potter que
+    // tiene Open Library, **78 no tienen el idioma anotado**, y la primera
+    // de esa lista es «Harry Potter y la piedra filosofal», de Salamandra.
+    // El filtro pedía un dato que el catálogo muchas veces no tiene.
+
+    test('las dos listas se ordenan y limpian por separado', () {
+      // Cada sección se mira aparte, así que las repetidas se sacan dentro
+      // de cada una: una tapa puede estar bien en las dos.
+      final confirmadas = paraMirar([
+        edicionDePrueba(titulo: 'a', tapa: 1),
+        edicionDePrueba(titulo: 'b', tapa: 1),
+        edicionDePrueba(titulo: 'sin tapa'),
+      ]);
+      final sinIdioma = paraMirar([
+        edicionDePrueba(titulo: 'c', tapa: 5),
+        edicionDePrueba(titulo: 'd', tapa: 5),
+      ]);
+
+      expect(confirmadas, hasLength(2));
+      expect(confirmadas.first.titulo, 'a');
+      expect(sinIdioma, hasLength(1));
+    });
+
+    test('no se pierde ninguna edición al separarlas', () {
+      // Lo importante del arreglo: las que no dicen idioma no se
+      // descartan, se muestran aparte. Descartarlas era el bug.
+      final todas = [
+        edicionDePrueba(titulo: 'confirmada', tapa: 1),
+        edicionDePrueba(titulo: 'sin idioma', tapa: 2),
+      ];
+      final separadas = [
+        ...paraMirar([todas.first]),
+        ...paraMirar([todas.last]),
+      ];
+
+      expect(separadas, hasLength(todas.length));
+    });
+  });
 }
+
+/// Una edición cualquiera, para las pruebas.
+Libro edicionDePrueba({
+  String titulo = 'Otra edición',
+  int? tapa,
+  String? editorial,
+  int? anio,
+}) => Libro(
+  id: 'ed-${tapa ?? titulo}',
+  titulo: titulo,
+  autor: 'Quien sea',
+  tapaId: tapa,
+  editorial: editorial,
+  anio: anio,
+);

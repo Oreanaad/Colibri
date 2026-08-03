@@ -34,7 +34,7 @@ class PantallaEdiciones extends StatefulWidget {
 }
 
 class _PantallaEdicionesState extends State<PantallaEdiciones> {
-  List<Libro>? _ediciones;
+  Ediciones? _ediciones;
   String? _idioma = 'spa'; // lo más probable, y se cambia de un toque
   bool _cargando = true;
   bool _fallo = false;
@@ -154,8 +154,12 @@ class _PantallaEdicionesState extends State<PantallaEdiciones> {
       );
     }
 
-    final lista = _ediciones ?? const <Libro>[];
-    if (lista.isEmpty) {
+    final resultado =
+        _ediciones ?? const (confirmadas: <Libro>[], sinIdioma: <Libro>[]);
+    final confirmadas = paraMirar(resultado.confirmadas);
+    final sinIdioma = paraMirar(resultado.sinIdioma);
+
+    if (confirmadas.isEmpty && sinIdioma.isEmpty) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(32, 40, 32, 0),
         child: Text(
@@ -169,21 +173,64 @@ class _PantallaEdicionesState extends State<PantallaEdiciones> {
       );
     }
 
-    final ordenadas = paraMirar(lista);
+    return CustomScrollView(
+      slivers: [
+        if (confirmadas.isNotEmpty) _grilla(confirmadas),
 
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 132,
-        childAspectRatio: 0.52,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 18,
-      ),
-      itemCount: ordenadas.length,
-      itemBuilder: (_, i) => _Edicion(
-        ordenadas[i],
-        esLaTuya: ordenadas[i].tapaId == widget.libro.tapaId,
-        alElegir: () => _elegir(ordenadas[i]),
+        // Las que el catálogo no etiquetó, abajo y con el motivo dicho.
+        //
+        // Van al final y no mezcladas porque de estas no sabemos nada, y
+        // arriba estorbarían. Pero van, porque acá adentro está la mitad
+        // de las ediciones en castellano: de las 200 de Harry Potter, 78
+        // no tienen idioma cargado, y la primera de esas es la de
+        // Salamandra.
+        if (sinIdioma.isNotEmpty) ...[
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                confirmadas.isEmpty ? 4 : 26,
+                20,
+                12,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Rotulo('Sin idioma cargado'),
+                  const SizedBox(height: 6),
+                  Text(
+                    'El catálogo no anotó en qué idioma están estas. Puede '
+                    'que la tuya sea una: fijate la portada.',
+                    style: Tipo.meta,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          _grilla(sinIdioma),
+        ],
+
+        const SliverToBoxAdapter(child: SizedBox(height: 28)),
+      ],
+    );
+  }
+
+  Widget _grilla(List<Libro> ediciones) {
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      sliver: SliverGrid.builder(
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 132,
+          childAspectRatio: 0.52,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 18,
+        ),
+        itemCount: ediciones.length,
+        itemBuilder: (_, i) => _Edicion(
+          ediciones[i],
+          esLaTuya: ediciones[i].tapaId == widget.libro.tapaId,
+          alElegir: () => _elegir(ediciones[i]),
+        ),
       ),
     );
   }

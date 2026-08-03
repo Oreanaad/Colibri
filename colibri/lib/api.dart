@@ -5,6 +5,17 @@ import 'google.dart';
 import 'isbn.dart';
 import 'modelos.dart';
 
+/// Las ediciones de una obra, separadas por lo que el catálogo sabe.
+///
+/// [confirmadas] son las que dicen estar en el idioma que pediste.
+/// [sinIdioma] son las que **no dicen nada**: el catálogo nunca lo anotó.
+/// No se descartan, porque muchas veces la edición que alguien tiene en la
+/// mano está ahí, y no se adivina, porque equivocarse de idioma sería peor
+/// que admitir que no se sabe.
+///
+/// Cuando no se filtra por idioma, todas caen en [confirmadas].
+typedef Ediciones = ({List<Libro> confirmadas, List<Libro> sinIdioma});
+
 /// Open Library: abierta, gratis y sin clave.
 /// Es floja en ediciones latinoamericanas, y esta demo sirve justamente
 /// para medir cuánto le falta con los libros que lee tu comunidad.
@@ -326,7 +337,7 @@ class Api {
   /// quiere cambiar de edición.
   ///
   /// [idioma] es el código de tres letras: spa, por, eng, fre, ita.
-  static Future<List<Libro>> ediciones(
+  static Future<Ediciones> ediciones(
     Libro obra, {
     String? idioma,
     int maximo = 40,
@@ -341,7 +352,7 @@ class Api {
       // más se escanean— eran los únicos que no podían cambiar de edición.
       final enOpenLibrary = await primero(obra.titulo, obra.autor);
       if (enOpenLibrary == null || !enOpenLibrary.id.startsWith('/works/')) {
-        return const [];
+        return const (confirmadas: <Libro>[], sinIdioma: <Libro>[]);
       }
       obraId = enOpenLibrary.id;
     }
@@ -353,24 +364,41 @@ class Api {
     final respuesta = await http
         .get(uri, headers: _cabeceras)
         .timeout(const Duration(seconds: 20));
-    if (respuesta.statusCode != 200) return const [];
+    if (respuesta.statusCode != 200) {
+      return const (confirmadas: <Libro>[], sinIdioma: <Libro>[]);
+    }
 
     final datos = jsonDecode(utf8.decode(respuesta.bodyBytes));
     final entradas = (datos['entries'] as List?) ?? const [];
 
     final salida = <Libro>[];
+    final sinIdioma = <Libro>[];
+
     for (final e in entradas.cast<Map<String, dynamic>>()) {
       final idiomas = ((e['languages'] as List?) ?? const [])
           .map((l) => ((l as Map)['key'] as String?) ?? '')
           .map((k) => k.split('/').last)
           .toList();
 
-      if (idioma != null && !idiomas.contains(idioma)) continue;
+      // Open Library muchas veces no anota el idioma. No es un caso raro:
+      // de las 200 ediciones de Harry Potter, **78 no lo tienen**, y la
+      // primera de esa lista es «Harry Potter y la piedra filosofal» de
+      // Salamandra. Filtrando por español, esa quedaba afuera.
+      //
+      // No se adivina por el título: «Pedra Filosofal» es portugués y
+      // «kamień filozoficzny» es polaco, y equivocarse sería peor que no
+      // saber. Se muestran aparte y se avisa que el catálogo no lo dice.
+      final desconocido = idiomas.isEmpty;
+      if (idioma != null && !desconocido && !idiomas.contains(idioma)) {
+        continue;
+      }
 
       final tapas = (e['covers'] as List?)?.whereType<int>().toList();
       final editoriales = (e['publishers'] as List?)?.cast<String>();
 
-      salida.add(
+      final donde = (idioma != null && idiomas.isEmpty) ? sinIdioma : salida;
+
+      donde.add(
         Libro(
           id: (e['key'] as String?) ?? '$obraId-${salida.length}',
           titulo: (e['title'] as String?) ?? obra.titulo,
@@ -384,15 +412,12 @@ class Api {
         ),
       );
 
-      if (salida.length >= maximo) break;
+      if (salida.length + sinIdioma.length >= maximo) break;
     }
 
-    // Primero las que tienen tapa: son las que sirven para elegir.
-    salida.sort((a, b) {
-      if ((a.tapaId != null) == (b.tapaId != null)) return 0;
-      return a.tapaId != null ? -1 : 1;
-    });
-    return salida;
+    // El orden y las repetidas los resuelve la pantalla, en paraMirar:
+    // son decisiones de cómo se mira, no de qué hay.
+    return (confirmadas: salida, sinIdioma: sinIdioma);
   }
 
   /// Las fechas vienen de mil formas: "2018", "08/08/2015", "Jun 04, 2020".
