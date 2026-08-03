@@ -13,12 +13,14 @@ import 'archivo_elegido.dart';
 ///
 /// Acá el input se queda en el documento hasta que la elección termina.
 /// Es la diferencia entera.
-Future<ArchivoElegido?> elegirArchivo() async {
+Future<ArchivoElegido?> elegirArchivo({
+  String acepta = '.epub,application/epub+zip',
+}) async {
   final input = web.HTMLInputElement()
     ..type = 'file'
     // El accept es una sugerencia, no un filtro: iOS igual deja elegir
     // cualquier cosa, y la validación de verdad la hacemos nosotras.
-    ..accept = '.epub,application/epub+zip'
+    ..accept = acepta
     ..multiple = false
     // Escondido pero presente. `display: none` hace que algunos
     // navegadores ignoren el click, así que lo sacamos de la vista

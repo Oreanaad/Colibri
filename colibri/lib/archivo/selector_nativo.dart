@@ -10,7 +10,10 @@ import 'archivo_elegido.dart';
 /// extensión— y queda una pantalla donde no se puede elegir nada.
 /// Preferimos dejar elegir cualquiera y validar en la app, que además nos
 /// deja explicar qué pasó cuando no sirve.
-Future<ArchivoElegido?> elegirArchivo() async {
+/// [acepta] es una sugerencia para el navegador y acá no se usa: en
+/// nativo elegimos cualquier archivo y validamos en la app, por lo que
+/// explica el comentario de arriba.
+Future<ArchivoElegido?> elegirArchivo({String acepta = ''}) async {
   final elegido = await FilePicker.pickFiles(
     type: FileType.any,
     withData: true, // los bytes, en memoria y nada más

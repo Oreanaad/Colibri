@@ -128,7 +128,20 @@ class Libro {
   final String id;
   final String titulo;
   final String autor;
-  final int? tapaId;
+
+  /// No es `final`, como casi todo lo demás de esta clase, y por el mismo
+  /// motivo: la tapa se completa después. Un libro puede entrar sin
+  /// portada —importado de una lista, cargado a mano— y conseguirla más
+  /// tarde sin dejar de ser el mismo libro.
+  int? tapaId;
+
+  /// El código de barras del libro, cuando se sabe.
+  ///
+  /// Se guarda porque es la única forma de volver a preguntar por *esta*
+  /// edición. Lo trae el escáner y lo trae la lista de Goodreads, y con él
+  /// se puede ir a buscar la tapa que falta mucho después de haberlo
+  /// cargado, sin volver a tenerlo en la mano.
+  final String? isbn;
 
   /// La dirección de la tapa, cuando viene de Google Books.
   ///
@@ -136,7 +149,7 @@ class Libro {
   /// dirección entera y ya. Conviven porque cada catálogo entrega lo que
   /// entrega, y la app pregunta por [Api.tapaDe] sin tener que saber de
   /// dónde salió cada libro.
-  final String? tapaUrl;
+  String? tapaUrl;
   final String? editorial;
   final int? anio;
 
@@ -197,6 +210,7 @@ class Libro {
     required this.autor,
     this.tapaId,
     this.tapaUrl,
+    this.isbn,
     this.editorial,
     this.anio,
     this.estado = Estado.pendiente,
@@ -337,6 +351,7 @@ class Libro {
     'autor': autor,
     'tapaId': tapaId,
     'tapaUrl': tapaUrl,
+    'isbn': isbn,
     'editorial': editorial,
     'anio': anio,
     'estado': estado.index,
@@ -366,6 +381,7 @@ class Libro {
     autor: j['autor'] as String,
     tapaId: j['tapaId'] as int?,
     tapaUrl: j['tapaUrl'] as String?,
+    isbn: j['isbn'] as String?,
     editorial: j['editorial'] as String?,
     anio: j['anio'] as int?,
     // 'estante' es el nombre viejo: lo leemos para no perder datos
@@ -475,6 +491,29 @@ class Biblioteca extends ChangeNotifier {
     if (tiene(libro)) return;
     _libros.insert(0, libro);
     await _guardar();
+  }
+
+  /// Sumar muchos libros de una, guardando una sola vez.
+  ///
+  /// # Por qué no alcanza con llamar a [agregar] en un bucle
+  ///
+  /// Cada `agregar` escribe **la biblioteca entera** en el disco del
+  /// teléfono. Con doscientos libros eso son doscientas escrituras que
+  /// crecen a medida que avanzan, y la última escribe los doscientos.
+  /// Importar quedaba trabado varios segundos con la pantalla congelada.
+  ///
+  /// Devuelve cuántos entraron. Los que ya estaban se saltean, sin pisar
+  /// nada: si ya tenías *Cometierra* con tu reseña, lo que trae Goodreads
+  /// no puede reemplazarla.
+  Future<int> agregarVarios(List<Libro> nuevos) async {
+    var entraron = 0;
+    for (final libro in nuevos) {
+      if (tiene(libro)) continue;
+      _libros.insert(0, libro);
+      entraron++;
+    }
+    if (entraron > 0) await _guardar();
+    return entraron;
   }
 
   Future<void> quitar(Libro libro) async {

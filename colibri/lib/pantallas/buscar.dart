@@ -6,6 +6,7 @@ import '../tema.dart';
 import '../widgets.dart';
 import 'cargar_libro.dart';
 import 'escanear.dart';
+import 'importar.dart';
 import 'ficha.dart';
 
 /// Buscar y agregar. La búsqueda arranca sola mientras se escribe:
@@ -185,11 +186,17 @@ class _PantallaBuscarState extends State<PantallaBuscar> {
       return _Mensaje(_error!);
     }
     if (!_busco && _resultados.isEmpty) {
-      return const _Mensaje(
-        'Escribí al menos tres letras.\n\nEsta demo busca en Open Library, '
-        'que es abierta y gratis. Probá con los libros que estás leyendo vos: '
-        'lo que no encuentre es exactamente lo que la comunidad va a tener '
-        'que cargar a mano.',
+      return ListView(
+        children: const [
+          _Mensaje(
+            'Escribí al menos tres letras, o apuntá al código de barras con '
+            'el botón de al lado.',
+          ),
+          SizedBox(height: 10),
+          Divider(color: Paleta.linea, indent: 40, endIndent: 40),
+          SizedBox(height: 22),
+          _TraerDeGoodreads(),
+        ],
       );
     }
     if (_resultados.isEmpty) {
@@ -357,6 +364,48 @@ class _NoApareceNada extends StatelessWidget {
 }
 
 /// Al final de los resultados, por si ninguno era.
+/// La invitación a traer la biblioteca de Goodreads.
+///
+/// Va en la pantalla de agregar un libro, debajo del cartel de que hay que
+/// escribir. Es el momento exacto en que aparece: alguien acaba de abrir
+/// «agregar un libro» con la biblioteca vacía, y va a cargar el primero de
+/// doscientos a mano.
+class _TraerDeGoodreads extends StatelessWidget {
+  const _TraerDeGoodreads();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 4, 24, 0),
+      child: Column(
+        children: [
+          Text(
+            '¿Tenías tu biblioteca en Goodreads?',
+            style: Tipo.cuerpo,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Se traen todos de una, con puntaje, estantes y reseñas.',
+            style: Tipo.meta,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: 260,
+            child: BotonContorno(
+              'Traerla',
+              alTocar: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const PantallaImportar()),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _NingunoEsElQueTengo extends StatelessWidget {
   final VoidCallback alCargar;
   const _NingunoEsElQueTengo({required this.alCargar});
