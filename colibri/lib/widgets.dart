@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'api.dart';
 import 'chile.dart';
 import 'modelos.dart';
@@ -53,28 +55,26 @@ class Tapa extends StatelessWidget {
                   // pasado por la lista: así abrir un libro es inmediato
                   // en vez de quedarse pensando.
                   if (tamano != 'M')
-                    Image.network(
-                      Api.tapaDe(libro)!,
+                    CachedNetworkImage(
+                      imageUrl: Api.tapaDe(libro)!,
+                      cacheManager: tapasGuardadas,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                      errorWidget: (_, _, _) => const SizedBox.shrink(),
                     ),
 
-                  Image.network(
-                    url,
+                  CachedNetworkImage(
+                    imageUrl: url,
+                    cacheManager: tapasGuardadas,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                    errorWidget: (_, _, _) => const SizedBox.shrink(),
+                    // Mientras baja no se pone nada: debajo ya está la tapa
+                    // dibujada, y taparla con una rueda girando sería
+                    // cambiar algo que se ve por algo que no dice nada.
+                    placeholder: (_, _) => const SizedBox.shrink(),
                     // Sin esto la tapa aparece de golpe cuando termina de
                     // bajar, y el salto se nota más que la espera.
-                    frameBuilder: (_, hijo, cuadro, yaEstaba) {
-                      if (yaEstaba || cuadro != null) {
-                        return AnimatedOpacity(
-                          opacity: 1,
-                          duration: const Duration(milliseconds: 220),
-                          child: hijo,
-                        );
-                      }
-                      return const SizedBox.shrink();
-                    },
+                    fadeInDuration: const Duration(milliseconds: 220),
+                    fadeOutDuration: Duration.zero,
                   ),
                 ],
               ),
@@ -485,6 +485,45 @@ Future<void> elegirEstado(BuildContext context, Libro libro) async {
 
   if (elegido != null) await biblioteca.cambiarEstado(libro, elegido);
 }
+
+/// Dónde se guardan las tapas para no bajarlas de nuevo.
+///
+/// # El problema, medido
+///
+/// Una tapa de la grilla pesa 25 KB y la de la ficha 68 KB. Los servidores
+/// las dan con permiso de guardarlas **tres horas**, y sin `etag`: cuando
+/// se vencen no hay forma de preguntar «¿sigue igual?», hay que bajarlas
+/// enteras otra vez. Con sesenta libros eso es un mega y medio cada vez.
+///
+/// Y en el teléfono es peor, porque Flutter solo las guarda en memoria:
+/// cerrás la app y se pierden todas. Abrir la biblioteca en el colectivo
+/// costaba la descarga completa, cada vez.
+///
+/// # Por qué treinta días y no tres horas
+///
+/// Las tres horas las decide el servidor, y para un servidor es una
+/// decisión razonable: no sabe qué le vas a pedir. Pero nosotros sí
+/// sabemos qué estamos pidiendo, y **la tapa de un libro no cambia**. Si
+/// alguna vez cambia —porque elegiste otra edición— cambia la dirección,
+/// no la imagen, así que no hay nada viejo que se pueda quedar pegado.
+///
+/// # Lo que esto no arregla
+///
+/// **En el navegador no cambia nada.** El paquete guarda en disco en
+/// iPhone, Android y escritorio, pero en web usa memoria y nada sobrevive
+/// a recargar la página. Lo dice su propio código: en web el
+/// almacenamiento es `MemoryCacheSystem`. Ahí seguimos dependiendo de las
+/// tres horas del navegador.
+final tapasGuardadas = CacheManager(
+  Config(
+    'colibri.tapas',
+    stalePeriod: const Duration(days: 30),
+    // Quinientas tapas a 25 KB son unos doce megas. Una biblioteca de
+    // quinientos libros es mucha biblioteca, y doce megas en el teléfono
+    // no son nada.
+    maxNrOfCacheObjects: 500,
+  ),
+);
 
 /// El estante donde está un libro, para tocar y moverlo.
 ///
