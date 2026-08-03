@@ -217,7 +217,6 @@ class _Resultado extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final yaEsta = biblioteca.tiene(libro);
     final guardado = biblioteca.buscarPorClave(libro.clave);
 
     return InkWell(
@@ -254,34 +253,72 @@ class _Resultado extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          IconButton(
-            onPressed: () async {
-              if (yaEsta) {
-                await biblioteca.quitar(libro);
-                if (context.mounted) {
-                  mostrarAviso(
-                    context,
-                    '«${libro.titulo}» salió de tu biblioteca',
-                  );
-                }
-              } else {
-                await biblioteca.agregar(libro);
-                if (!context.mounted) return;
-                mostrarAviso(
-                  context,
-                  '«${libro.titulo}» se sumó a ${libro.estado.nombre}',
-                  accion: 'Cambiar',
-                  alAccionar: () => elegirEstado(context, libro),
-                );
-              }
-            },
-            icon: Icon(
-              yaEsta ? Icons.check_circle_rounded : Icons.add_circle_outline,
-              color: yaEsta ? Paleta.lila : Paleta.bruma,
-            ),
-            tooltip: yaEsta ? 'Sacar de mi biblioteca' : 'Agregar',
-          ),
+          _Destino(libro, guardado: guardado),
         ],
+      ),
+    );
+  }
+}
+
+/// El más, o el estante donde ya lo pusiste.
+///
+/// # Qué problema resuelve
+///
+/// Cargando veinte libros de una, lo que se pierde no es el libro: es
+/// saber cuáles ya pusiste y dónde. Antes todos iban a pendientes y la
+/// única forma de cambiarlo era cazar un aviso que se iba solo, y veinte
+/// avisos hacen cola y se pisan.
+///
+/// Ahora el más pregunta antes, y después la fila queda diciendo dónde
+/// quedó ese libro. **La fila es la confirmación**: por eso acá no hay
+/// ningún aviso, y es a propósito.
+class _Destino extends StatelessWidget {
+  final Libro libro;
+  final Libro? guardado;
+
+  const _Destino(this.libro, {required this.guardado});
+
+  @override
+  Widget build(BuildContext context) {
+    final puesto = guardado;
+
+    if (puesto == null) {
+      return IconButton(
+        onPressed: () => dondeVa(context, libro),
+        icon: const Icon(Icons.add_circle_outline, size: 26),
+        color: Paleta.lila,
+        tooltip: 'Agregar',
+      );
+    }
+
+    return Tooltip(
+      message: 'Moverlo o sacarlo',
+      child: InkWell(
+        onTap: () => dondeVa(context, puesto),
+        borderRadius: BorderRadius.circular(30),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+          decoration: BoxDecoration(
+            color: const Color(0x22B9A6E6),
+            border: Border.all(color: Paleta.lila),
+            borderRadius: BorderRadius.circular(30),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.check_rounded, size: 14, color: Paleta.lila),
+              const SizedBox(width: 5),
+              Text(
+                puesto.estado.nombre,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Paleta.lila,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

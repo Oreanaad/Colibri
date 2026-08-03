@@ -439,6 +439,15 @@ void mostrarAviso(
 
 /// Hoja de abajo para elegir dónde va un libro. Se usa desde el aviso de
 /// "agregado" y desde la ficha.
+/// Cambiar el estado de un libro que ya estás mirando.
+///
+/// Se parece a [dondeVa] pero **no es lo mismo y no hay que fusionarlas**:
+/// esta llama a `cambiarEstado` sin condición, y ahí tocar dos veces el
+/// mismo estado lo devuelve a pendientes. Eso es una función pedida —
+/// marcar «leído» sin querer y poder deshacerlo— y solo tiene sentido acá,
+/// donde estás dentro del libro. En una lista de resultados, volver a
+/// tocar el estante en el que ya está se lee como «sí, ahí está bien», y
+/// sacarlo sería un accidente.
 Future<void> elegirEstado(BuildContext context, Libro libro) async {
   final elegido = await showModalBottomSheet<Estado>(
     context: context,
@@ -475,6 +484,118 @@ Future<void> elegirEstado(BuildContext context, Libro libro) async {
   );
 
   if (elegido != null) await biblioteca.cambiarEstado(libro, elegido);
+}
+
+/// Elegir dónde va un libro, desde una lista de resultados.
+///
+/// # Por qué no alcanza con un más que suma a pendientes
+///
+/// Cuando alguien busca un libro suelto, mandarlo a pendientes y ofrecer
+/// cambiarlo después está bien. Cuando está cargando veinte de una, no:
+/// los avisos hacen cola, se pisan, y al tercero ya no sabés cuál era el
+/// que querías mover.
+///
+/// Así que se pregunta antes. Dos toques por libro, y ninguna duda.
+///
+/// # Por qué muestra el título
+///
+/// Porque en una lista de veinte resultados parecidos, una hoja que dice
+/// «¿Dónde lo ponés?» sin decir qué es «lo» obliga a cerrarla para
+/// fijarse.
+///
+/// Devuelve `true` si algo cambió, para que la fila se vuelva a dibujar.
+Future<bool> dondeVa(BuildContext context, Libro libro) async {
+  final yaEsta = biblioteca.tiene(libro);
+  final guardado = biblioteca.buscarPorClave(libro.clave) ?? libro;
+
+  final elegido = await showModalBottomSheet<Object>(
+    context: context,
+    backgroundColor: Paleta.nocheAlta,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+    ),
+    builder: (context) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: 14),
+          Center(
+            child: Container(
+              width: 38,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Paleta.linea,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  yaEsta ? 'Moverlo a' : '¿Dónde lo ponés?',
+                  style: Tipo.subtitulo,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  libro.titulo,
+                  style: Tipo.meta,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          for (final e in Estado.values)
+            ListTile(
+              title: Text(e.nombre, style: Tipo.cuerpo),
+              trailing: yaEsta && guardado.estado == e
+                  ? const Icon(Icons.check_rounded, color: Paleta.lila)
+                  : null,
+              onTap: () => Navigator.of(context).pop(e),
+            ),
+          if (yaEsta) ...[
+            const Divider(color: Paleta.linea, height: 1),
+            ListTile(
+              title: Text(
+                'Sacarlo de mi biblioteca',
+                style: Tipo.cuerpo.copyWith(color: Paleta.bruma),
+              ),
+              onTap: () => Navigator.of(context).pop(#sacar),
+            ),
+          ],
+          const SizedBox(height: 10),
+        ],
+      ),
+    ),
+  );
+
+  if (elegido == null) return false;
+
+  if (elegido == #sacar) {
+    await biblioteca.quitar(guardado);
+    return true;
+  }
+
+  final estado = elegido as Estado;
+
+  if (!yaEsta) {
+    await biblioteca.agregar(libro);
+    // Se agrega primero y se mueve después, en vez de nacer ya con el
+    // estado puesto: así pasa por cambiarEstado, que es quien anota la
+    // fecha de cuándo lo empezaste o lo terminaste.
+    if (estado != Estado.pendiente) {
+      await biblioteca.cambiarEstado(libro, estado);
+    }
+  } else if (guardado.estado != estado) {
+    await biblioteca.cambiarEstado(guardado, estado);
+  }
+  return true;
 }
 
 /// La grilla de tapas. La usan la biblioteca, los estantes y el perfil
