@@ -383,6 +383,29 @@ class Biblioteca extends ChangeNotifier {
     }).toList();
   }
 
+  /// Busca en lo que ya tenés, no en internet.
+  ///
+  /// Mira el título, la autoría y los nombres de tus estantes, así
+  /// escribir «fantasia» te trae todo lo que pusiste ahí. Sin acentos ni
+  /// mayúsculas: nadie se acuerda de cómo se escribía.
+  ///
+  /// No filtra por solapa a propósito. Si estás en «Leyendo» y buscás un
+  /// libro que tenés en pendientes, lo que querés es encontrarlo, no que
+  /// la app te diga que no lo tenés.
+  List<Libro> buscarEnMiBiblioteca(String texto) {
+    final aguja = Libro._normalizar(texto);
+    if (aguja.length < 2) return const [];
+
+    return _libros
+        .where(
+          (l) =>
+              Libro._normalizar(l.titulo).contains(aguja) ||
+              Libro._normalizar(l.autor).contains(aguja) ||
+              l.estantes.any((e) => Libro._normalizar(e).contains(aguja)),
+        )
+        .toList();
+  }
+
   Libro? buscarPorClave(String clave) {
     for (final l in _libros) {
       if (l.clave == clave) return l;

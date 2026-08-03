@@ -38,6 +38,28 @@ class _PantallaBibliotecaState extends State<PantallaBiblioteca> {
   late _Solapa _activa =
       _Solapa.values[sesion.solapa.clamp(0, _Solapa.values.length - 1)];
 
+  final _buscador = TextEditingController();
+  String _filtro = '';
+
+  /// A partir de cuántos libros aparece el buscador.
+  ///
+  /// Con menos, los ves todos de un vistazo y un campo de búsqueda es
+  /// una caja vacía que solo ocupa lugar.
+  static const _desde = 8;
+
+  bool get _buscando => _filtro.trim().length >= 2;
+
+  @override
+  void dispose() {
+    _buscador.dispose();
+    super.dispose();
+  }
+
+  void _limpiar() {
+    _buscador.clear();
+    setState(() => _filtro = '');
+  }
+
   void _irABuscar() {
     Navigator.of(
       context,
@@ -65,33 +87,103 @@ class _PantallaBibliotecaState extends State<PantallaBiblioteca> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Logotipo(tamano: 22),
+                    // Un más y no una lupa.
+                    //
+                    // Este botón trae libros de internet; la lupa está
+                    // abajo y busca en los que ya tenés. Con dos lupas,
+                    // una al lado de la otra, no hay forma de saber cuál
+                    // hace qué.
                     IconButton(
                       onPressed: _irABuscar,
-                      icon: const Icon(Icons.search_rounded),
+                      icon: const Icon(Icons.add_rounded),
                       color: Paleta.lila,
-                      tooltip: 'Buscar y agregar',
+                      tooltip: 'Agregar un libro',
                     ),
                   ],
                 ),
               ),
-              _Solapas(
-                activa: _activa,
-                alCambiar: (s) {
-                  setState(() => _activa = s);
-                  sesion.anotar(solapa: s.index);
-                },
-              ),
+              if (biblioteca.todos.length >= _desde)
+                Columna(
+                  hijo: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                    child: _Buscador(
+                      controlador: _buscador,
+                      cuantos: biblioteca.todos.length,
+                      alEscribir: (v) => setState(() => _filtro = v),
+                      alLimpiar: _buscando ? _limpiar : null,
+                    ),
+                  ),
+                ),
+
+              // Mientras se busca no hay solapas: la búsqueda mira toda
+              // la biblioteca, y dejar una solapa marcada haría pensar
+              // que solo busca ahí.
+              if (!_buscando)
+                _Solapas(
+                  activa: _activa,
+                  alCambiar: (s) {
+                    setState(() => _activa = s);
+                    sesion.anotar(solapa: s.index);
+                  },
+                ),
+
               Expanded(
                 child: Columna(
-                  hijo: _activa == _Solapa.estantes
-                      ? const VistaEstantes()
-                      : _listaDeEstado(_activa.estado!),
+                  hijo: _buscando
+                      ? _resultados()
+                      : (_activa == _Solapa.estantes
+                            ? const VistaEstantes()
+                            : _listaDeEstado(_activa.estado!)),
                 ),
               ),
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _resultados() {
+    final encontrados = biblioteca.buscarEnMiBiblioteca(_filtro);
+
+    if (encontrados.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(32, 44, 32, 0),
+        child: Column(
+          children: [
+            Text(
+              'No tenés ningún libro que diga «${_filtro.trim()}».',
+              style: Tipo.cuerpo,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Busca en el título, en la autoría y en los nombres de tus '
+              'estantes.',
+              style: Tipo.meta,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 22),
+            SizedBox(
+              width: 260,
+              child: BotonContorno('Buscarlo en internet', alTocar: _irABuscar),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+      children: [
+        Rotulo(
+          encontrados.length == 1
+              ? '1 libro en tu biblioteca'
+              : '${encontrados.length} libros en tu biblioteca',
+        ),
+        const SizedBox(height: 12),
+        GrillaLibros(encontrados, alTocar: _abrir),
+      ],
     );
   }
 
@@ -265,6 +357,67 @@ class _Vacio extends StatelessWidget {
             child: BotonLleno('Buscar un libro', alTocar: alTocar),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// El buscador de la biblioteca.
+///
+/// Dice cuántos libros tenés en el propio texto de ayuda. Es la forma
+/// más barata de que se entienda que busca en los tuyos y no en internet.
+class _Buscador extends StatelessWidget {
+  final TextEditingController controlador;
+  final int cuantos;
+  final ValueChanged<String> alEscribir;
+  final VoidCallback? alLimpiar;
+
+  const _Buscador({
+    required this.controlador,
+    required this.cuantos,
+    required this.alEscribir,
+    this.alLimpiar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controlador,
+      onChanged: alEscribir,
+      style: const TextStyle(color: Paleta.luz, fontSize: 14),
+      cursorColor: Paleta.lila,
+      decoration: InputDecoration(
+        hintText: 'Buscar en tus $cuantos libros',
+        hintStyle: Tipo.meta,
+        prefixIcon: const Icon(
+          Icons.search_rounded,
+          color: Paleta.bruma,
+          size: 19,
+        ),
+        suffixIcon: alLimpiar == null
+            ? null
+            : IconButton(
+                onPressed: alLimpiar,
+                icon: const Icon(Icons.close_rounded, size: 18),
+                color: Paleta.bruma,
+                tooltip: 'Limpiar',
+              ),
+        isDense: true,
+        filled: true,
+        fillColor: Paleta.nocheAlta,
+        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Paleta.linea),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Paleta.linea),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Paleta.lila),
+        ),
       ),
     );
   }
