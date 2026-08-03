@@ -216,11 +216,28 @@ class _PantallaEscanearState extends State<PantallaEscanear> {
           hijo: Column(
             children: [
               _Camara(control: _control, alLeer: _alLeer),
+
+              // El recordatorio queda a la vista mientras se escanea.
+              //
+              // El texto de arriba lo explica todo, pero desaparece con el
+              // primer libro, y justo después es cuando hace falta saber
+              // que el estante se toca. Un renglón, y solo cuando ya hay
+              // algo que mover.
+              if (_leidos.any((l) => l.libro != null))
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+                  child: Text(
+                    'Van a Pendientes. Tocá el estante para moverlos.',
+                    style: Tipo.meta.copyWith(fontSize: 11.5),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+
               Expanded(
                 child: _leidos.isEmpty
-                    ? const _ComoSeUsa()
+                    ? const ComoSeUsaElEscaner()
                     : ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+                        padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
                         itemCount: _leidos.length,
                         separatorBuilder: (_, _) => const Divider(
                           color: Paleta.linea,
@@ -344,27 +361,48 @@ class _CamaraCaida extends StatelessWidget {
   }
 }
 
-class _ComoSeUsa extends StatelessWidget {
-  const _ComoSeUsa();
+/// Lo que se lee antes de escanear el primero.
+///
+/// Dice el trato completo por adelantado: qué hacer, dónde van a ir a
+/// parar los libros, y que eso se cambia después. Es lo único que se lee
+/// en esta pantalla —después ya estás mirando la cámara— así que si algo
+/// tiene que estar dicho, tiene que estar dicho acá.
+///
+/// Es pública para poder comprobar en una prueba que el texto está.
+class ComoSeUsaElEscaner extends StatelessWidget {
+  const ComoSeUsaElEscaner({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(32, 22, 32, 20),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(28, 20, 28, 20),
       child: Column(
         children: [
           Text(
             'Apuntá al código de barras de la contratapa.',
-            style: Tipo.cuerpo,
+            style: Tipo.cuerpo.copyWith(fontWeight: FontWeight.w500),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Cada libro que encuentre se suma solo a Pendientes, y seguís '
+            'con el siguiente sin tocar nada.',
+            style: Tipo.meta,
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 10),
           Text(
-            'Los que encuentre se suman solos a pendientes, y podés seguir '
-            'con el siguiente sin tocar nada.\n\nVarios no van a aparecer: el '
-            'catálogo abierto tiene pocas ediciones latinoamericanas. Cuando '
-            'pase, te lo digo y lo buscás por el título.',
+            'Después tocá el estante de cualquiera para pasarlo a Leyendo o '
+            'a Leídos. Cuando quieras.',
             style: Tipo.meta,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Varios no van a aparecer: los catálogos abiertos tienen pocas '
+            'ediciones de acá. Cuando pase te lo digo, y lo buscás por el '
+            'título.',
+            style: Tipo.meta.copyWith(fontSize: 11.5),
             textAlign: TextAlign.center,
           ),
         ],

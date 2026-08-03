@@ -8,22 +8,28 @@ import 'ficha.dart';
 
 /// Las cuatro solapas de la biblioteca. Las tres primeras son estados de
 /// lectura; la cuarta son los estantes que arma cada persona.
-enum _Solapa { leyendo, leidos, pendientes, estantes }
+/// Las solapas de la biblioteca.
+///
+/// «Todos» va primera y es la que se abre por defecto: es tu estante
+/// entero, que es lo que una espera ver al entrar a su biblioteca. Las
+/// otras son formas de mirar una parte.
+enum _Solapa { todos, leyendo, leidos, pendientes, estantes }
 
 extension on _Solapa {
   String get nombre => switch (this) {
+    _Solapa.todos => 'Todos',
     _Solapa.leyendo => 'Leyendo',
     _Solapa.leidos => 'Leídos',
     _Solapa.pendientes => 'Pendientes',
     _Solapa.estantes => 'Estantes',
   };
 
-  /// Null en la solapa de estantes: esa no filtra por estado.
+  /// Null en «Todos» y en «Estantes»: esas dos no filtran por estado.
   Estado? get estado => switch (this) {
     _Solapa.leyendo => Estado.leyendo,
     _Solapa.leidos => Estado.leido,
     _Solapa.pendientes => Estado.pendiente,
-    _Solapa.estantes => null,
+    _ => null,
   };
 }
 
@@ -131,9 +137,11 @@ class _PantallaBibliotecaState extends State<PantallaBiblioteca> {
                 child: Columna(
                   hijo: _buscando
                       ? _resultados()
-                      : (_activa == _Solapa.estantes
-                            ? const VistaEstantes()
-                            : _listaDeEstado(_activa.estado!)),
+                      : switch (_activa) {
+                          _Solapa.estantes => const VistaEstantes(),
+                          _Solapa.todos => _todo(),
+                          _ => _listaDeEstado(_activa.estado!),
+                        },
                 ),
               ),
             ],
@@ -185,6 +193,58 @@ class _PantallaBibliotecaState extends State<PantallaBiblioteca> {
         GrillaLibros(encontrados, alTocar: _abrir),
       ],
     );
+  }
+
+  /// Tu estante entero, en un solo lugar.
+  ///
+  /// # Por qué en secciones y no todo mezclado
+  ///
+  /// Una grilla con los ciento veinte libros seguidos se ve linda y no
+  /// dice nada: no hay forma de saber cuál estás leyendo y cuál esperás
+  /// hace dos años. Con las secciones ves todo igual, bajando, y además
+  /// sabés qué es cada cosa.
+  ///
+  /// # Por qué en ese orden
+  ///
+  /// Leyendo, pendientes, leídos. Es la línea del tiempo de un libro:
+  /// lo que estás haciendo, lo que sigue, lo que quedó atrás.
+  Widget _todo() {
+    final leyendo = biblioteca.enEstado(Estado.leyendo);
+    final pendientes = biblioteca.enEstado(Estado.pendiente);
+    final leidos = biblioteca.enEstado(Estado.leido);
+    final ahora = biblioteca.leyendoAhora;
+
+    if (biblioteca.todos.isEmpty) {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+        children: [_Vacio(estado: Estado.pendiente, alTocar: _irABuscar)],
+      );
+    }
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
+      children: [
+        if (ahora != null) ...[
+          const Rotulo('Ahora mismo'),
+          const SizedBox(height: 10),
+          _TarjetaLeyendo(ahora, alTocar: () => _abrir(ahora)),
+          const SizedBox(height: 26),
+        ],
+        ..._seccion('Leyendo', leyendo),
+        ..._seccion('Pendientes', pendientes),
+        ..._seccion('Leídos', leidos),
+      ],
+    );
+  }
+
+  List<Widget> _seccion(String titulo, List<Libro> libros) {
+    if (libros.isEmpty) return const [];
+    return [
+      Rotulo('$titulo · ${libros.length}'),
+      const SizedBox(height: 12),
+      GrillaLibros(libros, alTocar: _abrir),
+      const SizedBox(height: 26),
+    ];
   }
 
   Widget _listaDeEstado(Estado estado) {
@@ -240,13 +300,21 @@ class _Solapas extends StatelessWidget {
                     ),
                   ),
                 ),
-                child: Text(
-                  s.nombre,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: es ? FontWeight.w600 : FontWeight.w400,
-                    color: es ? Paleta.lila : Paleta.bruma,
+                // Cinco solapas en un teléfono angosto no entran: en una
+                // pantalla de 320 puntos le tocan 64 a cada una, y
+                // «Pendientes» mide más que eso. Se achica sola en vez de
+                // cortarse, porque una solapa que dice «Pendien…» es una
+                // solapa que no se entiende.
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    s.nombre,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: es ? FontWeight.w600 : FontWeight.w400,
+                      color: es ? Paleta.lila : Paleta.bruma,
+                    ),
                   ),
                 ),
               ),

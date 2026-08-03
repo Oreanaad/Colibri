@@ -744,13 +744,18 @@ final biblioteca = Biblioteca();
 /// compartir enlaces a un libro, ahí sí van a hacer falta direcciones de
 /// verdad, y este archivo se tira.
 class Sesion extends ChangeNotifier {
-  static const _clave = 'colibri.sesion.v1';
+  static const _clave = 'colibri.sesion.v2';
+
+  /// El formato anterior, de cuando la biblioteca no tenía la solapa
+  /// «Todos». Se sigue leyendo una vez para no mandar a nadie a una
+  /// pantalla que no era la que había dejado abierta.
+  static const _claveVieja = 'colibri.sesion.v1';
 
   /// Qué sección de la barra de abajo: biblioteca, frases o comunidad.
   int seccion = 0;
 
-  /// Qué solapa dentro de la biblioteca: leyendo, leídos, pendientes,
-  /// estantes.
+  /// Qué solapa dentro de la biblioteca: todos, leyendo, leídos,
+  /// pendientes, estantes.
   int solapa = 0;
 
   /// Qué libro estabas mirando, o null si estabas en una lista.
@@ -758,15 +763,33 @@ class Sesion extends ChangeNotifier {
 
   Future<void> cargar() async {
     final prefs = await SharedPreferences.getInstance();
+
     final crudo = prefs.getString(_clave);
-    if (crudo == null) return;
+    if (crudo != null) {
+      _leer(crudo);
+      return;
+    }
+
+    // Nunca se guardó en el formato nuevo: puede haber uno viejo. Ahí las
+    // solapas eran cuatro y «Todos» todavía no existía, así que la que
+    // estaba en el lugar 0 ahora está en el 1, y así con todas. Sin este
+    // corrimiento, quien había dejado abierto «Estantes» volvía a
+    // «Pendientes» sin entender por qué.
+    final viejo = prefs.getString(_claveVieja);
+    if (viejo == null) return;
+
+    _leer(viejo);
+    solapa = solapa + 1;
+  }
+
+  void _leer(String crudo) {
     try {
       final j = jsonDecode(crudo) as Map<String, dynamic>;
       seccion = (j['seccion'] as int?) ?? 0;
       solapa = (j['solapa'] as int?) ?? 0;
       libro = j['libro'] as String?;
     } catch (_) {
-      // Formato viejo o roto: arrancamos en la biblioteca y listo.
+      // Formato roto: arrancamos en la biblioteca y listo.
     }
   }
 

@@ -87,4 +87,76 @@ void main() {
       reason: 'y si ya no está, la app lo detecta en vez de romperse',
     );
   });
+
+  group('la solapa Todos y lo que ya estaba guardado', () {
+    test('sin nada guardado se abre en Todos', () async {
+      SharedPreferences.setMockInitialValues({});
+      final s = Sesion();
+      await s.cargar();
+
+      // Todos es la primera y la que se abre por defecto: es tu estante
+      // entero, que es lo que una espera ver al entrar a su biblioteca.
+      expect(s.solapa, 0);
+    });
+
+    test('lo guardado con el formato viejo se corre un lugar', () async {
+      // Antes las solapas eran leyendo, leídos, pendientes, estantes.
+      // Ahora Todos va primera, así que cada una se movió un lugar. Sin
+      // este corrimiento, quien dejó abierto «Estantes» volvía a
+      // «Pendientes» sin entender por qué.
+      for (final caso in {0: 1, 1: 2, 2: 3, 3: 4}.entries) {
+        SharedPreferences.setMockInitialValues({
+          'colibri.sesion.v1': '{"seccion":0,"solapa":${caso.key}}',
+        });
+        final s = Sesion();
+        await s.cargar();
+
+        expect(
+          s.solapa,
+          caso.value,
+          reason: 'la solapa ${caso.key} de antes es la ${caso.value} de ahora',
+        );
+      }
+    });
+
+    test('del formato viejo también se rescata el libro abierto', () async {
+      SharedPreferences.setMockInitialValues({
+        'colibri.sesion.v1': '{"seccion":1,"solapa":0,"libro":"/works/OL1W"}',
+      });
+      final s = Sesion();
+      await s.cargar();
+
+      expect(s.seccion, 1);
+      expect(s.libro, '/works/OL1W');
+    });
+
+    test('si hay formato nuevo, el viejo se ignora', () async {
+      // Si se leyeran los dos, cada arranque volvería a correr la solapa
+      // un lugar y terminarías siempre en Estantes.
+      SharedPreferences.setMockInitialValues({
+        'colibri.sesion.v1': '{"seccion":0,"solapa":3}',
+        'colibri.sesion.v2': '{"seccion":0,"solapa":1}',
+      });
+      final s = Sesion();
+      await s.cargar();
+
+      expect(s.solapa, 1);
+    });
+
+    test('guardar dos veces no vuelve a correr la solapa', () async {
+      SharedPreferences.setMockInitialValues({
+        'colibri.sesion.v1': '{"seccion":0,"solapa":2}',
+      });
+
+      final primera = Sesion();
+      await primera.cargar();
+      expect(primera.solapa, 3);
+      await primera.anotar(solapa: primera.solapa);
+
+      // Al abrir de nuevo ya existe el formato nuevo y se queda quieta.
+      final segunda = Sesion();
+      await segunda.cargar();
+      expect(segunda.solapa, 3);
+    });
+  });
 }

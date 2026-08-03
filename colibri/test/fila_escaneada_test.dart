@@ -102,4 +102,24 @@ void main() {
     expect(find.text('Pendientes'), findsOneWidget);
     expect(find.text('¿No es tu tapa?'), findsOneWidget);
   });
+
+  testWidgets('antes de escanear, el trato está dicho completo', (
+    tester,
+  ) async {
+    // Es lo único que se lee en esta pantalla: después ya estás mirando la
+    // cámara. Si algo tiene que estar dicho, tiene que estar dicho acá.
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: ComoSeUsaElEscaner())),
+    );
+
+    // Qué hacer.
+    expect(find.textContaining('código de barras'), findsOneWidget);
+    // Dónde van a ir a parar.
+    expect(find.textContaining('se suma solo a Pendientes'), findsOneWidget);
+    // Y que eso se cambia después, que es lo que faltaba decir.
+    expect(find.textContaining('tocá el estante'), findsOneWidget);
+    expect(find.textContaining('Cuando quieras'), findsOneWidget);
+    // Y la advertencia honesta de que varios no van a aparecer.
+    expect(find.textContaining('pocas ediciones de acá'), findsOneWidget);
+  });
 }
