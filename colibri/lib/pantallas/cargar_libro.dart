@@ -167,7 +167,7 @@ class _PantallaCargarLibroState extends State<PantallaCargarLibro> {
               _VistaPrevia(_borrador),
               const SizedBox(height: 22),
 
-              _Campo(
+              CampoDeTexto(
                 rotulo: 'Título',
                 obligatorio: true,
                 controlador: _titulo,
@@ -175,7 +175,7 @@ class _PantallaCargarLibroState extends State<PantallaCargarLibro> {
                 capitalizacion: TextCapitalization.sentences,
               ),
               const SizedBox(height: 14),
-              _Campo(
+              CampoDeTexto(
                 rotulo: 'Autora',
                 obligatorio: true,
                 controlador: _autor,
@@ -202,7 +202,7 @@ class _PantallaCargarLibroState extends State<PantallaCargarLibro> {
               const SizedBox(height: 22),
               const Rotulo('Opcionales'),
               const SizedBox(height: 12),
-              _Campo(
+              CampoDeTexto(
                 rotulo: 'Editorial',
                 controlador: _editorial,
                 ejemplo: 'Random House',
@@ -213,7 +213,7 @@ class _PantallaCargarLibroState extends State<PantallaCargarLibro> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: _Campo(
+                    child: CampoDeTexto(
                       rotulo: 'Año',
                       controlador: _anio,
                       ejemplo: '2023',
@@ -223,7 +223,7 @@ class _PantallaCargarLibroState extends State<PantallaCargarLibro> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: _Campo(
+                    child: CampoDeTexto(
                       rotulo: 'Páginas',
                       controlador: _paginas,
                       ejemplo: '224',
@@ -489,7 +489,12 @@ class _AvisoDeParecidos extends StatelessWidget {
   }
 }
 
-class _Campo extends StatelessWidget {
+/// Un campo del formulario, con su rótulo arriba.
+///
+/// Público porque lo usan las dos pantallas de carga a mano —la de libros
+/// y la de fanfics— y un formulario que se ve distinto en cada una se lee
+/// como dos apps distintas.
+class CampoDeTexto extends StatelessWidget {
   final String rotulo;
   final TextEditingController controlador;
   final String ejemplo;
@@ -498,7 +503,8 @@ class _Campo extends StatelessWidget {
   final int? largoMaximo;
   final TextCapitalization capitalizacion;
 
-  const _Campo({
+  const CampoDeTexto({
+    super.key,
     required this.rotulo,
     required this.controlador,
     required this.ejemplo,

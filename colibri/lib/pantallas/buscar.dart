@@ -6,6 +6,7 @@ import '../tema.dart';
 import '../widgets.dart';
 import 'cargar_libro.dart';
 import 'escanear.dart';
+import 'cargar_fanfic.dart';
 import 'importar.dart';
 import 'ficha.dart';
 
@@ -196,6 +197,8 @@ class _PantallaBuscarState extends State<PantallaBuscar> {
           Divider(color: Paleta.linea, indent: 40, endIndent: 40),
           SizedBox(height: 22),
           _TraerDeGoodreads(),
+          SizedBox(height: 26),
+          _SumarFanfic(),
         ],
       );
     }
@@ -364,6 +367,47 @@ class _NoApareceNada extends StatelessWidget {
 }
 
 /// Al final de los resultados, por si ninguno era.
+/// La entrada para los fanfics.
+///
+/// Está acá y no escondida en un menú porque para mucha gente **los
+/// fanfics son la mitad de lo que lee**, y una app de lectura que los
+/// trata como un caso raro les dice que eso no cuenta como leer.
+class _SumarFanfic extends StatelessWidget {
+  const _SumarFanfic();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+      child: Column(
+        children: [
+          Text(
+            '¿Es un fanfic?',
+            style: Tipo.cuerpo,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Esos no están en ningún catálogo: los cargás vos, con su enlace.',
+            style: Tipo.meta,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: 260,
+            child: BotonContorno(
+              'Sumar un fanfic',
+              alTocar: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const PantallaCargarFanfic()),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// La invitación a traer la biblioteca de Goodreads.
 ///
 /// Va en la pantalla de agregar un libro, debajo del cartel de que hay que

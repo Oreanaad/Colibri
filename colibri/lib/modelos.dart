@@ -4,6 +4,8 @@ import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'fanfic.dart';
+
 /// Dónde está un libro en tu lectura. Es uno solo y siempre hay uno.
 enum Estado { leyendo, leido, pendiente }
 
@@ -27,6 +29,14 @@ enum Origen {
   /// Lo cargó una lectora porque no estaba en ningún lado. Acá va a
   /// vivir casi toda la narrativa latinoamericana reciente.
   propio,
+
+  /// Un fanfic. No está ni va a estar en ningún catálogo de libros: los
+  /// carga quien los lee, con su dirección.
+  ///
+  /// Es un origen propio y no un estante ni una etiqueta porque cambia
+  /// cómo se identifica la ficha —por la dirección y no por el título— y
+  /// eso es una regla del modelo, no una forma de ordenar.
+  fanfic,
 }
 
 /// Las etiquetas de «cómo te deja».
@@ -135,6 +145,18 @@ class Libro {
   /// tarde sin dejar de ser el mismo libro.
   int? tapaId;
 
+  /// De dónde se lee: la dirección del fanfic.
+  ///
+  /// En un fanfic esto no es un dato más, **es la identidad**: dos fichas
+  /// con la misma dirección son el mismo fic aunque tengan títulos
+  /// distintos. Ver [clave].
+  final String? enlace;
+
+  /// De qué es el fanfic: «Harry Potter», «Percy Jackson», «Stranger
+  /// Things». Es la primera pregunta que se hace cualquiera, antes que el
+  /// título, y por eso es un campo propio y no una etiqueta más.
+  final String? fandom;
+
   /// El código de barras del libro, cuando se sabe.
   ///
   /// Se guarda porque es la única forma de volver a preguntar por *esta*
@@ -211,6 +233,8 @@ class Libro {
     this.tapaId,
     this.tapaUrl,
     this.isbn,
+    this.enlace,
+    this.fandom,
     this.editorial,
     this.anio,
     this.estado = Estado.pendiente,
@@ -246,7 +270,21 @@ class Libro {
 
   /// Clave para detectar que dos personas tienen el mismo libro,
   /// aunque lo hayan cargado desde ediciones distintas.
-  String get clave => '${_normalizar(titulo)}|${_claveAutor(autor)}';
+  /// Qué hace que dos fichas sean el mismo libro.
+  ///
+  /// Para un libro es el título más el apellido, y es lo mejor que se
+  /// puede hacer: no hay nada mejor que comparar.
+  ///
+  /// Para un fanfic **sí lo hay**, y es su dirección. Ahí no comparamos
+  /// títulos escritos a mano, porque el mismo fic cargado por cuatro mil
+  /// personas tendría cuatro mil títulos distintos y una sola dirección.
+  /// Ver [Fanfic.identidad].
+  String get clave {
+    final id = enlace == null ? null : Fanfic.identidad(enlace!);
+    if (origen == Origen.fanfic && id != null) return 'fanfic|$id';
+
+    return '${_normalizar(titulo)}|${_claveAutor(autor)}';
+  }
 
   /// El nombre del autor viene en cualquier orden: Open Library suele
   /// devolver "Juan Rulfo" y a mano se escribe "Rulfo, Juan". Ordenamos
@@ -352,6 +390,8 @@ class Libro {
     'tapaId': tapaId,
     'tapaUrl': tapaUrl,
     'isbn': isbn,
+    'enlace': enlace,
+    'fandom': fandom,
     'editorial': editorial,
     'anio': anio,
     'estado': estado.index,
@@ -382,6 +422,8 @@ class Libro {
     tapaId: j['tapaId'] as int?,
     tapaUrl: j['tapaUrl'] as String?,
     isbn: j['isbn'] as String?,
+    enlace: j['enlace'] as String?,
+    fandom: j['fandom'] as String?,
     editorial: j['editorial'] as String?,
     anio: j['anio'] as int?,
     // 'estante' es el nombre viejo: lo leemos para no perder datos
