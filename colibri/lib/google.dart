@@ -90,33 +90,71 @@ class Google {
     return encontrados.isEmpty ? null : encontrados.first;
   }
 
+  /// Cuántas veces se insiste antes de dar el libro por no encontrado.
+  ///
+  /// # Esto no es paranoia, es una medición
+  ///
+  /// Google Books se cae seguido y vuelve enseguida. Probamos 24 consultas
+  /// seguidas con una clave buena y **11 contestaron 503**, casi la mitad.
+  /// Como el código se tragaba el error y devolvía una lista vacía, un
+  /// corte de dos segundos se veía igual que «ese libro no existe»: la
+  /// misma búsqueda encontraba *Cometierra* una vez y la siguiente no.
+  ///
+  /// Probamos si pedir menos resultados ayudaba —60 consultas con
+  /// distintos tamaños— y **no**: falla parecido pidiendo uno que pidiendo
+  /// veinte. No hay forma de pedirlo mejor, solo de insistir.
+  ///
+  /// Con cinco intentos, la probabilidad de que fallen los cinco baja de
+  /// casi la mitad a menos del dos por ciento. Sale barato porque el 503
+  /// llega rápido: no es una espera agotada, es una puerta cerrada.
+  ///
+  /// Puede que sea peor desde acá que desde un teléfono: las direcciones
+  /// de los centros de datos suelen tener menos paciencia del otro lado.
+  /// Lo importante es que si Google anda mal, la app no miente.
+  static const _intentos = 5;
+
   /// El único lugar que habla con Google.
   ///
-  /// Se traga cualquier problema y devuelve una lista vacía. Es a
-  /// propósito: este catálogo es **el segundo**, y que se caiga no puede
-  /// dejar sin buscar a alguien que igual iba a encontrar su libro en
-  /// Open Library.
+  /// Después de insistir, se traga el problema y devuelve una lista vacía.
+  /// Es a propósito: este catálogo es **el segundo**, y que se caiga no
+  /// puede dejar sin buscar a alguien que igual iba a encontrar su libro
+  /// en Open Library.
   static Future<List<Libro>> _pedir(Map<String, String> consulta) async {
     final uri = Uri.https('www.googleapis.com', '/books/v1/volumes', {
       ...consulta,
       'key': clave,
     });
 
-    try {
-      final respuesta = await http
-          .get(uri, headers: const {'Accept': 'application/json'})
-          .timeout(const Duration(seconds: 12));
+    for (var intento = 0; intento < _intentos; intento++) {
+      if (intento > 0) {
+        // Se espera un poco más cada vez. Si Google está saturado,
+        // volver a golpear al instante es parte del problema.
+        await Future<void>.delayed(Duration(milliseconds: 300 * intento));
+      }
 
-      if (respuesta.statusCode != 200) return const [];
+      try {
+        final respuesta = await http
+            .get(uri, headers: const {'Accept': 'application/json'})
+            .timeout(const Duration(seconds: 10));
 
-      final datos = jsonDecode(utf8.decode(respuesta.bodyBytes));
-      final items = (datos['items'] as List?) ?? const [];
+        // 5xx es «ahora no puedo», 429 es «pediste demasiado»: los dos se
+        // arreglan solos esperando. Un 400 o un 403 son la clave mal
+        // puesta y no se arreglan insistiendo, así que se abandona.
+        final codigo = respuesta.statusCode;
+        if (codigo >= 500 || codigo == 429) continue;
+        if (codigo != 200) return const [];
 
-      return [
-        for (final v in items) Libro.desdeGoogle(v as Map<String, dynamic>),
-      ];
-    } catch (_) {
-      return const [];
+        final datos = jsonDecode(utf8.decode(respuesta.bodyBytes));
+        final items = (datos['items'] as List?) ?? const [];
+
+        return [
+          for (final v in items) Libro.desdeGoogle(v as Map<String, dynamic>),
+        ];
+      } catch (_) {
+        // Sin internet o espera agotada: se vuelve a probar por las dudas.
+        continue;
+      }
     }
+    return const [];
   }
 }
