@@ -40,20 +40,28 @@ class _PantallaCrearCuentaState extends State<PantallaCrearCuenta> {
     text: cuenta.perfil?.presentacion ?? '',
   );
 
+  final _correo = TextEditingController();
+  final _clave = TextEditingController();
+
   String? _problema;
   bool _guardando = false;
+  bool _confirmaTuCorreo = false;
+
+  /// Si hay servidor, la cuenta es de verdad y hace falta correo y
+  /// contraseña. Si no, el perfil vive acá y pedirlos no protegería nada.
+  bool get _hayServidor => cuenta.servidor.disponible;
 
   @override
   void initState() {
     super.initState();
-    for (final c in [_usuario, _nombre]) {
+    for (final c in [_usuario, _nombre, _correo, _clave]) {
       c.addListener(() => setState(() {}));
     }
   }
 
   @override
   void dispose() {
-    for (final c in [_usuario, _nombre, _presentacion]) {
+    for (final c in [_usuario, _nombre, _presentacion, _correo, _clave]) {
       c.dispose();
     }
     super.dispose();
@@ -66,7 +74,19 @@ class _PantallaCrearCuentaState extends State<PantallaCrearCuenta> {
   String? get _problemaDelUsuario =>
       _usuario.text.trim().isEmpty ? null : Usuario.queEstaMal(_usuario.text);
 
-  bool get _sePuedeGuardar => Usuario.sirve(_usuario.text) && !_guardando;
+  bool get _sePuedeGuardar {
+    if (_guardando || !Usuario.sirve(_usuario.text)) return false;
+    if (widget.editando || !_hayServidor) return true;
+
+    // Las mismas dos reglas que pide Supabase, comprobadas antes de
+    // salir a preguntar: que el correo tenga arroba y un punto después,
+    // y que la contraseña llegue a seis. Enterarse de eso yendo y
+    // volviendo del servidor es una espera al pedo.
+    final correoSirve = RegExp(
+      r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+    ).hasMatch(_correo.text.trim());
+    return correoSirve && _clave.text.length >= 6;
+  }
 
   Future<void> _guardar() async {
     setState(() {
@@ -84,9 +104,19 @@ class _PantallaCrearCuentaState extends State<PantallaCrearCuenta> {
             usuario: _usuario.text,
             nombre: _nombre.text,
             presentacion: _presentacion.text,
+            correo: _hayServidor ? _correo.text.trim() : null,
+            clave: _hayServidor ? _clave.text : null,
           );
 
     if (!mounted) return;
+
+    if (r.faltaConfirmar) {
+      setState(() {
+        _confirmaTuCorreo = true;
+        _guardando = false;
+      });
+      return;
+    }
 
     if (!r.bien) {
       setState(() {
@@ -101,6 +131,8 @@ class _PantallaCrearCuentaState extends State<PantallaCrearCuenta> {
 
   @override
   Widget build(BuildContext context) {
+    if (_confirmaTuCorreo) return _RevisaTuCorreo(correo: _correo.text.trim());
+
     final limpio = Usuario.limpiar(_usuario.text);
 
     return Scaffold(
@@ -151,6 +183,26 @@ class _PantallaCrearCuentaState extends State<PantallaCrearCuenta> {
                 _Cartel(_problema!, esError: true),
               ],
 
+              if (_hayServidor && !widget.editando) ...[
+                const SizedBox(height: 26),
+                const Rotulo('Para que sea tuya en cualquier teléfono'),
+                const SizedBox(height: 12),
+                CampoDeTexto(
+                  rotulo: 'Tu correo',
+                  controlador: _correo,
+                  ejemplo: 'lucia@correo.com',
+                  obligatorio: true,
+                ),
+                const SizedBox(height: 18),
+                CampoDeTexto(
+                  rotulo: 'Una contraseña',
+                  controlador: _clave,
+                  ejemplo: 'al menos seis caracteres',
+                  obligatorio: true,
+                  oculto: true,
+                ),
+              ],
+
               const SizedBox(height: 26),
               BotonLleno(
                 _guardando
@@ -159,10 +211,67 @@ class _PantallaCrearCuentaState extends State<PantallaCrearCuenta> {
                 alTocar: _sePuedeGuardar ? _guardar : null,
               ),
 
-              if (!widget.editando) ...[
+              if (!widget.editando && !_hayServidor) ...[
                 const SizedBox(height: 28),
                 const _PorQueNoHayContrasena(),
               ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Después de crear la cuenta, cuando falta confirmar el correo.
+///
+/// Es un tercer estado y no un error: la cuenta existe. Si dijera «listo»
+/// estaría mintiendo, y si dijera «falló» estaría asustando por algo que
+/// salió bien.
+class _RevisaTuCorreo extends StatelessWidget {
+  final String correo;
+  const _RevisaTuCorreo({required this.correo});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        foregroundColor: Paleta.lila,
+        elevation: 0,
+      ),
+      body: SafeArea(
+        child: Columna(
+          hijo: ListView(
+            padding: const EdgeInsets.fromLTRB(28, 30, 28, 40),
+            children: [
+              Text(
+                'Te mandamos un correo.',
+                style: Tipo.titulo,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Está en $correo. Abrilo y tocá el enlace: con eso la cuenta '
+                'queda tuya y podés entrar desde cualquier teléfono.',
+                style: Tipo.meta,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Si no aparece en un rato, fijate en el correo no deseado. '
+                'Se esconden ahí más seguido de lo que uno quisiera.',
+                style: Tipo.meta.copyWith(fontSize: 11.5),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 26),
+              const _Cartel(
+                'Mientras tanto podés seguir usando la app igual: tu perfil '
+                'y tus libros ya están en este teléfono. Al entrar por '
+                'primera vez, se suben.',
+              ),
+              const SizedBox(height: 24),
+              BotonLleno('Listo', alTocar: () => Navigator.of(context).pop()),
             ],
           ),
         ),

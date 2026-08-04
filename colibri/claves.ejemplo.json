@@ -1,1 +1,5 @@
-{ "GOOGLE_BOOKS": "pegá acá tu clave y guardá este archivo como claves.json" }
+{
+  "GOOGLE_BOOKS": "la clave de la Books API, de console.cloud.google.com",
+  "SUPABASE_URL": "https://xxxxx.supabase.co",
+  "SUPABASE_CLAVE": "sb_publishable_...  (la pública, NUNCA la sb_secret_)"
+}

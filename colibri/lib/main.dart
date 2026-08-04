@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'fondo.dart';
 import 'cuenta.dart';
+import 'servidor_supabase.dart';
 import 'modelos.dart';
 import 'pantallas/biblioteca.dart';
 import 'pantallas/comunidad.dart';
@@ -28,6 +29,12 @@ Future<void> main() async {
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
+
+  // Si hay claves, la app habla con Supabase. Si no, funciona igual y
+  // todo queda en el teléfono: es la misma app, con otra implementación
+  // de la misma frontera.
+  await prepararSupabase();
+  if (haySupabase) cuenta.servidor = const ServidorSupabase();
 
   await biblioteca.cargar();
   await cuenta.cargar();

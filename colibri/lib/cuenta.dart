@@ -179,8 +179,19 @@ class Resultado {
   final bool bien;
   final String? problema;
 
-  const Resultado.bien() : bien = true, problema = null;
-  const Resultado.mal(this.problema) : bien = false;
+  /// La cuenta se creó, pero hay que confirmar el correo antes de entrar.
+  ///
+  /// Es un tercer estado y no un error: nada falló. Sin distinguirlo, la
+  /// app tendría que elegir entre mentir —«listo»— o asustar —«falló»— y
+  /// ninguna de las dos es lo que pasó.
+  final bool faltaConfirmar;
+
+  const Resultado.bien() : bien = true, problema = null, faltaConfirmar = false;
+  const Resultado.mal(this.problema) : bien = false, faltaConfirmar = false;
+  const Resultado.confirmaTuCorreo()
+    : bien = true,
+      problema = null,
+      faltaConfirmar = true;
 }
 
 /// Lo que un servidor de cuentas tiene que saber hacer.
@@ -193,11 +204,21 @@ abstract class ServidorDeCuentas {
   /// Si es falso, la app funciona igual pero todo queda en el teléfono.
   bool get disponible;
 
-  Future<Resultado> crear({required Perfil perfil, String? correo});
+  Future<Resultado> crear({
+    required Perfil perfil,
+    String? correo,
+    String? clave,
+  });
 
   Future<Resultado> entrar({required String correo, required String clave});
 
   Future<void> salir();
+
+  /// El perfil que hay del otro lado, si hay cuenta abierta.
+  ///
+  /// Sirve para cuando alguien entra desde un teléfono nuevo: la cuenta
+  /// existe, el perfil está en el servidor, y este teléfono no sabe nada.
+  Future<Perfil?> miPerfil();
 
   /// Si ese @usuario está libre. Sin servidor no hay forma de saberlo:
   /// contesta que sí y lo aclara, porque prometer lo que no se puede
@@ -215,8 +236,14 @@ class SinServidor implements ServidorDeCuentas {
   bool get disponible => false;
 
   @override
-  Future<Resultado> crear({required Perfil perfil, String? correo}) async =>
-      const Resultado.bien();
+  Future<Resultado> crear({
+    required Perfil perfil,
+    String? correo,
+    String? clave,
+  }) async => const Resultado.bien();
+
+  @override
+  Future<Perfil?> miPerfil() async => null;
 
   @override
   Future<Resultado> entrar({
@@ -242,7 +269,10 @@ class SinServidor implements ServidorDeCuentas {
 class Cuenta extends ChangeNotifier {
   static const _clave = 'colibri.perfil.v1';
 
-  final ServidorDeCuentas servidor;
+  /// No es `final`: la app arranca sin servidor y le enchufa el de verdad
+  /// si hay claves. Así el resto del código nunca se entera de cuál es.
+  ServidorDeCuentas servidor;
+
   Cuenta({this.servidor = const SinServidor()});
 
   Perfil? _perfil;
@@ -273,6 +303,7 @@ class Cuenta extends ChangeNotifier {
     required String nombre,
     String presentacion = '',
     String? correo,
+    String? clave,
     DateTime? hoy,
   }) async {
     final limpio = Usuario.limpiar(usuario);
@@ -290,11 +321,18 @@ class Cuenta extends ChangeNotifier {
       desde: hoy ?? DateTime.now(),
     );
 
-    final r = await servidor.crear(perfil: perfil, correo: correo);
+    final r = await servidor.crear(
+      perfil: perfil,
+      correo: correo,
+      clave: clave,
+    );
     if (!r.bien) return r;
 
+    // Se guarda igual aunque falte confirmar el correo: el perfil ya es
+    // tuyo y la app tiene que servir mientras tanto. Cuando confirmes y
+    // entres, se sube.
     await _guardar(perfil);
-    return const Resultado.bien();
+    return r;
   }
 
   Future<Resultado> editar({
