@@ -31,9 +31,11 @@
 --    columna de `lecturas`, cualquier permiso que deje ver tu estante
 --    dejaría ver tus notas. Están en `notas`, con su propia regla.
 
-begin;
-
-create extension if not exists citext;
+-- Sin `begin` ni `commit` a propósito: el editor de Supabase ya corre
+-- todo lo que le pegás dentro de una transacción, y abrir otra adentro
+-- le saca un aviso o directamente falla. Para correrlo con psql, la
+-- atomicidad la pone `--single-transaction`, que es lo que hace
+-- `probar.sh`.
 
 -- ============================================================
 -- QUIÉN SOS
@@ -42,10 +44,18 @@ create extension if not exists citext;
 create table perfiles (
   id            uuid primary key references auth.users(id) on delete cascade,
 
-  -- citext: «Lucia» y «lucia» son la misma persona. Si fuera texto común,
-  -- dos cuentas distintas podrían quedarse con el mismo nombre y nadie
-  -- sabría a cuál escribirle.
-  usuario       citext not null unique,
+  -- Texto común y no `citext`, aunque `citext` parezca lo obvio para que
+  -- «Lucia» y «lucia» sean la misma persona.
+  --
+  -- No hace falta: la regla de formato de más abajo pide `[a-z]`, así que
+  -- un nombre con mayúsculas no entra, punto. La app ya los pasa a
+  -- minúsculas antes de mandarlos.
+  --
+  -- Y sale más barato: `citext` es una extensión, las extensiones en
+  -- Supabase viven en otro esquema, y ahí el tipo deja de resolverse
+  -- según cómo esté armado el camino de búsqueda. Una dependencia menos
+  -- es un problema menos.
+  usuario       text not null unique,
 
   nombre        text not null default '',
   presentacion  text not null default '',
@@ -66,7 +76,7 @@ create table perfiles (
     and usuario !~ '[._]{2}'
   ),
   constraint usuario_no_reservado check (
-    lower(usuario) not in (
+    usuario not in (
       'admin', 'administrador', 'colibri', 'oficial', 'ayuda', 'soporte',
       'staff', 'moderacion', 'root', 'api', 'yo', 'vos', 'nuevo', 'null'
     )
@@ -536,5 +546,3 @@ insert into animos (nombre, orden) values
   ('me devolvió las ganas de leer', 10),
   ('me costó', 11),
   ('me cambió algo', 12);
-
-commit;

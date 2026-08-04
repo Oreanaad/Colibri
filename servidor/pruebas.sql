@@ -72,7 +72,7 @@ call debe_fallar($$insert into perfiles (id, usuario) values
 
 call debe_fallar($$insert into perfiles (id, usuario) values
     ('33333333-3333-3333-3333-333333333333', 'LUCIA')$$,
-  'el mismo nombre con mayúsculas es el mismo nombre');
+  'uno con mayúsculas no entra: los @usuario son en minúscula');
 
 \echo ''
 \echo '=== el catálogo no se duplica ==='

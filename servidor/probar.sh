@@ -38,11 +38,15 @@ sleep 1
 
 psql() { command psql -h "$SOCK" -p "$PUERTO" -U colibri -v ON_ERROR_STOP=1 "$@"; }
 
+# `create database` no puede correr dentro de una transacción, así que va
+# sin --single-transaction. Los archivos que siguen sí lo llevan: es lo
+# que hace que el esquema entre entero o no entre.
 psql -d postgres -qc "create database colibri;"
 
 echo "Armando el esquema…"
 for f in local esquema permisos_local; do
-  psql -d colibri -q -f "$RAIZ/servidor/$f.sql" 2>&1 | grep -v NOTICE || true
+  psql -d colibri -q --single-transaction -f "$RAIZ/servidor/$f.sql" 2>&1 \
+    | grep -v NOTICE || true
 done
 
 echo "Probando…"
