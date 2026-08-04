@@ -309,8 +309,24 @@ class _PantallaCrearCuentaState extends State<PantallaCrearCuenta> {
                 alTocar: _sePuedeGuardar ? _guardar : null,
               ),
 
+              if (!widget.editando) ...[
+                const SizedBox(height: 22),
+                Center(
+                  child: TextButton(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const PantallaEntrar()),
+                    ),
+                    style: TextButton.styleFrom(foregroundColor: Paleta.lila),
+                    child: const Text(
+                      '¿Ya tenés cuenta? Entrá',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                  ),
+                ),
+              ],
+
               if (!widget.editando && !_hayServidor) ...[
-                const SizedBox(height: 28),
+                const SizedBox(height: 12),
                 const _PorQueNoHayContrasena(),
               ],
             ],
@@ -600,13 +616,6 @@ class _PorQueNoHayContrasena extends StatelessWidget {
             'tanto no te la pedimos, porque una contraseña guardada acá no '
             'protegería nada y podría poner en riesgo la de tu correo.',
             style: Tipo.meta,
-          ),
-          const SizedBox(height: 12),
-          BotonContorno(
-            'Ya tengo cuenta',
-            alTocar: () => Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => const PantallaEntrar())),
           ),
         ],
       ),

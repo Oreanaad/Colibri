@@ -101,9 +101,8 @@ class _SinPerfil extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'Es un nombre, un @usuario y una presentación: lo que va a ver '
-            'quien entre a tu estante cuando exista la comunidad. Se guarda '
-            'en este teléfono y se puede cambiar cuando quieras.',
+            'Es un nombre, un @usuario, una foto y los libros que sos: lo '
+            'que va a ver quien entre a tu estante.',
             style: Tipo.meta,
             textAlign: TextAlign.center,
           ),
@@ -114,6 +113,29 @@ class _SinPerfil extends StatelessWidget {
               MaterialPageRoute(builder: (_) => const PantallaCrearCuenta()),
             ),
           ),
+
+          // La segunda puerta, y va acá porque es donde alguien la busca.
+          //
+          // Estaba escondida adentro del texto que explica por qué no hay
+          // contraseña, y ese texto solo se muestra cuando **no** hay
+          // servidor. O sea que el día que conectamos Supabase, la única
+          // forma de entrar a una cuenta que ya existe desapareció justo
+          // cuando empezó a servir para algo.
+          if (cuenta.servidor.disponible) ...[
+            const SizedBox(height: 12),
+            BotonContorno(
+              'Ya tengo cuenta',
+              alTocar: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const PantallaEntrar())),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'Si ya usaste Colibrí en otro teléfono, entrá y traés todo.',
+              style: Tipo.meta.copyWith(fontSize: 11.5),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ],
       ),
     );

@@ -247,4 +247,87 @@ void main() {
       expect(find.text('Sacarla'), findsOneWidget);
     });
   });
+
+  group('la puerta para entrar a una cuenta que ya existe', () {
+    /// Un servidor de mentira que dice que sí está.
+    ///
+    /// No hace falta que funcione: lo único que cambia la pantalla es si
+    /// `disponible` es cierto.
+    setUp(() => cuenta.servidor = const _ServidorDeMentira());
+    tearDown(() => cuenta.servidor = const SinServidor());
+
+    testWidgets('está en Vos cuando todavía no tenés perfil', (tester) async {
+      // Estaba escondida adentro del texto que explica por qué no hay
+      // contraseña, y ese texto solo aparece cuando NO hay servidor. O
+      // sea que al conectar Supabase, la única forma de entrar a una
+      // cuenta desapareció justo cuando empezó a servir.
+      await abrir(tester, const PantallaVos());
+
+      expect(find.text('Armar mi perfil'), findsOneWidget);
+      expect(find.text('Ya tengo cuenta'), findsOneWidget);
+    });
+
+    testWidgets('y también desde el formulario', (tester) async {
+      await abrir(tester, const PantallaCrearCuenta());
+
+      expect(find.text('¿Ya tenés cuenta? Entrá'), findsOneWidget);
+    });
+
+    testWidgets('con servidor, el formulario pide correo y contraseña', (
+      tester,
+    ) async {
+      await abrir(tester, const PantallaCrearCuenta());
+
+      expect(find.text('TU CORREO'), findsOneWidget);
+      expect(find.text('UNA CONTRASEÑA'), findsOneWidget);
+      // Y ya no explica por qué no las pide, porque ahora las pide.
+      expect(find.text('¿Y LA CONTRASEÑA?'), findsNothing);
+    });
+
+    testWidgets('sin @usuario válido no deja crear nada', (tester) async {
+      await abrir(tester, const PantallaCrearCuenta());
+      await tester.enterText(find.byType(TextField).first, 'lucia');
+      await tester.pump();
+
+      // Falta el correo y la contraseña.
+      expect(
+        tester.widget<BotonLleno>(find.byType(BotonLleno).first).alTocar,
+        isNull,
+      );
+    });
+  });
+}
+
+/// Un servidor que solo dice que existe, para las pruebas de pantalla.
+class _ServidorDeMentira implements ServidorDeCuentas {
+  const _ServidorDeMentira();
+
+  @override
+  bool get disponible => true;
+
+  @override
+  Future<Resultado> crear({
+    required Perfil perfil,
+    String? correo,
+    String? clave,
+  }) async => const Resultado.bien();
+
+  @override
+  Future<Resultado> entrar({
+    required String correo,
+    required String clave,
+  }) async => const Resultado.bien();
+
+  @override
+  Future<void> salir() async {}
+
+  @override
+  Future<Perfil?> miPerfil() async => null;
+
+  @override
+  Future<bool> usuarioLibre(String usuario) async => true;
+
+  @override
+  Future<Resultado> guardarPerfil(Perfil perfil) async =>
+      const Resultado.bien();
 }
