@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'dart:convert';
+
+import 'package:image/image.dart' as img;
+
 import 'package:colibri/cuenta.dart';
 import 'package:colibri/modelos.dart';
 import 'package:colibri/pantallas/crear_cuenta.dart';
@@ -176,6 +180,71 @@ void main() {
 
       expect(find.text('TODO ESTO VIVE EN ESTE TELÉFONO'), findsOneWidget);
       expect(find.textContaining('Si perdés el teléfono'), findsOneWidget);
+    });
+  });
+
+  group('el avatar', () {
+    /// Una foto de verdad, chiquita, en el formato que se guarda.
+    String unaFoto() {
+      final i = img.Image(width: 8, height: 8);
+      for (var y = 0; y < 8; y++) {
+        for (var x = 0; x < 8; x++) {
+          i.setPixelRgb(x, y, 200, 40, 90);
+        }
+      }
+      return base64Encode(img.encodeJpg(i));
+    }
+
+    testWidgets('sin foto muestra la inicial', (tester) async {
+      await cuenta.crear(usuario: 'lucia', nombre: 'Lucía');
+      await abrir(tester, const PantallaVos());
+
+      expect(find.text('L'), findsOneWidget);
+      expect(find.byType(Image), findsNothing);
+    });
+
+    testWidgets('con foto la muestra en vez de la inicial', (tester) async {
+      await cuenta.crear(usuario: 'lucia', nombre: 'Lucía', foto: unaFoto());
+      await abrir(tester, const PantallaVos());
+
+      expect(find.byType(Image), findsOneWidget);
+      expect(find.text('L'), findsNothing);
+    });
+
+    testWidgets('una foto rota vuelve a la inicial y no deja un hueco', (
+      tester,
+    ) async {
+      // Lo guardado se puede corromper. Un cuadrado roto donde va tu cara
+      // se ve peor que la inicial de siempre.
+      await cuenta.crear(
+        usuario: 'lucia',
+        nombre: 'Lucía',
+        foto: 'noesunafoto',
+      );
+      await abrir(tester, const PantallaVos());
+
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('elegir la foto', () {
+    testWidgets('la invitación está arriba de todo, no escondida', (
+      tester,
+    ) async {
+      // Es lo primero que alguien quiere tocar al armar un perfil. Al
+      // final de la pantalla, la mitad de la gente ni se entera.
+      await abrir(tester, const PantallaCrearCuenta());
+
+      expect(find.text('Poner una foto'), findsOneWidget);
+      expect(find.textContaining('va tu inicial'), findsOneWidget);
+    });
+
+    testWidgets('con foto puesta ofrece cambiarla y sacarla', (tester) async {
+      await cuenta.crear(usuario: 'lucia', nombre: 'Lucía', foto: 'x');
+      await abrir(tester, const PantallaCrearCuenta(editando: true));
+
+      expect(find.text('Cambiarla'), findsOneWidget);
+      expect(find.text('Sacarla'), findsOneWidget);
     });
   });
 }

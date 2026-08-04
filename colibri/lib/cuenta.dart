@@ -122,11 +122,22 @@ class Perfil {
   /// «acá desde marzo» dice algo, y da gusto verlo crecer.
   final DateTime desde;
 
+  /// La foto, ya achicada a 256 y guardada como texto.
+  ///
+  /// Se guarda adentro del perfil y no en un archivo aparte porque son
+  /// unos veinte kilobytes: menos que una tapa de libro. Un archivo
+  /// suelto traería que se pueda perder, que quede huérfano al borrar el
+  /// perfil, y una ruta más que puede estar mal.
+  ///
+  /// Null cuando no pusiste ninguna, y ahí se dibuja la inicial.
+  final String? foto;
+
   const Perfil({
     required this.usuario,
     required this.nombre,
     this.presentacion = '',
     required this.desde,
+    this.foto,
   });
 
   /// El nombre que se muestra cuando no pusiste ninguno.
@@ -149,19 +160,28 @@ class Perfil {
     return suma / 100000;
   }
 
-  Perfil copiarCon({String? usuario, String? nombre, String? presentacion}) =>
-      Perfil(
-        usuario: usuario ?? this.usuario,
-        nombre: nombre ?? this.nombre,
-        presentacion: presentacion ?? this.presentacion,
-        desde: desde,
-      );
+  /// [sacarFoto] existe porque `foto: null` no se puede distinguir de «no
+  /// me lo pasaste»: sin esto, no habría forma de borrar la foto.
+  Perfil copiarCon({
+    String? usuario,
+    String? nombre,
+    String? presentacion,
+    String? foto,
+    bool sacarFoto = false,
+  }) => Perfil(
+    usuario: usuario ?? this.usuario,
+    nombre: nombre ?? this.nombre,
+    presentacion: presentacion ?? this.presentacion,
+    desde: desde,
+    foto: sacarFoto ? null : (foto ?? this.foto),
+  );
 
   Map<String, dynamic> aJson() => {
     'usuario': usuario,
     'nombre': nombre,
     'presentacion': presentacion,
     'desde': desde.toIso8601String(),
+    'foto': foto,
   };
 
   factory Perfil.desdeJson(Map<String, dynamic> j) => Perfil(
@@ -171,6 +191,7 @@ class Perfil {
     desde:
         DateTime.tryParse((j['desde'] as String?) ?? '') ??
         DateTime(2026, 1, 1),
+    foto: j['foto'] as String?,
   );
 }
 
@@ -302,6 +323,7 @@ class Cuenta extends ChangeNotifier {
     required String usuario,
     required String nombre,
     String presentacion = '',
+    String? foto,
     String? correo,
     String? clave,
     DateTime? hoy,
@@ -319,6 +341,7 @@ class Cuenta extends ChangeNotifier {
       nombre: nombre.trim(),
       presentacion: presentacion.trim(),
       desde: hoy ?? DateTime.now(),
+      foto: foto,
     );
 
     final r = await servidor.crear(
@@ -339,6 +362,8 @@ class Cuenta extends ChangeNotifier {
     String? nombre,
     String? presentacion,
     String? usuario,
+    String? foto,
+    bool sacarFoto = false,
   }) async {
     final actual = _perfil;
     if (actual == null) {
@@ -348,6 +373,8 @@ class Cuenta extends ChangeNotifier {
     var nuevo = actual.copiarCon(
       nombre: nombre?.trim(),
       presentacion: presentacion?.trim(),
+      foto: foto,
+      sacarFoto: sacarFoto,
     );
 
     if (usuario != null) {

@@ -224,4 +224,67 @@ void main() {
       expect(c.hayPerfil, isFalse);
     });
   });
+
+  group('la foto de perfil', () {
+    test('se guarda y sobrevive a cerrar la app', () async {
+      final c = Cuenta();
+      await c.crear(
+        usuario: 'lucia',
+        nombre: 'Lucía',
+        foto: 'unafotoenbase64',
+        hoy: _hoy,
+      );
+
+      final otra = Cuenta();
+      await otra.cargar();
+
+      expect(otra.perfil!.foto, 'unafotoenbase64');
+    });
+
+    test('se puede cambiar por otra', () async {
+      final c = Cuenta();
+      await c.crear(
+        usuario: 'lucia',
+        nombre: 'Lucía',
+        foto: 'vieja',
+        hoy: _hoy,
+      );
+
+      await c.editar(foto: 'nueva');
+
+      expect(c.perfil!.foto, 'nueva');
+    });
+
+    test('se puede sacar y volver a la inicial', () async {
+      // `foto: null` no se distingue de «no me lo pasaste», así que sin
+      // un pedido explícito no habría forma de borrarla.
+      final c = Cuenta();
+      await c.crear(usuario: 'lucia', nombre: 'Lucía', foto: 'algo', hoy: _hoy);
+
+      await c.editar(sacarFoto: true);
+
+      expect(c.perfil!.foto, isNull);
+
+      final otra = Cuenta();
+      await otra.cargar();
+      expect(otra.perfil!.foto, isNull, reason: 'sacada también al guardar');
+    });
+
+    test('editar otra cosa no borra la foto sin querer', () async {
+      final c = Cuenta();
+      await c.crear(usuario: 'lucia', nombre: 'Lucía', foto: 'algo', hoy: _hoy);
+
+      await c.editar(nombre: 'Lu', presentacion: 'Leo de noche');
+
+      expect(c.perfil!.foto, 'algo');
+    });
+
+    test('un perfil sin foto no inventa ninguna', () async {
+      final c = Cuenta();
+      await c.crear(usuario: 'lucia', nombre: 'Lucía', hoy: _hoy);
+
+      expect(c.perfil!.foto, isNull);
+      expect(c.perfil!.inicial, 'L', reason: 'ahí va la inicial');
+    });
+  });
 }

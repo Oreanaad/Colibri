@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -542,6 +544,51 @@ class Avatar extends StatelessWidget {
   final double tamano;
 
   const Avatar(this.perfil, {super.key, this.tamano = 44});
+
+  @override
+  Widget build(BuildContext context) {
+    // El decodificado va afuera del widget y adentro de un try.
+    //
+    // `errorBuilder` atrapa una imagen que no se puede dibujar, pero acá
+    // lo que falla primero es pasar el texto guardado a bytes, y eso
+    // rompe **antes** de que haya widget. Lo encontró una prueba con un
+    // texto que no era una foto: la pantalla del perfil se caía entera.
+    final bytes = _bytesDe(perfil.foto);
+
+    if (bytes != null) {
+      return ClipOval(
+        child: SizedBox(
+          width: tamano,
+          height: tamano,
+          child: Image.memory(
+            bytes,
+            fit: BoxFit.cover,
+            // Y esta sigue haciendo falta, para el otro caso: bytes que
+            // se leen bien pero no son una imagen.
+            errorBuilder: (_, _, _) => _Inicial(perfil, tamano: tamano),
+          ),
+        ),
+      );
+    }
+    return _Inicial(perfil, tamano: tamano);
+  }
+
+  static Uint8List? _bytesDe(String? guardado) {
+    if (guardado == null) return null;
+    try {
+      return base64Decode(guardado);
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
+/// El avatar dibujado, para cuando no hay foto.
+class _Inicial extends StatelessWidget {
+  final Perfil perfil;
+  final double tamano;
+
+  const _Inicial(this.perfil, {required this.tamano});
 
   @override
   Widget build(BuildContext context) {

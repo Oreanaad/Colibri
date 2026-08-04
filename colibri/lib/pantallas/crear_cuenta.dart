@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 
+import 'dart:convert';
+
+import '../archivo/selector.dart';
 import '../cuenta.dart';
+import '../foto.dart';
 import '../tema.dart';
 import '../widgets.dart';
 import 'cargar_libro.dart' show CampoDeTexto;
@@ -47,6 +51,9 @@ class _PantallaCrearCuentaState extends State<PantallaCrearCuenta> {
   bool _guardando = false;
   bool _confirmaTuCorreo = false;
 
+  late String? _foto = cuenta.perfil?.foto;
+  bool _abriendoFoto = false;
+
   /// Si hay servidor, la cuenta es de verdad y hace falta correo y
   /// contraseña. Si no, el perfil vive acá y pedirlos no protegería nada.
   bool get _hayServidor => cuenta.servidor.disponible;
@@ -88,6 +95,49 @@ class _PantallaCrearCuentaState extends State<PantallaCrearCuenta> {
     return correoSirve && _clave.text.length >= 6;
   }
 
+  /// Elegir la foto.
+  ///
+  /// Usa el mismo selector de archivos que los EPUB —el que tuvimos que
+  /// escribir a mano porque el de la librería no andaba en iPhone— y la
+  /// achica antes de guardarla. Ver [Foto.paraAvatar].
+  Future<void> _elegirFoto() async {
+    setState(() {
+      _abriendoFoto = true;
+      _problema = null;
+    });
+
+    try {
+      final archivo = await elegirArchivo(acepta: 'image/*');
+      if (archivo == null) {
+        if (mounted) setState(() => _abriendoFoto = false);
+        return;
+      }
+
+      final achicada = Foto.paraAvatar(archivo.bytes);
+      if (!mounted) return;
+
+      if (achicada == null) {
+        setState(() {
+          _problema = 'Ese archivo no es una foto. Probá con otro.';
+          _abriendoFoto = false;
+        });
+        return;
+      }
+
+      setState(() {
+        _foto = base64Encode(achicada);
+        _abriendoFoto = false;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _problema = 'No se pudo abrir la foto. Probá de nuevo.';
+          _abriendoFoto = false;
+        });
+      }
+    }
+  }
+
   Future<void> _guardar() async {
     setState(() {
       _guardando = true;
@@ -99,11 +149,14 @@ class _PantallaCrearCuentaState extends State<PantallaCrearCuenta> {
             usuario: _usuario.text,
             nombre: _nombre.text,
             presentacion: _presentacion.text,
+            foto: _foto,
+            sacarFoto: _foto == null,
           )
         : await cuenta.crear(
             usuario: _usuario.text,
             nombre: _nombre.text,
             presentacion: _presentacion.text,
+            foto: _foto,
             correo: _hayServidor ? _correo.text.trim() : null,
             clave: _hayServidor ? _clave.text : null,
           );
@@ -151,6 +204,15 @@ class _PantallaCrearCuentaState extends State<PantallaCrearCuenta> {
           hijo: ListView(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
             children: [
+              _ElegirFoto(
+                foto: _foto,
+                inicial: Usuario.limpiar(_usuario.text),
+                abriendo: _abriendoFoto,
+                alElegir: _elegirFoto,
+                alSacar: () => setState(() => _foto = null),
+              ),
+              const SizedBox(height: 24),
+
               CampoDeTexto(
                 rotulo: 'Tu @usuario',
                 controlador: _usuario,
@@ -218,6 +280,104 @@ class _PantallaCrearCuentaState extends State<PantallaCrearCuenta> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// La foto, con lo que haya: la elegida, o la inicial dibujada.
+///
+/// Va arriba de todo y no escondida en un menú: es lo primero que alguien
+/// quiere tocar cuando arma un perfil, y dejarla al final hace que la
+/// mitad de la gente ni se entere de que se puede.
+class _ElegirFoto extends StatelessWidget {
+  final String? foto;
+  final String inicial;
+  final bool abriendo;
+  final VoidCallback alElegir;
+  final VoidCallback alSacar;
+
+  const _ElegirFoto({
+    required this.foto,
+    required this.inicial,
+    required this.abriendo,
+    required this.alElegir,
+    required this.alSacar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Un perfil de mentira, solo para dibujar la vista previa mientras se
+    // arma el de verdad.
+    final comoSeVeria = Perfil(
+      usuario: inicial.isEmpty ? 'a' : inicial,
+      nombre: '',
+      desde: DateTime(2026),
+      foto: foto,
+    );
+
+    return Center(
+      child: Column(
+        children: [
+          InkWell(
+            onTap: abriendo ? null : alElegir,
+            borderRadius: BorderRadius.circular(60),
+            child: Stack(
+              alignment: Alignment.bottomRight,
+              children: [
+                Avatar(comoSeVeria, tamano: 96),
+                Container(
+                  padding: const EdgeInsets.all(5),
+                  decoration: const BoxDecoration(
+                    color: Paleta.nocheAlta,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    foto == null
+                        ? Icons.photo_camera_outlined
+                        : Icons.edit_outlined,
+                    size: 15,
+                    color: Paleta.lila,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (abriendo)
+            Text('Abriendo…', style: Tipo.meta)
+          else
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextButton(
+                  onPressed: alElegir,
+                  style: TextButton.styleFrom(foregroundColor: Paleta.lila),
+                  child: Text(
+                    foto == null ? 'Poner una foto' : 'Cambiarla',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ),
+                if (foto != null)
+                  TextButton(
+                    onPressed: alSacar,
+                    style: TextButton.styleFrom(foregroundColor: Paleta.bruma),
+                    child: const Text(
+                      'Sacarla',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                  ),
+              ],
+            ),
+          if (foto == null)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                'Si no ponés ninguna, va tu inicial.',
+                style: Tipo.meta.copyWith(fontSize: 11.5),
+              ),
+            ),
+        ],
       ),
     );
   }
