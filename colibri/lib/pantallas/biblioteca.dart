@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import '../cuenta.dart';
 import '../modelos.dart';
 import '../tema.dart';
 import '../widgets.dart';
 import 'buscar.dart';
 import 'estantes.dart';
 import 'ficha.dart';
+import 'vos.dart';
 
 /// Las cuatro solapas de la biblioteca. Las tres primeras son estados de
 /// lectura; la cuarta son los estantes que arma cada persona.
@@ -81,7 +83,7 @@ class _PantallaBibliotecaState extends State<PantallaBiblioteca> {
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: biblioteca,
+      animation: Listenable.merge([biblioteca, cuenta]),
       builder: (context, _) {
         return SafeArea(
           child: Column(
@@ -93,6 +95,19 @@ class _PantallaBibliotecaState extends State<PantallaBiblioteca> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Logotipo(tamano: 22),
+                    const Spacer(),
+
+                    // Tu cara, arriba a la derecha, que es donde la busca
+                    // todo el mundo. Sin perfil todavía es una silueta:
+                    // así se ve que ese lugar existe y que falta algo.
+                    IconButton(
+                      onPressed: _irAVos,
+                      icon: cuenta.perfil == null
+                          ? const Icon(Icons.person_outline_rounded, size: 26)
+                          : Avatar(cuenta.perfil!, tamano: 30),
+                      color: Paleta.bruma,
+                      tooltip: 'Vos',
+                    ),
                     // Un más y no una lupa.
                     //
                     // Este botón trae libros de internet; la lupa está
@@ -149,6 +164,12 @@ class _PantallaBibliotecaState extends State<PantallaBiblioteca> {
         );
       },
     );
+  }
+
+  void _irAVos() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const PantallaVos()));
   }
 
   Widget _resultados() {

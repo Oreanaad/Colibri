@@ -503,8 +503,12 @@ class CampoDeTexto extends StatelessWidget {
   final int? largoMaximo;
   final TextCapitalization capitalizacion;
 
+  /// Para las contraseñas: se escriben con puntitos.
+  final bool oculto;
+
   const CampoDeTexto({
     super.key,
+    this.oculto = false,
     required this.rotulo,
     required this.controlador,
     required this.ejemplo,
@@ -531,6 +535,7 @@ class CampoDeTexto extends StatelessWidget {
         const SizedBox(height: 6),
         TextField(
           controller: controlador,
+          obscureText: oculto,
           textCapitalization: capitalizacion,
           keyboardType: soloNumeros ? TextInputType.number : TextInputType.text,
           inputFormatters: [

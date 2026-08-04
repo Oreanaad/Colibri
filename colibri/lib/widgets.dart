@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'api.dart';
+import 'cuenta.dart';
 import 'chile.dart';
 import 'modelos.dart';
 import 'tema.dart';
@@ -524,6 +525,55 @@ final tapasGuardadas = CacheManager(
     maxNrOfCacheObjects: 500,
   ),
 );
+
+/// La cara de alguien, dibujada.
+///
+/// # Por qué no se sube una foto
+///
+/// Guardar fotos necesita un lugar donde guardarlas, y eso es servidor y
+/// plata. Pero además: una app de lectura no necesita caras. Lo que sí
+/// necesita es que dos personas se distingan de un vistazo, y para eso
+/// alcanza con una letra y un color.
+///
+/// El color sale del @usuario, siempre el mismo. Si cambiara en cada
+/// arranque, tu cara en la app sería otra cada vez que abrís.
+class Avatar extends StatelessWidget {
+  final Perfil perfil;
+  final double tamano;
+
+  const Avatar(this.perfil, {super.key, this.tamano = 44});
+
+  @override
+  Widget build(BuildContext context) {
+    // Se queda del lado violeta de la rueda, entre el lila de la casa y el
+    // azul: un avatar verde o naranja rompería la paleta entera.
+    final color = HSLColor.fromAHSL(
+      1,
+      210 + perfil.tono * 80, // de azul a violeta
+      0.34,
+      0.62,
+    ).toColor();
+
+    return Container(
+      width: tamano,
+      height: tamano,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.22),
+        border: Border.all(color: color, width: 1.5),
+        shape: BoxShape.circle,
+      ),
+      child: Text(
+        perfil.inicial,
+        style: TextStyle(
+          color: color,
+          fontSize: tamano * 0.42,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
 
 /// El estante donde está un libro, para tocar y moverlo.
 ///
