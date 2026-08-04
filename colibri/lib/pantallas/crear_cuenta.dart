@@ -5,9 +5,11 @@ import 'dart:convert';
 import '../archivo/selector.dart';
 import '../cuenta.dart';
 import '../foto.dart';
+import '../insignias.dart';
 import '../tema.dart';
 import '../widgets.dart';
 import 'cargar_libro.dart' show CampoDeTexto;
+import 'elegir_perfil.dart';
 
 /// Armar tu perfil, o cambiarlo.
 ///
@@ -53,6 +55,9 @@ class _PantallaCrearCuentaState extends State<PantallaCrearCuenta> {
 
   late String? _foto = cuenta.perfil?.foto;
   bool _abriendoFoto = false;
+
+  late var _libros = [...?cuenta.perfil?.libros];
+  late var _insignias = [...?cuenta.perfil?.insignias];
 
   /// Si hay servidor, la cuenta es de verdad y hace falta correo y
   /// contraseña. Si no, el perfil vive acá y pedirlos no protegería nada.
@@ -151,12 +156,16 @@ class _PantallaCrearCuentaState extends State<PantallaCrearCuenta> {
             presentacion: _presentacion.text,
             foto: _foto,
             sacarFoto: _foto == null,
+            libros: _libros,
+            insignias: _insignias,
           )
         : await cuenta.crear(
             usuario: _usuario.text,
             nombre: _nombre.text,
             presentacion: _presentacion.text,
             foto: _foto,
+            libros: _libros,
+            insignias: _insignias,
             correo: _hayServidor ? _correo.text.trim() : null,
             clave: _hayServidor ? _clave.text : null,
           );
@@ -240,6 +249,33 @@ class _PantallaCrearCuentaState extends State<PantallaCrearCuenta> {
                 largoMaximo: 140,
               ),
 
+              const SizedBox(height: 26),
+              _Eleccion(
+                rotulo: 'Los libros que sos',
+                ayuda: _libros.isEmpty
+                    ? 'Hasta ${Perfil.maximoDeLibros}, de tu biblioteca. Es lo '
+                          'primero que se ve de vos.'
+                    : '${_libros.length} de ${Perfil.maximoDeLibros} elegidos',
+                alTocar: () async {
+                  final r = await elegirTusLibros(context, _libros);
+                  if (r != null && mounted) setState(() => _libros = r);
+                },
+                debajo: TusLibros(_libros),
+              ),
+
+              const SizedBox(height: 22),
+              _Eleccion(
+                rotulo: 'Tus insignias',
+                ayuda: _insignias.isEmpty
+                    ? 'Tu casa, tu facción, tu cabaña. Una por saga.'
+                    : '${_insignias.length} puestas',
+                alTocar: () async {
+                  final r = await elegirTusInsignias(context, _insignias);
+                  if (r != null && mounted) setState(() => _insignias = r);
+                },
+                debajo: _Puestas(_insignias),
+              ),
+
               if (_problema != null) ...[
                 const SizedBox(height: 18),
                 _Cartel(_problema!, esError: true),
@@ -281,6 +317,77 @@ class _PantallaCrearCuentaState extends State<PantallaCrearCuenta> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Una fila que abre una hoja para elegir, con lo elegido debajo.
+///
+/// Se ve lo que ya pusiste sin tener que abrir nada: un formulario que
+/// esconde sus propias respuestas obliga a entrar y salir para acordarse.
+class _Eleccion extends StatelessWidget {
+  final String rotulo;
+  final String ayuda;
+  final VoidCallback alTocar;
+  final Widget debajo;
+
+  const _Eleccion({
+    required this.rotulo,
+    required this.ayuda,
+    required this.alTocar,
+    required this.debajo,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: alTocar,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Rotulo(rotulo),
+                      const SizedBox(height: 4),
+                      Text(ayuda, style: Tipo.meta),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded, color: Paleta.lila),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        debajo,
+      ],
+    );
+  }
+}
+
+/// Las insignias puestas, sin poder tocarlas.
+class _Puestas extends StatelessWidget {
+  final List<String> claves;
+  const _Puestas(this.claves);
+
+  @override
+  Widget build(BuildContext context) {
+    final puestas = claves
+        .map(Insignia.porClave)
+        .whereType<Insignia>()
+        .toList();
+    if (puestas.isEmpty) return const SizedBox.shrink();
+
+    return Wrap(
+      spacing: 7,
+      runSpacing: 8,
+      children: [for (final i in puestas) ChapaDeInsignia(i)],
     );
   }
 }

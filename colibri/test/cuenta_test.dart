@@ -287,4 +287,109 @@ void main() {
       expect(c.perfil!.inicial, 'L', reason: 'ahí va la inicial');
     });
   });
+
+  group('los libros que sos', () {
+    test('se guardan y sobreviven a cerrar la app', () async {
+      final c = Cuenta();
+      await c.crear(
+        usuario: 'lucia',
+        nombre: 'Lucía',
+        libros: ['cometierra|dolores reyes', 'las malas|camila sosa villada'],
+        hoy: _hoy,
+      );
+
+      final otra = Cuenta();
+      await otra.cargar();
+
+      expect(otra.perfil!.libros, hasLength(2));
+      expect(otra.perfil!.libros.first, 'cometierra|dolores reyes');
+    });
+
+    test('no entran más de tres', () async {
+      // El tope se recorta en el perfil y no en la pantalla: es una regla
+      // de qué es un perfil, no de cómo se ve.
+      final c = Cuenta();
+      await c.crear(
+        usuario: 'lucia',
+        nombre: 'Lucía',
+        libros: ['a|1', 'b|2', 'c|3', 'd|4', 'e|5'],
+        hoy: _hoy,
+      );
+
+      expect(c.perfil!.libros, hasLength(Perfil.maximoDeLibros));
+      expect(c.perfil!.libros, ['a|1', 'b|2', 'c|3']);
+    });
+
+    test('se puede quedar sin ninguno', () async {
+      final c = Cuenta();
+      await c.crear(
+        usuario: 'lucia',
+        nombre: 'Lucía',
+        libros: ['a|1'],
+        hoy: _hoy,
+      );
+
+      await c.editar(libros: const []);
+
+      expect(c.perfil!.libros, isEmpty);
+    });
+
+    test('editar otra cosa no los borra', () async {
+      final c = Cuenta();
+      await c.crear(
+        usuario: 'lucia',
+        nombre: 'Lucía',
+        libros: ['a|1'],
+        hoy: _hoy,
+      );
+
+      await c.editar(nombre: 'Lu');
+
+      expect(c.perfil!.libros, ['a|1']);
+    });
+
+    test('un perfil nuevo no trae ninguno', () async {
+      final c = Cuenta();
+      await c.crear(usuario: 'lucia', nombre: 'Lucía', hoy: _hoy);
+
+      expect(c.perfil!.libros, isEmpty);
+      expect(c.perfil!.insignias, isEmpty);
+    });
+  });
+
+  group('las insignias en el perfil', () {
+    test('se guardan y sobreviven a cerrar la app', () async {
+      final c = Cuenta();
+      await c.crear(
+        usuario: 'lucia',
+        nombre: 'Lucía',
+        insignias: ['Harry Potter|Slytherin', 'Divergente|Osadía'],
+        hoy: _hoy,
+      );
+
+      final otra = Cuenta();
+      await otra.cargar();
+
+      expect(otra.perfil!.insignias, hasLength(2));
+      expect(otra.perfil!.insignias, contains('Harry Potter|Slytherin'));
+    });
+
+    test('no tienen tope: el tope es una por saga', () async {
+      // Distinto de los libros. Alguien que leyó ocho sagas puede tener
+      // ocho insignias, y está bien: cada una dice algo distinto.
+      final muchas = [
+        for (final saga in ['Harry Potter', 'Divergente', 'Juego de tronos'])
+          '$saga|x',
+      ];
+      final c = Cuenta();
+      await c.crear(
+        usuario: 'lucia',
+        nombre: 'Lucía',
+        insignias: muchas,
+        hoy: _hoy,
+      );
+
+      expect(c.perfil!.insignias, hasLength(3));
+    });
+  });
 }

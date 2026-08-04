@@ -34,6 +34,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'insignias.dart';
+
 /// Las reglas de un @usuario.
 ///
 /// Es el único dato que después no se va a poder cambiar a la ligera,
@@ -132,13 +134,59 @@ class Perfil {
   /// Null cuando no pusiste ninguna, y ahí se dibuja la inicial.
   final String? foto;
 
-  const Perfil({
+  /// Los libros que te representan: hasta [maximoDeLibros] claves de tu
+  /// biblioteca.
+  ///
+  /// # Por qué se eligen de tu biblioteca y no se escriben
+  ///
+  /// Porque así se ven las tapas. En un perfil de lectora, tres tapas
+  /// dicen más que tres renglones de presentación, y se reconocen de
+  /// lejos: alguien que entra a tu estante y ve esas tapas ya sabe algo
+  /// de vos antes de leer una palabra.
+  ///
+  /// Y de paso: escribiéndolos, el mismo libro sería cien títulos
+  /// distintos y no se podría juntar a quienes eligieron el mismo. Con la
+  /// clave, sí. Ahí está la mitad de la comunidad que todavía no existe.
+  ///
+  /// Se guardan las claves y no los libros porque los libros ya están
+  /// guardados: duplicarlos sería tener dos verdades que se pueden
+  /// separar.
+  final List<String> libros;
+
+  /// A qué casa, facción o cabaña perteneces. Ver [Insignia].
+  ///
+  /// Una por saga, y la lista puede estar vacía: no todo el mundo quiere
+  /// declarar de qué lado está.
+  final List<String> insignias;
+
+  /// No es `const` porque el tope de libros se calcula acá, y una cuenta
+  /// no se puede hacer en tiempo de compilación. Vale la pena: el tope en
+  /// el constructor es el único lugar donde no se puede esquivar.
+  Perfil({
     required this.usuario,
     required this.nombre,
     this.presentacion = '',
     required this.desde,
     this.foto,
-  });
+    List<String>? libros,
+    List<String>? insignias,
+  }) : // El tope se recorta acá, en el constructor, y no al copiar.
+       //
+       // Estaba en `copiarCon` y no alcanzaba: crear un perfil arma uno
+       // nuevo directamente y se salteaba el tope. Lo encontró una prueba
+       // que le pasó cinco libros y recibió cinco. En el constructor no
+       // hay forma de esquivarlo, porque no hay otra manera de armar un
+       // perfil.
+       libros = (libros ?? const []).take(maximoDeLibros).toList(),
+       insignias = insignias ?? const [];
+
+  /// Tres y no uno: casi nadie tiene *un* libro, tiene dos que compiten y
+  /// uno que no puede explicar. Y tres tapas juntas se leen como una
+  /// frase; una sola se lee como una consigna.
+  ///
+  /// Tres y no cinco: a partir de ahí deja de ser una elección y pasa a
+  /// ser una lista, y una lista no dice nada de nadie.
+  static const maximoDeLibros = 3;
 
   /// El nombre que se muestra cuando no pusiste ninguno.
   String get comoSeLlama => nombre.trim().isEmpty ? '@$usuario' : nombre;
@@ -168,12 +216,16 @@ class Perfil {
     String? presentacion,
     String? foto,
     bool sacarFoto = false,
+    List<String>? libros,
+    List<String>? insignias,
   }) => Perfil(
     usuario: usuario ?? this.usuario,
     nombre: nombre ?? this.nombre,
     presentacion: presentacion ?? this.presentacion,
     desde: desde,
     foto: sacarFoto ? null : (foto ?? this.foto),
+    libros: libros ?? this.libros,
+    insignias: insignias ?? this.insignias,
   );
 
   Map<String, dynamic> aJson() => {
@@ -182,6 +234,8 @@ class Perfil {
     'presentacion': presentacion,
     'desde': desde.toIso8601String(),
     'foto': foto,
+    'libros': libros,
+    'insignias': insignias,
   };
 
   factory Perfil.desdeJson(Map<String, dynamic> j) => Perfil(
@@ -192,6 +246,8 @@ class Perfil {
         DateTime.tryParse((j['desde'] as String?) ?? '') ??
         DateTime(2026, 1, 1),
     foto: j['foto'] as String?,
+    libros: (j['libros'] as List?)?.cast<String>() ?? const [],
+    insignias: (j['insignias'] as List?)?.cast<String>() ?? const [],
   );
 }
 
@@ -324,6 +380,8 @@ class Cuenta extends ChangeNotifier {
     required String nombre,
     String presentacion = '',
     String? foto,
+    List<String>? libros,
+    List<String>? insignias,
     String? correo,
     String? clave,
     DateTime? hoy,
@@ -342,6 +400,8 @@ class Cuenta extends ChangeNotifier {
       presentacion: presentacion.trim(),
       desde: hoy ?? DateTime.now(),
       foto: foto,
+      libros: libros,
+      insignias: insignias,
     );
 
     final r = await servidor.crear(
@@ -364,6 +424,8 @@ class Cuenta extends ChangeNotifier {
     String? usuario,
     String? foto,
     bool sacarFoto = false,
+    List<String>? libros,
+    List<String>? insignias,
   }) async {
     final actual = _perfil;
     if (actual == null) {
@@ -375,6 +437,8 @@ class Cuenta extends ChangeNotifier {
       presentacion: presentacion?.trim(),
       foto: foto,
       sacarFoto: sacarFoto,
+      libros: libros,
+      insignias: insignias,
     );
 
     if (usuario != null) {

@@ -4,7 +4,10 @@ import '../cuenta.dart';
 import '../modelos.dart';
 import '../tema.dart';
 import '../widgets.dart';
+import '../insignias.dart';
 import 'crear_cuenta.dart';
+import 'elegir_perfil.dart';
+import 'ficha.dart';
 
 /// Vos: tu perfil y lo que leíste.
 ///
@@ -63,7 +66,10 @@ class PantallaVos extends StatelessWidget {
                     ? const [_SinPerfil()]
                     : [
                         _Encabezado(perfil),
-                        const SizedBox(height: 28),
+                        const SizedBox(height: 24),
+                        _Insignias(perfil.insignias),
+                        _LibrosQueSos(perfil.libros),
+                        const SizedBox(height: 24),
                         const _Numeros(),
                         const SizedBox(height: 28),
                         const _ComoTeDejan(),
@@ -140,6 +146,59 @@ class _Encabezado extends StatelessWidget {
               Text('Acá desde ${fechaCorta(perfil.desde)}', style: Tipo.meta),
             ],
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Las insignias puestas, arriba de todo.
+///
+/// Van antes que los números porque contestan otra cosa: los números
+/// dicen cuánto leíste, la insignia dice de qué lado estás. Lo segundo se
+/// mira primero.
+class _Insignias extends StatelessWidget {
+  final List<String> claves;
+  const _Insignias(this.claves);
+
+  @override
+  Widget build(BuildContext context) {
+    final puestas = claves
+        .map(Insignia.porClave)
+        .whereType<Insignia>()
+        .toList();
+    if (puestas.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Wrap(
+        spacing: 7,
+        runSpacing: 8,
+        children: [for (final i in puestas) ChapaDeInsignia(i)],
+      ),
+    );
+  }
+}
+
+/// Los tres libros que te representan.
+class _LibrosQueSos extends StatelessWidget {
+  final List<String> claves;
+  const _LibrosQueSos(this.claves);
+
+  @override
+  Widget build(BuildContext context) {
+    if (claves.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Rotulo('Los libros que soy'),
+        const SizedBox(height: 12),
+        TusLibros(
+          claves,
+          alTocar: (libro) => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => PantallaFicha(libro))),
         ),
       ],
     );
