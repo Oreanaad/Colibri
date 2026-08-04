@@ -232,15 +232,19 @@ class _ComoTeDejan extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cuenta = <String, int>{};
+    // Se llama «veces» y no «cuenta» a propósito: hay una `cuenta` global
+    // —la del perfil— y una variable local con ese nombre la tapa. Hoy no
+    // rompe nada, pero el día que alguien quiera mostrar el @usuario acá
+    // adentro recibiría este mapa y no entendería por qué.
+    final veces = <String, int>{};
     for (final libro in biblioteca.todos) {
       for (final animo in libro.animos) {
-        cuenta[animo] = (cuenta[animo] ?? 0) + 1;
+        veces[animo] = (veces[animo] ?? 0) + 1;
       }
     }
-    if (cuenta.isEmpty) return const SizedBox.shrink();
+    if (veces.isEmpty) return const SizedBox.shrink();
 
-    final ordenadas = cuenta.entries.toList()
+    final ordenadas = veces.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
     return Column(

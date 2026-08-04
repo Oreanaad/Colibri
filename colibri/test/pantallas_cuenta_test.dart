@@ -66,7 +66,27 @@ void main() {
     });
 
     testWidgets('guarda el perfil', (tester) async {
-      await abrir(tester, const PantallaCrearCuenta());
+      // Empujada sobre otra pantalla y no sola: al guardar se cierra, y
+      // cerrar la única ruta que hay es pedirle a Flutter algo que no
+      // tiene sentido.
+      await tester.binding.setSurfaceSize(const Size(600, 1800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const PantallaCrearCuenta()),
+              ),
+              child: const Text('abrir'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('abrir'));
+      await tester.pumpAndSettle();
+
       await tester.enterText(find.byType(TextField).first, 'lucia');
       await tester.pump();
       await tester.tap(find.byType(BotonLleno));
