@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -9,7 +10,7 @@ import '../tema.dart';
 import '../widgets.dart';
 import 'ficha.dart';
 
-/// Una biblioteca para mirar antes de escribir nada.
+/// Descubrir: libros al azar para mirar antes de escribir nada.
 ///
 /// # El problema que resuelve
 ///
@@ -17,13 +18,27 @@ import 'ficha.dart';
 /// libro había que saber primero cuál buscar. Eso es al revés de cómo se
 /// descubre algo para leer, que es mirando y no tipeando.
 ///
+/// # Por qué "al azar" y no "recomendados"
+///
+/// La palabra importa. "Recomendado" dice que la app sabe algo de tus
+/// gustos, y no sabe nada: no hay cuenta todavía, y aunque la hubiera, no
+/// existe ningún motor que mire qué leyó cada una para sugerirle algo a
+/// otra. Llamar "recomendado" a un sorteo sería la clase de mentira que
+/// se nota apenas alguien recibe dos veces la misma sugerencia sin haber
+/// hecho nada que la explique.
+///
+/// Lo que sí hay es un mazo curado —de acá abajo— del que se reparten
+/// unos pocos cada vez, así que se ve distinto en cada visita sin
+/// fingir saber nada de quien mira.
+///
 /// # Por qué son libros reales y no inventados
 ///
 /// Las tapas y los datos salen de Open Library, igual que cualquier
-/// búsqueda: estos diez títulos son los mismos con los que se midió, en
-/// su momento, que el catálogo encuentra bien la narrativa latinoamericana
-/// buscando por título. Lo único curado es la lista de qué preguntarle;
-/// la respuesta es la real.
+/// búsqueda. Lo único curado es la lista de qué preguntarle; la respuesta
+/// es la real. El mazo mezcla narrativa latinoamericana —los diez con los
+/// que se midió que el catálogo encuentra bien buscando por título— con
+/// las sagas que ya cubren las insignias: son las dos comunidades que la
+/// propia app dice que existen acá.
 ///
 /// # Las reseñas de muestra
 ///
@@ -39,9 +54,18 @@ class BibliotecaDestacada extends StatefulWidget {
 }
 
 class _BibliotecaDestacadaState extends State<BibliotecaDestacada> {
-  static const _cache = 'colibri.destacados.v1';
+  /// Uno por título, no una lista entera: así un libro que ya se buscó
+  /// alguna vez no se vuelve a pedir, se haya mostrado esta vez o no.
+  static const _cache = 'colibri.descubrir.cache.v1';
 
-  static const _titulos = [
+  /// Cuántos se reparten por tanda. Ni uno —no habría nada para
+  /// descubrir— ni el mazo entero —dejaría de sentirse como un sorteo y
+  /// pasaría a ser una lista larga para desplazar.
+  static const _porTanda = 8;
+
+  /// El mazo. Narrativa latinoamericana y las sagas que ya tienen
+  /// insignia propia: son los dos públicos que la app ya sabe que tiene.
+  static const _mazo = [
     ('Cometierra', 'Dolores Reyes'),
     ('Las malas', 'Camila Sosa Villada'),
     ('Cien años de soledad', 'Gabriel García Márquez'),
@@ -52,58 +76,96 @@ class _BibliotecaDestacadaState extends State<BibliotecaDestacada> {
     ('Catedrales', 'Claudia Piñeiro'),
     ('Rayuela', 'Julio Cortázar'),
     ('Distancia de rescate', 'Samanta Schweblin'),
+    ('Los detectives salvajes', 'Roberto Bolaño'),
+    ('La casa de los espíritus', 'Isabel Allende'),
+    ('Como agua para chocolate', 'Laura Esquivel'),
+    ('Ficciones', 'Jorge Luis Borges'),
+    ('Kentukis', 'Samanta Schweblin'),
+    ('La virgen cabeza', 'Gabriela Cabezón Cámara'),
+    ('Mugre rosa', 'Fernanda Trías'),
+    ('Temporada de huracanes', 'Fernanda Melchor'),
+    ("Harry Potter and the Philosopher's Stone", 'J. K. Rowling'),
+    ('The Hunger Games', 'Suzanne Collins'),
+    ('Divergent', 'Veronica Roth'),
+    ('Percy Jackson and the Lightning Thief', 'Rick Riordan'),
+    ('City of Bones', 'Cassandra Clare'),
+    ('A Court of Thorns and Roses', 'Sarah J. Maas'),
+    ('Fourth Wing', 'Rebecca Yarros'),
+    ('It Ends With Us', 'Colleen Hoover'),
+    ('The Seven Husbands of Evelyn Hugo', 'Taylor Jenkins Reid'),
+    ('A Game of Thrones', 'George R. R. Martin'),
+    ('The Fellowship of the Ring', 'J. R. R. Tolkien'),
+    ('Pride and Prejudice', 'Jane Austen'),
   ];
 
+  final _random = Random();
+  List<(String, String)> _tanda = const [];
   List<Libro> _libros = [];
   bool _cargando = true;
 
   @override
   void initState() {
     super.initState();
-    _cargar();
+    _repartir();
   }
 
-  /// Se resuelve una sola vez contra Open Library y se guarda. Sin esto,
-  /// cada vez que alguien abre Explorar se mandan diez consultas de
-  /// nuevo, y en datos móviles eso se siente.
-  Future<void> _cargar() async {
+  /// Elige [_porTanda] títulos del mazo sin repetir los que ya se ven en
+  /// pantalla, y los resuelve.
+  Future<void> _repartir() async {
+    setState(() => _cargando = true);
+
+    // Se sortea sin los que ya estaban, para que "mostrame otros" se
+    // sienta como otra mano y no como la misma barajada de nuevo.
+    final disponibles = _mazo.where((t) => !_tanda.contains(t)).toList();
+    final mazo = disponibles.length >= _porTanda ? disponibles : _mazo;
+    mazo.shuffle(_random);
+    _tanda = mazo.take(_porTanda).toList();
+
     final prefs = await SharedPreferences.getInstance();
-    final crudo = prefs.getString(_cache);
+    final cache = _leerCache(prefs);
 
-    if (crudo != null) {
-      try {
-        final lista = jsonDecode(crudo) as List;
-        setState(() {
-          _libros = lista
-              .map((j) => Libro.desdeJson(j as Map<String, dynamic>))
-              .toList();
-          _cargando = false;
-        });
-        return;
-      } catch (_) {
-        // Formato viejo o roto: se rehace.
+    final resueltos = <Libro>[];
+    var cambioElCache = false;
+
+    for (final (titulo, autor) in _tanda) {
+      final clave = '$titulo|$autor';
+      final guardado = cache[clave];
+
+      if (guardado != null) {
+        resueltos.add(Libro.desdeJson(guardado));
+        continue;
       }
+
+      Libro libro;
+      try {
+        libro =
+            await Api.primero(titulo, autor) ??
+            Libro(id: titulo, titulo: titulo, autor: autor);
+      } catch (_) {
+        libro = Libro(id: titulo, titulo: titulo, autor: autor);
+      }
+      resueltos.add(libro);
+      cache[clave] = libro.aJson();
+      cambioElCache = true;
     }
 
-    final encontrados = <Libro>[];
-    for (final (titulo, autor) in _titulos) {
-      try {
-        final l = await Api.primero(titulo, autor);
-        encontrados.add(l ?? Libro(id: titulo, titulo: titulo, autor: autor));
-      } catch (_) {
-        encontrados.add(Libro(id: titulo, titulo: titulo, autor: autor));
-      }
-    }
+    if (cambioElCache) await prefs.setString(_cache, jsonEncode(cache));
 
     if (!mounted) return;
-    await prefs.setString(
-      _cache,
-      jsonEncode(encontrados.map((l) => l.aJson()).toList()),
-    );
     setState(() {
-      _libros = encontrados;
+      _libros = resueltos;
       _cargando = false;
     });
+  }
+
+  Map<String, dynamic> _leerCache(SharedPreferences prefs) {
+    final crudo = prefs.getString(_cache);
+    if (crudo == null) return {};
+    try {
+      return jsonDecode(crudo) as Map<String, dynamic>;
+    } catch (_) {
+      return {}; // formato viejo o roto: se arranca de cero
+    }
   }
 
   void _abrir(Libro libro) {
@@ -114,28 +176,52 @@ class _BibliotecaDestacadaState extends State<BibliotecaDestacada> {
 
   @override
   Widget build(BuildContext context) {
-    if (_cargando) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 50),
-        child: Center(
-          child: SizedBox(
-            width: 22,
-            height: 22,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(Paleta.lila),
-            ),
-          ),
-        ),
-      );
-    }
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Rotulo('Para empezar a mirar'),
-        const SizedBox(height: 12),
-        GrillaLibros(_libros, alTocar: _abrir),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Rotulo('Descubrir'),
+            TextButton(
+              onPressed: _cargando ? null : _repartir,
+              style: TextButton.styleFrom(
+                foregroundColor: Paleta.lila,
+                padding: EdgeInsets.zero,
+              ),
+              child: const Text(
+                'Mostrame otros',
+                style: TextStyle(fontSize: 12.5),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(
+          'Al azar, de un mazo curado. Todavía no sabemos qué te gusta a '
+          'vos: eso empieza cuando armes tu perfil.',
+          style: Tipo.meta,
+        ),
+        const SizedBox(height: 14),
+
+        if (_cargando)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 40),
+            child: Center(
+              child: SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Paleta.lila),
+                ),
+              ),
+            ),
+          )
+        else
+          GrillaLibros(_libros, alTocar: _abrir),
+
         const SizedBox(height: 28),
         const Rotulo('Reseñas de muestra'),
         const SizedBox(height: 6),
