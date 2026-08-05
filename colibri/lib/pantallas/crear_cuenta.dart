@@ -652,6 +652,7 @@ class _PantallaEntrarState extends State<PantallaEntrar> {
   final _correo = TextEditingController();
   final _clave = TextEditingController();
   String? _problema;
+  bool _entrando = false;
 
   @override
   void dispose() {
@@ -660,13 +661,40 @@ class _PantallaEntrarState extends State<PantallaEntrar> {
     super.dispose();
   }
 
+  /// El bug que esto arregla: apretar "Entrar" no hacía nada visible.
+  ///
+  /// La cuenta entraba de verdad —`cuenta.entrar` funcionaba— pero la
+  /// pantalla no cerraba ni avisaba nada, así que quien la usaba no
+  /// tenía forma de saber si pasó algo. El resultado: se apretaba de
+  /// nuevo, y de nuevo, porque no había ninguna señal de que ya había
+  /// funcionado la primera vez.
   Future<void> _entrar() async {
+    if (_entrando) return; // sin esto, cada toque de más mandaba otro pedido
+    setState(() {
+      _entrando = true;
+      _problema = null;
+    });
+
     final r = await cuenta.entrar(correo: _correo.text, clave: _clave.text);
-    if (mounted) setState(() => _problema = r.problema);
+    if (!mounted) return;
+
+    if (!r.bien) {
+      setState(() {
+        _problema = r.problema;
+        _entrando = false;
+      });
+      return;
+    }
 
     // Puede haber quedado biblioteca armada en este teléfono desde antes
     // de confirmar el correo: sube ahora que ya hay sesión.
-    if (r.bien) unawaited(nube.subirTodo(biblioteca));
+    unawaited(nube.subirTodo(biblioteca));
+
+    // El mensajero se guarda antes de cerrar: después del pop este
+    // contexto ya no existe.
+    final mensajero = ScaffoldMessenger.of(context);
+    Navigator.of(context).pop();
+    avisar(mensajero, 'Sesión iniciada. Tu biblioteca se está subiendo.');
   }
 
   @override
@@ -720,7 +748,10 @@ class _PantallaEntrarState extends State<PantallaEntrar> {
               ],
 
               const SizedBox(height: 26),
-              BotonLleno('Entrar', alTocar: hay ? _entrar : null),
+              BotonLleno(
+                _entrando ? 'Entrando…' : 'Entrar',
+                alTocar: (hay && !_entrando) ? _entrar : null,
+              ),
               const SizedBox(height: 14),
               Text(
                 'Mientras tanto, tu perfil vive en este teléfono y funciona '

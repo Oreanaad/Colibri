@@ -296,11 +296,127 @@ void main() {
       );
     });
   });
+
+  group('entrar de verdad', () {
+    // Este es el bug que se reportó: "apreté entrar y no pasó nada", una
+    // y otra vez. La cuenta entraba —el servidor contestaba bien— pero la
+    // pantalla no cerraba ni avisaba nada, así que no había manera de
+    // saber que ya había funcionado.
+    tearDown(() => cuenta.servidor = const SinServidor());
+
+    testWidgets('si funciona, la pantalla se cierra y avisa', (tester) async {
+      cuenta.servidor = const _ServidorDeMentira();
+
+      await tester.binding.setSurfaceSize(const Size(600, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const PantallaEntrar()),
+                ),
+                child: const Text('abrir'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('abrir'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField).first, 'lucia@correo.com');
+      await tester.enterText(find.byType(TextField).last, 'unaClave123');
+      // find.text('Entrar') es ambiguo: también aparece en el título de
+      // la barra. El botón es el único BotonLleno de la pantalla.
+      await tester.tap(find.byType(BotonLleno));
+      await tester.pump(); // arranca el pedido: el botón pasa a "Entrando…"
+
+      expect(find.text('Entrando…'), findsOneWidget);
+
+      await tester.pumpAndSettle(); // termina el pedido
+
+      // La señal que faltaba: la pantalla de entrar ya no está.
+      expect(find.byType(PantallaEntrar), findsNothing);
+      expect(
+        find.text('Sesión iniciada. Tu biblioteca se está subiendo.'),
+        findsOneWidget,
+      );
+
+      // El aviso tiene su propio reloj para cerrarse solo, aparte del que
+      // usa Flutter. Sin dejarlo terminar, la prueba se queda con un
+      // temporizador pendiente y falla al cerrar, aunque la pantalla ya
+      // haya hecho exactamente lo que tenía que hacer.
+      await tester.pump(const Duration(seconds: 4));
+    });
+
+    testWidgets('mientras espera la respuesta, no deja apretar de nuevo', (
+      tester,
+    ) async {
+      // Sin esto, cada toque de más durante la espera mandaba otro
+      // pedido de entrar, y con conexión lenta alguien frustrada toca
+      // varias veces antes de que llegue la primera respuesta.
+      cuenta.servidor = const _ServidorDeMentira();
+      await tester.binding.setSurfaceSize(const Size(600, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: PantallaEntrar())),
+      );
+
+      await tester.enterText(find.byType(TextField).first, 'lucia@correo.com');
+      await tester.enterText(find.byType(TextField).last, 'unaClave123');
+      await tester.tap(find.byType(BotonLleno));
+      await tester.pump();
+
+      expect(
+        tester.widget<BotonLleno>(find.byType(BotonLleno)).alTocar,
+        isNull,
+      );
+
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 4)); // el reloj del aviso
+    });
+
+    testWidgets('si falla, se queda en la pantalla y avisa por qué', (
+      tester,
+    ) async {
+      cuenta.servidor = const _ServidorDeMentira(
+        fallaAlEntrar: 'Ese correo y esa contraseña no coinciden.',
+      );
+      await tester.binding.setSurfaceSize(const Size(600, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: PantallaEntrar())),
+      );
+
+      await tester.enterText(find.byType(TextField).first, 'lucia@correo.com');
+      await tester.enterText(find.byType(TextField).last, 'malaClave');
+      await tester.tap(find.byType(BotonLleno));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PantallaEntrar), findsOneWidget);
+      expect(
+        find.text('Ese correo y esa contraseña no coinciden.'),
+        findsOneWidget,
+      );
+      // Y se puede volver a intentar: el botón no se queda trabado.
+      expect(
+        tester.widget<BotonLleno>(find.byType(BotonLleno)).alTocar,
+        isNotNull,
+      );
+    });
+  });
 }
 
 /// Un servidor que solo dice que existe, para las pruebas de pantalla.
+///
+/// [fallaAlEntrar] deja probar el otro camino de `_entrar()`: cuando el
+/// correo o la contraseña no coinciden, sin tener que fallar contra la
+/// base de verdad.
 class _ServidorDeMentira implements ServidorDeCuentas {
-  const _ServidorDeMentira();
+  final String? fallaAlEntrar;
+  const _ServidorDeMentira({this.fallaAlEntrar});
 
   @override
   bool get disponible => true;
@@ -316,7 +432,9 @@ class _ServidorDeMentira implements ServidorDeCuentas {
   Future<Resultado> entrar({
     required String correo,
     required String clave,
-  }) async => const Resultado.bien();
+  }) async => fallaAlEntrar != null
+      ? Resultado.mal(fallaAlEntrar)
+      : const Resultado.bien();
 
   @override
   Future<void> salir() async {}
