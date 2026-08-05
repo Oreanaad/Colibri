@@ -18,8 +18,11 @@ import 'package:colibri/widgets.dart';
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  /// Ancho grande a propósito: el carrusel es una lista horizontal y
+  /// solo construye lo que entra en pantalla. Con un ancho de teléfono,
+  /// contar tarjetas mide el ancho de la ventana y no cuántas hay.
   Future<void> abrir(WidgetTester tester) async {
-    await tester.binding.setSurfaceSize(const Size(600, 2400));
+    await tester.binding.setSurfaceSize(const Size(2600, 2400));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
       const MaterialApp(home: Scaffold(body: BibliotecaDestacada())),
@@ -32,13 +35,35 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('reparte ocho, ni todo el mazo ni una sola carta', (
+  testWidgets('reparte cinco, ni todo el mazo ni una sola carta', (
     tester,
   ) async {
     await abrir(tester);
 
     expect(find.text('DESCUBRIR'), findsOneWidget);
-    expect(find.byType(Tapa), findsNWidgets(8));
+    expect(find.byType(Tapa), findsNWidgets(5));
+  });
+
+  testWidgets('cada tarjeta lleva su título y sus estrellas', (tester) async {
+    await abrir(tester);
+
+    // Una fila de tapas sin nombre obliga a abrir cada una para saber
+    // qué es. Con el título debajo se puede decidir mirando.
+    //
+    // Se cuentan las que están dentro del carrusel: las reseñas de
+    // muestra, más abajo, también llevan estrellas.
+    expect(
+      find.descendant(
+        of: find.byType(ListView).first,
+        matching: find.byType(Estrellas),
+      ),
+      findsNWidgets(5),
+    );
+
+    // Y el título de cada una, que es el otro dato que se pidió.
+    for (final tapa in tester.widgetList<Tapa>(find.byType(Tapa))) {
+      expect(find.text(tapa.libro.titulo), findsWidgets);
+    }
   });
 
   testWidgets('dice con claridad que es al azar y no un saber sobre vos', (
@@ -52,25 +77,44 @@ void main() {
     expect(find.textContaining('recomendad'), findsNothing);
   });
 
-  testWidgets('mostrame otros cambia la mano', (tester) async {
+  testWidgets('mostrame otros suma cinco más, no los reemplaza', (
+    tester,
+  ) async {
+    // Es un carrusel, no una tanda que se pisa: lo que ya miraste sigue
+    // ahí si querés volver.
     await abrir(tester);
+    expect(find.byType(Tapa), findsNWidgets(5));
 
-    final titulosDeAntes = tester
-        .widgetList<Text>(find.byType(Text))
-        .map((t) => t.data)
-        .toSet();
-
-    await tester.tap(find.text('Mostrame otros'));
+    await tester.tap(find.text('Mostrame otros cinco'));
     await tester.pumpAndSettle();
 
-    final titulosDeAhora = tester
-        .widgetList<Text>(find.byType(Text))
-        .map((t) => t.data)
-        .toSet();
+    expect(find.byType(Tapa), findsNWidgets(10));
+  });
 
-    // No exige que cambien todos: con un mazo de treinta, alcanza con
-    // que no sea exactamente la misma mano.
-    expect(titulosDeAntes, isNot(equals(titulosDeAhora)));
+  testWidgets('no repite un libro que ya está en el carrusel', (tester) async {
+    await abrir(tester);
+    await tester.tap(find.text('Mostrame otros cinco'));
+    await tester.pumpAndSettle();
+
+    final tapas = tester.widgetList<Tapa>(find.byType(Tapa));
+    final claves = tapas.map((t) => t.libro.clave).toList();
+
+    expect(claves.toSet(), hasLength(claves.length));
+  });
+
+  testWidgets('se corta en veinte y ahí desaparece el botón', (tester) async {
+    // Veinte es donde deja de ser un descubrimiento y pasa a ser una
+    // lista: si mirando veinte no encontraste nada, lo que falta no son
+    // más tarjetas.
+    await abrir(tester);
+
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(find.text('Mostrame otros cinco'));
+      await tester.pumpAndSettle();
+    }
+
+    expect(find.byType(Tapa), findsNWidgets(20));
+    expect(find.text('Mostrame otros cinco'), findsNothing);
   });
 
   testWidgets('las reseñas de muestra están y dicen que lo son', (
