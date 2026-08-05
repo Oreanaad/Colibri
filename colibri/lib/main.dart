@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'fondo.dart';
 import 'cuenta.dart';
+import 'nube.dart';
 import 'servidor_supabase.dart';
 import 'modelos.dart';
 import 'pantallas/biblioteca.dart';
@@ -34,7 +35,12 @@ Future<void> main() async {
   // todo queda en el teléfono: es la misma app, con otra implementación
   // de la misma frontera.
   await prepararSupabase();
-  if (haySupabase) cuenta.servidor = const ServidorSupabase();
+  if (haySupabase) {
+    cuenta.servidor = const ServidorSupabase();
+    // Biblioteca no se entera de que esto existe: nube se cuelga de sus
+    // dos enganches y a partir de acá cada cambio intenta subirse solo.
+    nube.conectar(biblioteca);
+  }
 
   await biblioteca.cargar();
   await cuenta.cargar();

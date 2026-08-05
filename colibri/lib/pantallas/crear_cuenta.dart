@@ -1,11 +1,14 @@
-import 'package:flutter/material.dart';
-
+import 'dart:async';
 import 'dart:convert';
+
+import 'package:flutter/material.dart';
 
 import '../archivo/selector.dart';
 import '../cuenta.dart';
 import '../foto.dart';
 import '../insignias.dart';
+import '../modelos.dart';
+import '../nube.dart';
 import '../tema.dart';
 import '../widgets.dart';
 import 'cargar_libro.dart' show CampoDeTexto;
@@ -187,6 +190,12 @@ class _PantallaCrearCuentaState extends State<PantallaCrearCuenta> {
       });
       return;
     }
+
+    // De fondo y sin esperar: la persona ya terminó, no tiene sentido
+    // que se quede mirando una pantalla mientras suben doscientos
+    // libros. Solo la primera vez, y solo si de verdad quedó una sesión
+    // abierta: si falta confirmar el correo, ya se salió más arriba.
+    if (!widget.editando) unawaited(nube.subirTodo(biblioteca));
 
     Navigator.of(context).pop();
   }
@@ -654,6 +663,10 @@ class _PantallaEntrarState extends State<PantallaEntrar> {
   Future<void> _entrar() async {
     final r = await cuenta.entrar(correo: _correo.text, clave: _clave.text);
     if (mounted) setState(() => _problema = r.problema);
+
+    // Puede haber quedado biblioteca armada en este teléfono desde antes
+    // de confirmar el correo: sube ahora que ya hay sesión.
+    if (r.bien) unawaited(nube.subirTodo(biblioteca));
   }
 
   @override

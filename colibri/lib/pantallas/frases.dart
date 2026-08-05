@@ -207,7 +207,7 @@ class _PantallaFrasesState extends State<PantallaFrases> {
       0,
       Frase(texto: limpio, posicion: total == 0 ? 0 : indice / total),
     );
-    await biblioteca.actualizar();
+    await biblioteca.actualizar([widget.libro]);
     if (!mounted) return;
     setState(() {});
     mostrarAviso(context, 'Subrayada');
@@ -215,7 +215,7 @@ class _PantallaFrasesState extends State<PantallaFrases> {
 
   Future<void> _borrar(Frase f) async {
     setState(() => widget.libro.frases.remove(f));
-    await biblioteca.actualizar();
+    await biblioteca.actualizar([widget.libro]);
   }
 
   @override

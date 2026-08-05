@@ -160,7 +160,7 @@ class _PantallaImportarState extends State<PantallaImportar> {
       setState(() => _revisadas++);
     }
 
-    await biblioteca.actualizar();
+    await biblioteca.actualizar(conCodigo);
     if (mounted) setState(() => _buscandoTapas = false);
   }
 

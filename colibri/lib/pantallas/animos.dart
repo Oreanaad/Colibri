@@ -38,7 +38,7 @@ class _HojaDeAnimosState extends State<_HojaDeAnimos> {
     widget.libro.animos
       ..clear()
       ..addAll(_elegidas);
-    await biblioteca.actualizar();
+    await biblioteca.actualizar([widget.libro]);
     if (mounted) Navigator.of(context).pop();
   }
 

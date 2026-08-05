@@ -283,8 +283,16 @@ class Libro {
     final id = enlace == null ? null : Fanfic.identidad(enlace!);
     if (origen == Origen.fanfic && id != null) return 'fanfic|$id';
 
-    return '${_normalizar(titulo)}|${_claveAutor(autor)}';
+    return claveDeObra;
   }
+
+  /// La clave de la obra, sin el prefijo de fanfic.
+  ///
+  /// Es la misma cuenta que [clave] para un libro, pero pública y con
+  /// nombre propio porque hace falta en otro lugar: al sincronizar con
+  /// la nube, la tabla `obras` se identifica por esto, y ahí siempre es
+  /// la clave de la obra, nunca la del fanfic, aunque el libro fuera uno.
+  String get claveDeObra => '${_normalizar(titulo)}|${_claveAutor(autor)}';
 
   /// El nombre del autor viene en cualquier orden: Open Library suele
   /// devolver "Juan Rulfo" y a mano se escribe "Rulfo, Juan". Ordenamos
@@ -457,6 +465,22 @@ class Libro {
 
 /// La biblioteca de quien usa la app. Se guarda en el teléfono.
 class Biblioteca extends ChangeNotifier {
+  /// El enganche para sincronizar con la nube.
+  ///
+  /// Biblioteca no sabe que existe un servidor, y es a propósito: sigue
+  /// siendo probable sin cuenta ni internet, como siempre fue. Quien
+  /// sincroniza —ver `nube.dart`— se registra acá, y por defecto no hacen
+  /// nada.
+  ///
+  /// Va con el libro puntual que cambió y no con la biblioteca entera:
+  /// subir todo de nuevo cada vez que se toca una estrella sería cientos
+  /// de pedidos por un solo toque.
+  void Function(Libro libro)? alGuardarUnLibro;
+
+  /// Igual, para cuando un libro se saca de la biblioteca. Va con la
+  /// clave y no con el libro porque para entonces ya no está en la lista.
+  void Function(String clave)? alQuitarUnLibro;
+
   static const _claveLibros = 'colibri.biblioteca.v1';
   static const _claveEstantes = 'colibri.estantes.v1';
   static const _claveConTexto = 'colibri.conTexto.v1';
@@ -560,6 +584,7 @@ class Biblioteca extends ChangeNotifier {
     if (tiene(libro)) return;
     _libros.insert(0, libro);
     await _guardar();
+    alGuardarUnLibro?.call(libro);
   }
 
   /// Sumar muchos libros de una, guardando una sola vez.
@@ -575,23 +600,36 @@ class Biblioteca extends ChangeNotifier {
   /// nada: si ya tenías *Cometierra* con tu reseña, lo que trae Goodreads
   /// no puede reemplazarla.
   Future<int> agregarVarios(List<Libro> nuevos) async {
-    var entraron = 0;
+    final agregados = <Libro>[];
     for (final libro in nuevos) {
       if (tiene(libro)) continue;
       _libros.insert(0, libro);
-      entraron++;
+      agregados.add(libro);
     }
-    if (entraron > 0) await _guardar();
-    return entraron;
+    if (agregados.isNotEmpty) await _guardar();
+    for (final libro in agregados) {
+      alGuardarUnLibro?.call(libro);
+    }
+    return agregados.length;
   }
 
   Future<void> quitar(Libro libro) async {
     _libros.removeWhere((l) => l.clave == libro.clave);
     await _guardar();
+    alQuitarUnLibro?.call(libro.clave);
   }
 
   /// Para cuando se cambia algo de un libro que ya está guardado.
-  Future<void> actualizar() => _guardar();
+  ///
+  /// [cambiados] es opcional para no romper a nadie que ya llamaba a esto
+  /// sin argumentos, pero sin él la nube nunca se entera de qué cambió:
+  /// quien edite un campo de un libro debería pasarlo.
+  Future<void> actualizar([List<Libro>? cambiados]) async {
+    await _guardar();
+    for (final libro in cambiados ?? const <Libro>[]) {
+      alGuardarUnLibro?.call(libro);
+    }
+  }
 
   /// Cambia el estado y, de paso, anota las fechas si estaban vacías.
   ///
@@ -613,6 +651,7 @@ class Biblioteca extends ChangeNotifier {
       if (nuevo == Estado.leido) libro.terminado = null;
       if (nuevo == Estado.leyendo) libro.empezado = null;
       await _guardar();
+      alGuardarUnLibro?.call(libro);
       return;
     }
 
@@ -629,6 +668,7 @@ class Biblioteca extends ChangeNotifier {
     }
 
     await _guardar();
+    alGuardarUnLibro?.call(libro);
   }
 
   // ---------- Estantes propios ----------
@@ -647,11 +687,15 @@ class Biblioteca extends ChangeNotifier {
   }
 
   Future<void> borrarEstante(String nombre) async {
+    final tocados = _libros.where((l) => l.estantes.contains(nombre)).toList();
     _estantes.remove(nombre);
-    for (final l in _libros) {
+    for (final l in tocados) {
       l.estantes.remove(nombre);
     }
     await _guardar();
+    for (final l in tocados) {
+      alGuardarUnLibro?.call(l);
+    }
   }
 
   Future<void> renombrarEstante(String viejo, String nuevo) async {
@@ -660,15 +704,23 @@ class Biblioteca extends ChangeNotifier {
     final i = _estantes.indexOf(viejo);
     if (i == -1) return;
     _estantes[i] = limpio;
+    final tocados = <Libro>[];
     for (final l in _libros) {
-      if (l.estantes.remove(viejo)) l.estantes.add(limpio);
+      if (l.estantes.remove(viejo)) {
+        l.estantes.add(limpio);
+        tocados.add(l);
+      }
     }
     await _guardar();
+    for (final l in tocados) {
+      alGuardarUnLibro?.call(l);
+    }
   }
 
   Future<void> alternarEstante(Libro libro, String nombre) async {
     if (!libro.estantes.remove(nombre)) libro.estantes.add(nombre);
     await _guardar();
+    alGuardarUnLibro?.call(libro);
   }
 
   // ---------- Etiquetas que pide la gente ----------

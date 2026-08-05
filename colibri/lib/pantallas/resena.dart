@@ -36,7 +36,7 @@ class _PantallaResenaState extends State<PantallaResena> {
     final mensajero = ScaffoldMessenger.of(context);
     final navegador = Navigator.of(context);
 
-    await biblioteca.actualizar();
+    await biblioteca.actualizar([widget.libro]);
     if (!mounted) return;
 
     navegador.pop();

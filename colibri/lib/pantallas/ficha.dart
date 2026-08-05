@@ -45,7 +45,7 @@ class _PantallaFichaState extends State<PantallaFicha> {
   }
 
   Future<void> _guardar() async {
-    if (biblioteca.tiene(l)) await biblioteca.actualizar();
+    if (biblioteca.tiene(l)) await biblioteca.actualizar([l]);
     setState(() {});
   }
 
