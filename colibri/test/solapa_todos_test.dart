@@ -2,12 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:colibri/cuenta.dart';
 import 'package:colibri/modelos.dart';
 import 'package:colibri/pantallas/biblioteca.dart';
 
 /// La solapa «Todos».
 ///
-/// Es tu estante entero en un solo lugar, y es la que se abre al entrar.
+/// Es tu estante entero en un solo lugar, y es la que se abre al entrar
+/// **una vez que hay perfil**: sin él, esta misma solapa muestra el modo
+/// explorar en vez del estante, y eso se prueba aparte, en
+/// explorar_sin_cuenta_test.dart.
+///
 /// Va en secciones y no todo mezclado: una grilla con ciento veinte libros
 /// seguidos se ve linda y no dice nada, porque no hay forma de saber cuál
 /// estás leyendo y cuál esperás hace dos años.
@@ -19,7 +24,10 @@ void main() {
       await biblioteca.quitar(l);
     }
     await sesion.cargar();
+    await cuenta.crear(usuario: 'lectora', nombre: 'Lectora');
   });
+
+  tearDown(() => cuenta.salir());
 
   Future<void> conLibros(List<(String, Estado)> libros) async {
     for (final (i, entrada) in libros.indexed) {

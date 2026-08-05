@@ -1,18 +1,26 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../api.dart';
+import '../cuenta.dart';
 import '../modelos.dart';
 import '../tema.dart';
 import '../widgets.dart';
 import 'cargar_libro.dart';
 import 'escanear.dart';
+import 'exigir_cuenta.dart';
 import 'importar.dart';
 import 'ficha.dart';
 
 /// Buscar y agregar. La búsqueda arranca sola mientras se escribe:
 /// no hay botón de "buscar", porque la espera tiene que ser invisible.
 class PantallaBuscar extends StatefulWidget {
-  const PantallaBuscar({super.key});
+  /// Sin sesión, esta misma pantalla es el modo "explorar": buscar y
+  /// mirar libros sigue andando igual, pero agregar pide perfil primero.
+  /// Cambia el título y agrega la aclaración; el resto de la pantalla no
+  /// se entera, porque exigirCuenta() ya se llama siempre, con o sin
+  /// sesión.
+  final bool explorando;
+  const PantallaBuscar({super.key, this.explorando = false});
 
   @override
   State<PantallaBuscar> createState() => _PantallaBuscarState();
@@ -75,6 +83,11 @@ class _PantallaBuscarState extends State<PantallaBuscar> {
   /// la mano y sin teclado. Meterla en esta pantalla la habría dejado
   /// compitiendo con el campo de texto en cada renglón.
   Future<void> _escanear() async {
+    if (!await exigirCuenta(context, motivo: 'escanear y agregar libros')) {
+      return;
+    }
+    if (!mounted) return;
+
     await Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => const PantallaEscanear()));
@@ -84,6 +97,9 @@ class _PantallaBuscarState extends State<PantallaBuscar> {
   }
 
   Future<void> _cargarAMano() async {
+    if (!await exigirCuenta(context, motivo: 'cargar un libro')) return;
+    if (!mounted) return;
+
     final cargado = await Navigator.of(context).push<Libro>(
       MaterialPageRoute(
         builder: (_) => PantallaCargarLibro(textoBuscado: _controlador.text),
@@ -91,7 +107,13 @@ class _PantallaBuscarState extends State<PantallaBuscar> {
     );
     // Si cargó uno, salimos de la búsqueda: ya consiguió lo que vino a
     // buscar y dejarla acá la obligaría a cerrar dos pantallas.
-    if (cargado != null && mounted) Navigator.of(context).pop();
+    //
+    // Salvo en modo explorar: ahí esta pantalla no la empujó nadie, es
+    // el contenido mismo de la solapa Biblioteca. No hay nada que cerrar
+    // y no hay ninguna otra pantalla esperando abajo.
+    if (cargado != null && mounted && !widget.explorando) {
+      Navigator.of(context).pop();
+    }
   }
 
   @override
@@ -101,16 +123,41 @@ class _PantallaBuscarState extends State<PantallaBuscar> {
         backgroundColor: Colors.transparent,
         foregroundColor: Paleta.lila,
         elevation: 0,
-        title: const Text(
-          'Agregar un libro',
-          style: TextStyle(color: Paleta.luz, fontSize: 17),
+        title: Text(
+          widget.explorando ? 'Explorar' : 'Agregar un libro',
+          style: const TextStyle(color: Paleta.luz, fontSize: 17),
         ),
+        actions: widget.explorando
+            ? [
+                // La misma hoja que aparece al intentar agregar, pero
+                // pedida a mano: para quien prefiere entrar antes de
+                // ponerse a buscar y no que la app se lo pregunte recién
+                // cuando toque el más.
+                IconButton(
+                  onPressed: () =>
+                      exigirCuenta(context, motivo: 'armar tu perfil'),
+                  icon: const Icon(Icons.person_outline_rounded),
+                  color: Paleta.lila,
+                  tooltip: 'Iniciar sesión',
+                ),
+              ]
+            : null,
       ),
       body: SafeArea(
         top: false,
         child: Columna(
           hijo: Column(
             children: [
+              if (widget.explorando)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+                  child: Text(
+                    'Podés buscar y mirar libros sin cuenta. Para '
+                    'agregarlos, escribir una reseña o ver tu propia '
+                    'biblioteca hace falta tu perfil.',
+                    style: Tipo.meta,
+                  ),
+                ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
                 child: Row(
@@ -234,7 +281,13 @@ class FilaDeResultado extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final guardado = biblioteca.buscarPorClave(libro.clave);
+    // Sin perfil, nunca se muestra si el libro ya está en la biblioteca
+    // de este teléfono. Eso también es "ver tu propia biblioteca" —un
+    // vistazo chiquito, pero es tuyo— y explorar no debería filtrarlo
+    // sin haber iniciado sesión.
+    final guardado = cuenta.hayPerfil
+        ? biblioteca.buscarPorClave(libro.clave)
+        : null;
 
     return InkWell(
       onTap: () => Navigator.of(context).push(
@@ -289,6 +342,12 @@ class FilaDeResultado extends StatelessWidget {
 /// Ahora el más pregunta antes, y después la fila queda diciendo dónde
 /// quedó ese libro. **La fila es la confirmación**: por eso acá no hay
 /// ningún aviso, y es a propósito.
+Future<void> _agregar(BuildContext context, Libro libro) async {
+  if (!await exigirCuenta(context, motivo: 'agregar un libro')) return;
+  if (!context.mounted) return;
+  await dondeVa(context, libro);
+}
+
 class _Destino extends StatelessWidget {
   final Libro libro;
   final Libro? guardado;
@@ -301,7 +360,7 @@ class _Destino extends StatelessWidget {
 
     if (puesto == null) {
       return IconButton(
-        onPressed: () => dondeVa(context, libro),
+        onPressed: () => _agregar(context, libro),
         icon: const Icon(Icons.add_circle_outline, size: 26),
         color: Paleta.lila,
         tooltip: 'Agregar',
@@ -395,9 +454,18 @@ class _TraerDeGoodreads extends StatelessWidget {
             width: 260,
             child: BotonContorno(
               'Traerla',
-              alTocar: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const PantallaImportar()),
-              ),
+              alTocar: () async {
+                if (!await exigirCuenta(
+                  context,
+                  motivo: 'traer tu biblioteca de Goodreads',
+                )) {
+                  return;
+                }
+                if (!context.mounted) return;
+                await Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const PantallaImportar()),
+                );
+              },
             ),
           ),
         ],

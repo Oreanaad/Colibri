@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:colibri/cuenta.dart';
 import 'package:colibri/modelos.dart';
 import 'package:colibri/pantallas/buscar.dart';
 
@@ -9,6 +10,9 @@ import 'package:colibri/pantallas/buscar.dart';
 ///
 /// Existe porque alguien dijo «no veo el más». La única forma de contestar
 /// eso sin adivinar es dibujar la fila y preguntarle a Flutter qué hay.
+///
+/// Con perfil ya armado, salvo el último grupo, que prueba justo lo
+/// contrario: sin perfil, ni el más ni el estante delatan tu biblioteca.
 void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
@@ -16,7 +20,10 @@ void main() {
     for (final l in [...biblioteca.todos]) {
       await biblioteca.quitar(l);
     }
+    await cuenta.crear(usuario: 'lectora', nombre: 'Lectora');
   });
+
+  tearDown(() => cuenta.salir());
 
   Libro cometierra() =>
       Libro(id: '1', titulo: 'Cometierra', autor: 'Dolores Reyes');
@@ -110,5 +117,37 @@ void main() {
 
     expect(find.byIcon(Icons.add_circle_outline), findsNWidgets(3));
     expect(find.text('¿Ninguno es el que tenés en la mano?'), findsOneWidget);
+  });
+
+  group('explorando, sin perfil', () {
+    setUp(() => cuenta.salir());
+
+    testWidgets('el más pide perfil antes de agregar', (tester) async {
+      await dibujar(tester, cometierra());
+
+      await tester.tap(find.byIcon(Icons.add_circle_outline));
+      await tester.pumpAndSettle();
+
+      // No abre directamente "¿Dónde lo ponés?": primero pide el perfil.
+      expect(find.text('¿Dónde lo ponés?'), findsNothing);
+      expect(find.text('Hace falta tu perfil'), findsOneWidget);
+    });
+
+    testWidgets('un libro que ya tenés no lo delata', (tester) async {
+      // Se agrega con el perfil de otro momento —cualquier libro que ya
+      // esté guardado en este teléfono— y después se sale. El más tiene
+      // que verse igual que el de un libro que nunca tocaste: mostrar el
+      // estante sería un vistazo a la biblioteca sin haber iniciado
+      // sesión.
+      final libro = cometierra();
+      await biblioteca.agregar(libro);
+      await biblioteca.cambiarEstado(libro, Estado.leyendo);
+      await cuenta.salir();
+
+      await dibujar(tester, libro);
+
+      expect(find.text('Leyendo'), findsNothing);
+      expect(find.byIcon(Icons.add_circle_outline), findsOneWidget);
+    });
   });
 }

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import '../cuenta.dart';
 import '../modelos.dart';
 import '../tema.dart';
 import '../widgets.dart';
 import 'animos.dart';
 import 'ediciones.dart';
 import 'estantes.dart';
+import 'exigir_cuenta.dart';
 import 'frases.dart';
 import 'resena.dart';
 
@@ -50,6 +52,14 @@ class _PantallaFichaState extends State<PantallaFicha> {
   }
 
   Future<void> _agregar() async {
+    if (!await exigirCuenta(
+      context,
+      motivo: 'agregar libros a tu biblioteca',
+    )) {
+      return;
+    }
+    if (!mounted) return;
+
     await biblioteca.agregar(l);
     if (!mounted) return;
     mostrarAviso(
@@ -175,9 +185,14 @@ class _PantallaFichaState extends State<PantallaFicha> {
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: biblioteca,
+      animation: Listenable.merge([biblioteca, cuenta]),
       builder: (context, _) {
-        final enBiblioteca = biblioteca.tiene(l);
+        // Y no solo biblioteca.tiene(l). Sin el perfil, aunque el libro
+        // ya estuviera guardado en este teléfono de antes, se vería toda
+        // la edición —tu reseña, tus notas, cómo te dejó— sin haber
+        // iniciado sesión. "Ver tu propia biblioteca" pide perfil, y esto
+        // es exactamente eso: tu biblioteca, mirada desde adentro.
+        final enBiblioteca = biblioteca.tiene(l) && cuenta.hayPerfil;
 
         return Scaffold(
           appBar: AppBar(

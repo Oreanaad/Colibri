@@ -85,6 +85,16 @@ class _PantallaBibliotecaState extends State<PantallaBiblioteca> {
     return AnimatedBuilder(
       animation: Listenable.merge([biblioteca, cuenta]),
       builder: (context, _) {
+        // Sin perfil, esta solapa no muestra tu estante: lo reemplaza
+        // por el modo explorar, que es la misma pantalla de buscar y
+        // agregar, pero avisando que hace falta el perfil para agregar.
+        // Apenas se crea la cuenta, este AnimatedBuilder ya escucha a
+        // `cuenta` y se redibuja solo, así que la vuelta al estante de
+        // verdad no necesita ningún botón de "listo, ahora sí entrá".
+        if (!cuenta.hayPerfil) {
+          return const PantallaBuscar(explorando: true);
+        }
+
         return SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

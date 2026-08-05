@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../cuenta.dart';
 import '../modelos.dart';
 import '../tema.dart';
 import 'compartir.dart';
+import 'exigir_cuenta.dart';
 import 'ficha.dart';
 
 /// Una frase junto al libro del que salió.
@@ -79,8 +81,19 @@ class _PantallaTodasLasFrasesState extends State<PantallaTodasLasFrases> {
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: biblioteca,
+      animation: Listenable.merge([biblioteca, cuenta]),
       builder: (context, _) {
+        // Son tus frases, de tus libros: sin perfil no hay ninguna
+        // biblioteca detrás y no hay nada que mostrar acá tampoco.
+        if (!cuenta.hayPerfil) {
+          return const NecesitaCuenta(
+            titulo: 'Tus frases necesitan tu perfil',
+            motivo:
+                'Viven junto a tus libros, y tus libros viven en tu '
+                'cuenta. Podés seguir explorando libros sin ella.',
+          );
+        }
+
         final todas = _todas;
         final visibles = _filtrar(todas);
 

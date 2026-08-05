@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../cuenta.dart';
 import '../fanfic.dart';
 import '../modelos.dart';
 import '../tema.dart';
 import '../widgets.dart';
 import 'cargar_fanfic.dart';
+import 'exigir_cuenta.dart';
 import 'ficha.dart';
 
 /// La sección de los fanfics.
@@ -33,8 +35,21 @@ class PantallaFanfics extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: biblioteca,
+      animation: Listenable.merge([biblioteca, cuenta]),
       builder: (context, _) {
+        // Sin catálogo que mirar: un fanfic se carga con su enlace, y
+        // ese enlace es tuyo o no lo es. No hay nada intermedio que
+        // "explorar" acá, así que sin perfil no se muestra nada de esta
+        // sección, ni siquiera vacía.
+        if (!cuenta.hayPerfil) {
+          return const NecesitaCuenta(
+            titulo: 'Tus fanfics necesitan tu perfil',
+            motivo:
+                'Se guardan en tu cuenta, así no se pierden si cambiás de '
+                'teléfono. Podés seguir explorando libros sin ella.',
+          );
+        }
+
         final fics = biblioteca.fanfics;
 
         return Scaffold(

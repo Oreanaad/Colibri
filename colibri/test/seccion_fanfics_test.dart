@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:colibri/cuenta.dart';
 import 'package:colibri/modelos.dart';
 import 'package:colibri/pantallas/biblioteca.dart';
 import 'package:colibri/pantallas/fanfics.dart';
@@ -11,6 +12,10 @@ import 'package:colibri/pantallas/fanfics.dart';
 /// Lo que hay que garantizar es que estén separados de verdad: si un fic
 /// apareciera también en la biblioteca, verías «40 leídos» en un lado y
 /// «12 leídos» en otro y ningún número sería el de tu año.
+///
+/// Todo lo de acá abajo pasa con perfil ya armado: la sección entera pide
+/// perfil desde que existe el modo explorar, y eso se prueba aparte, en
+/// explorar_sin_cuenta_test.dart.
 void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
@@ -19,7 +24,10 @@ void main() {
       await biblioteca.quitar(l);
     }
     await sesion.cargar();
+    await cuenta.crear(usuario: 'lectora', nombre: 'Lectora');
   });
+
+  tearDown(() => cuenta.salir());
 
   Future<Libro> unFic(String titulo, String obra, {Estado? estado}) async {
     final fic = Libro(
