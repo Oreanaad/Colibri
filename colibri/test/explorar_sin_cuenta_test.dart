@@ -141,14 +141,17 @@ void main() {
 
   group('la solapa Biblioteca', () {
     testWidgets('sin perfil muestra explorar, no tu estante', (tester) async {
-      final l = Libro(id: '1', titulo: 'Cometierra', autor: 'Dolores Reyes');
+      // Un título que no esté entre los destacados de Explorar: si no,
+      // esta prueba no sabría distinguir "se filtró tu libro" de "está
+      // ahí porque también es uno de los que se muestran para mirar".
+      final l = Libro(id: '1', titulo: 'Trenzar', autor: 'Alice Walker');
       await biblioteca.agregar(l);
 
       await abrir(tester, const PantallaBiblioteca());
 
       // Ni un rastro del libro que ya está guardado en este teléfono.
       expect(find.text('Explorar'), findsOneWidget);
-      expect(find.textContaining('Cometierra'), findsNothing);
+      expect(find.textContaining('Trenzar'), findsNothing);
       expect(find.textContaining('hace falta tu perfil'), findsOneWidget);
     });
 

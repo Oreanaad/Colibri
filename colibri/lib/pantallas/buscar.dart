@@ -6,6 +6,7 @@ import '../modelos.dart';
 import '../tema.dart';
 import '../widgets.dart';
 import 'cargar_libro.dart';
+import 'destacados.dart';
 import 'escanear.dart';
 import 'exigir_cuenta.dart';
 import 'importar.dart';
@@ -234,15 +235,30 @@ class _PantallaBuscarState extends State<PantallaBuscar> {
     }
     if (!_busco && _resultados.isEmpty) {
       return ListView(
-        children: const [
-          _Mensaje(
+        padding: widget.explorando
+            ? const EdgeInsets.fromLTRB(20, 4, 20, 32)
+            : EdgeInsets.zero,
+        children: [
+          const _Mensaje(
             'Escribí al menos tres letras, o apuntá al código de barras con '
             'el botón de al lado.',
           ),
-          SizedBox(height: 10),
-          Divider(color: Paleta.linea, indent: 40, endIndent: 40),
-          SizedBox(height: 22),
-          _TraerDeGoodreads(),
+          const SizedBox(height: 10),
+          const Divider(color: Paleta.linea, indent: 40, endIndent: 40),
+          const SizedBox(height: 22),
+          const _TraerDeGoodreads(),
+
+          // La biblioteca destacada va al final y solo en modo explorar.
+          // En el modo normal —ya con perfil, agregando desde el más de
+          // la biblioteca— esta pantalla se abre queriendo agregar un
+          // libro puntual, y mostrar diez títulos para mirar sería puro
+          // ruido delante de lo que se vino a hacer.
+          if (widget.explorando) ...[
+            const SizedBox(height: 34),
+            const Divider(color: Paleta.linea),
+            const SizedBox(height: 28),
+            const BibliotecaDestacada(),
+          ],
         ],
       );
     }
