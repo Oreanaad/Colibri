@@ -199,7 +199,13 @@ class _PantallaBuscarState extends State<PantallaBuscar> {
     return TextField(
       controller: _controlador,
       onChanged: _alEscribir,
-      autofocus: true,
+      // Sin teclado automático en modo explorar.
+      //
+      // Al entrar a explorar no se viene a escribir, se viene a mirar. Y
+      // el teclado ocupa unos 340 puntos de los 844 de un teléfono: con
+      // él abierto, lo que hay más abajo ni siquiera se construye. Así
+      // se perdía el carrusel entero sin ningún aviso.
+      autofocus: !widget.explorando,
       style: const TextStyle(color: Paleta.luz, fontSize: 15),
       cursorColor: Paleta.lila,
       decoration: InputDecoration(
@@ -236,9 +242,23 @@ class _PantallaBuscarState extends State<PantallaBuscar> {
     if (!_busco && _resultados.isEmpty) {
       return ListView(
         padding: widget.explorando
-            ? const EdgeInsets.fromLTRB(20, 4, 20, 32)
+            ? const EdgeInsets.fromLTRB(20, 8, 20, 32)
             : EdgeInsets.zero,
         children: [
+          // En modo explorar, el carrusel va primero.
+          //
+          // Estaba al final, después del mensaje y del bloque de
+          // Goodreads, y ahí quedaba en y=651 de los 844 de un teléfono:
+          // fuera de la vista al entrar, y con el teclado abierto ni
+          // siquiera se construía. Lo que alguien vino a hacer acá es
+          // mirar libros, así que eso es lo que tiene que ver primero.
+          if (widget.explorando) ...[
+            const BibliotecaDestacada(),
+            const SizedBox(height: 30),
+            const Divider(color: Paleta.linea),
+            const SizedBox(height: 18),
+          ],
+
           const _Mensaje(
             'Escribí al menos tres letras, o apuntá al código de barras con '
             'el botón de al lado.',
@@ -247,18 +267,6 @@ class _PantallaBuscarState extends State<PantallaBuscar> {
           const Divider(color: Paleta.linea, indent: 40, endIndent: 40),
           const SizedBox(height: 22),
           const _TraerDeGoodreads(),
-
-          // La biblioteca destacada va al final y solo en modo explorar.
-          // En el modo normal —ya con perfil, agregando desde el más de
-          // la biblioteca— esta pantalla se abre queriendo agregar un
-          // libro puntual, y mostrar diez títulos para mirar sería puro
-          // ruido delante de lo que se vino a hacer.
-          if (widget.explorando) ...[
-            const SizedBox(height: 34),
-            const Divider(color: Paleta.linea),
-            const SizedBox(height: 28),
-            const BibliotecaDestacada(),
-          ],
         ],
       );
     }

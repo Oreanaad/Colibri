@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:colibri/cuenta.dart';
+import 'package:colibri/modelos.dart';
+import 'package:colibri/pantallas/biblioteca.dart';
 import 'package:colibri/pantallas/destacados.dart';
 import 'package:colibri/pantallas/ficha.dart';
 import 'package:colibri/widgets.dart';
@@ -146,5 +149,64 @@ void main() {
 
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getString('colibri.descubrir.cache.v1'), isNotNull);
+  });
+
+  group('dónde queda en una pantalla de teléfono', () {
+    // El bug que esto atrapa: el carrusel estaba al final de la pantalla,
+    // después del mensaje y del bloque de Goodreads, y arrancaba en
+    // y=651 de los 844 de un iPhone. Fuera de la vista al entrar, y con
+    // el teclado abierto —que el campo abría solo— ni siquiera se
+    // construía. Existía y funcionaba, pero nadie lo veía.
+
+    Future<void> abrirBiblioteca(WidgetTester tester) async {
+      SharedPreferences.setMockInitialValues({});
+      await biblioteca.cargar();
+      await cuenta.salir();
+
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: PantallaBiblioteca())),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('se ve sin desplazar nada', (tester) async {
+      await abrirBiblioteca(tester);
+
+      final caja = tester.getRect(find.byType(BibliotecaDestacada));
+      // La mitad de arriba: no alcanza con "está en el árbol", tiene que
+      // caer donde alguien lo ve al entrar.
+      expect(caja.top, lessThan(422));
+    });
+
+    testWidgets('sigue existiendo con el teclado abierto', (tester) async {
+      // Una lista solo construye lo que entra: con el teclado ocupando
+      // 336 puntos, lo que quede más abajo no existe.
+      SharedPreferences.setMockInitialValues({});
+      await biblioteca.cargar();
+      await cuenta.salir();
+
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      tester.view.viewInsets = const FakeViewPadding(bottom: 336 * 3);
+      addTearDown(tester.view.reset);
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: PantallaBiblioteca())),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(BibliotecaDestacada), findsOneWidget);
+    });
+
+    testWidgets('explorar no abre el teclado solo', (tester) async {
+      // Se viene a mirar, no a escribir. Y el teclado tapa justo lo que
+      // se vino a ver.
+      await abrirBiblioteca(tester);
+
+      final campo = tester.widget<TextField>(find.byType(TextField).first);
+      expect(campo.autofocus, isFalse);
+    });
   });
 }
