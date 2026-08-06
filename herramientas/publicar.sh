@@ -1,64 +1,39 @@
 #!/usr/bin/env bash
 #
-# Publica la app en GitHub Pages.
+# Publica la app en internet, con https.
 #
 #     ./herramientas/publicar.sh
 #
-# Compila con las claves de colibri/claves.json y sube el resultado a la
-# rama gh-pages. La rama se reescribe entera cada vez: no guarda
-# historia, porque es un resultado y no un fuente.
+# Va a Netlify y no a GitHub Pages. La primera vez se intentó con Pages
+# —está en el mismo repo, no hace falta otra cuenta— pero se quedó
+# colgado en "building" media hora y terminó en "errored", con un
+# incidente abierto de GitHub: "Pages - Deployment Lag", con Actions y
+# Pages en interrupción mayor. Netlify tarda siete segundos.
 #
-# Para bajarla:  gh api -X DELETE repos/Oreanaad/Colibri/pages
+# El sitio ya existe y la sesión ya está iniciada en esta máquina. Si
+# alguna vez pide entrar de nuevo:  netlify login
 set -euo pipefail
 
 export PATH="$PATH:/Users/oreanaad/flutter/bin"
 
+SITIO=c0414df9-173c-483b-b14c-40689c53854f
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP="$RAIZ/colibri"
-CLAVES="$APP/claves.json"
 
-[ -f "$CLAVES" ] || { echo "Falta colibri/claves.json"; exit 1; }
+[ -f "$APP/claves.json" ] || { echo "Falta colibri/claves.json"; exit 1; }
 
 echo "Compilando…"
 cd "$APP"
-# --base-href porque Pages sirve en /Colibri/ y no en la raíz. Sin esto
-# la app busca sus archivos donde no están y la pantalla queda en blanco.
+# --base-href / porque Netlify sirve en la raíz del dominio. Con GitHub
+# Pages había que poner /Colibri/, y si se deja ese valor acá la app
+# busca sus archivos en una carpeta que no existe y queda en blanco.
 flutter build web --release \
-  --base-href /Colibri/ \
+  --base-href / \
   --dart-define-from-file=claves.json >/dev/null
 
-echo "Subiendo…"
-TMP="$(mktemp -d)"
-cp -R "$APP/build/web/." "$TMP/"
-
-# .nojekyll: sin esto GitHub ignora las carpetas que empiezan con guión
-# bajo, y Flutter genera varias.
-touch "$TMP/.nojekyll"
-
-# El ayudante de credenciales del repo, copiado a esta carpeta temporal.
-#
-# Sin esto el push falla con un 403: la carpeta temporal es un repo
-# nuevo, no hereda nada, y git cae en el llavero del sistema, que
-# apunta a la otra cuenta de GitHub que hay en esta máquina.
-AYUDANTE="$(cd "$RAIZ" && git config --local --get credential.helper)"
-ORIGEN="$(cd "$RAIZ" && git remote get-url origin)"
-
-cd "$TMP"
-git init -q
-# Primero se vacía la cadena y después se pone el propio. Sin el vaciado,
-# el llavero del sistema —que es global— queda primero en la lista, y git
-# usa el primero que le conteste: el de la otra cuenta de GitHub que hay
-# en esta máquina.
-git config credential.helper ""
-git config --add credential.helper "$AYUDANTE"
-git checkout -qb gh-pages
-git add -A
-git -c user.email=colibri@local -c user.name=Colibri \
-  commit -qm "Publicado $(date +%Y-%m-%d\ %H:%M)"
-git push -qf "$ORIGEN" gh-pages
-
-cd "$RAIZ"
-rm -rf "$TMP"
+echo "Publicando…"
+netlify deploy --prod --dir=build/web --site="$SITIO" 2>&1 \
+  | grep -E "Production URL|Deploy complete|Error" || true
 
 echo
-echo "Listo:  https://oreanaad.github.io/Colibri/"
+echo "Listo:  https://colibri-lectoras.netlify.app"
