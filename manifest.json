@@ -1,0 +1,35 @@
+{
+    "name": "Colibrí",
+    "short_name": "Colibrí",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#171331",
+    "theme_color": "#171331",
+    "description": "Tu biblioteca y la de toda tu gente. De libro en libro.",
+    "orientation": "portrait-primary",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "icons/Icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-maskable-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "icons/Icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}
