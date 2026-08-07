@@ -31,9 +31,22 @@ flutter build web --release \
   --base-href / \
   --dart-define-from-file=claves.json >/dev/null
 
+# El APK viaja junto al sitio, para poder bajarlo desde el teléfono sin
+# cable. Va solo el de arm64: es el de cualquier teléfono Android de los
+# últimos diez años, y el universal pesa 74 MB contra 27.
+if [ -f build/app/outputs/flutter-apk/app-arm64-v8a-release.apk ]; then
+  cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk build/web/colibri.apk
+  # Sin este encabezado Netlify lo manda como texto plano y el teléfono
+  # no lo reconoce como algo instalable: se baja y no pasa nada.
+  printf '/colibri.apk\n  Content-Type: application/vnd.android.package-archive\n' \
+    > build/web/_headers
+fi
+
 echo "Publicando…"
 netlify deploy --prod --dir=build/web --site="$SITIO" 2>&1 \
   | grep -E "Production URL|Deploy complete|Error" || true
 
 echo
 echo "Listo:  https://colibri-lectoras.netlify.app"
+[ -f build/web/colibri.apk ] && \
+  echo "APK:    https://colibri-lectoras.netlify.app/colibri.apk"

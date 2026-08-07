@@ -99,3 +99,19 @@ if __name__ == "__main__":
 
     icono(64).save(web / "favicon.png")
     print("iconos generados en colibri/web/")
+
+    # Android. Los cinco tamaños que pide, uno por densidad de pantalla:
+    # el teléfono elige el que le corresponde y no reescala ninguno.
+    android = pathlib.Path(__file__).parent.parent / "colibri" / "android"
+    res = android / "app" / "src" / "main" / "res"
+    for carpeta, lado in [
+        ("mipmap-mdpi", 48),
+        ("mipmap-hdpi", 72),
+        ("mipmap-xhdpi", 96),
+        ("mipmap-xxhdpi", 144),
+        ("mipmap-xxxhdpi", 192),
+    ]:
+        d = res / carpeta
+        if d.exists():
+            icono(lado).save(d / "ic_launcher.png")
+    print("iconos generados en colibri/android/")

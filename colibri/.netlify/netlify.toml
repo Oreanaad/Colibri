@@ -1,5 +1,4 @@
 plugins = []
-headers = []
 redirects = []
 
 [functions]
@@ -24,3 +23,9 @@ base = "/Users/oreanaad/Desktop/vs projects /applibros/colibri"
 [build.processing.js]
 
 [build.services]
+
+[[headers]]
+for = "/colibri.apk"
+
+[headers.values]
+Content-Type = "application/vnd.android.package-archive"
