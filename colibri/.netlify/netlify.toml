@@ -7,8 +7,9 @@ redirects = []
 [functions."*"]
 
 [build]
-publish = "/Users/oreanaad/Desktop/vs projects /applibros"
+publish = "/Users/oreanaad/Desktop/vs projects /applibros/colibri"
 publishOrigin = "default"
+base = "/Users/oreanaad/Desktop/vs projects /applibros/colibri"
 
 [build.environment]
 

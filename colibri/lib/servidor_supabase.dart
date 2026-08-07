@@ -27,6 +27,25 @@ import 'cuenta.dart';
 const urlSupabase = String.fromEnvironment('SUPABASE_URL');
 const clavePublicaSupabase = String.fromEnvironment('SUPABASE_CLAVE');
 
+/// A dónde vuelve alguien después de tocar el enlace del correo.
+///
+/// # Por qué hace falta decirlo
+///
+/// Supabase manda ese correo con una dirección de vuelta, y si no se le
+/// pide una, usa la que tenga configurada el proyecto. Recién creado, esa
+/// es `http://localhost:3000`: el correo llegaba con un enlace a la
+/// computadora de quien lo abre, que no tiene nada corriendo ahí. Nadie
+/// podía confirmar su cuenta.
+///
+/// Se pasa explícito en cada registro y no se confía en la configuración
+/// del proyecto, por dos razones: el valor queda a la vista en el código
+/// en vez de escondido en un panel, y así la app de pruebas y la
+/// publicada pueden volver cada una a su propia dirección.
+///
+/// **Ojo**: Supabase solo acepta direcciones que estén en su lista de
+/// permitidas. Poner esto sin agregarla allá no alcanza.
+const urlDeLaApp = String.fromEnvironment('APP_URL');
+
 bool get haySupabase =>
     urlSupabase.isNotEmpty && clavePublicaSupabase.isNotEmpty;
 
@@ -61,7 +80,13 @@ class ServidorSupabase implements ServidorDeCuentas {
     }
 
     try {
-      final r = await _base.auth.signUp(email: correo, password: clave);
+      final r = await _base.auth.signUp(
+        email: correo,
+        password: clave,
+        // Sin esto, el enlace del correo apunta a lo que tenga
+        // configurado el proyecto, que de fábrica es localhost.
+        emailRedirectTo: urlDeLaApp.isEmpty ? null : urlDeLaApp,
+      );
 
       // Sin sesión quiere decir que Supabase mandó un correo para
       // confirmar. No es un error: la cuenta existe, falta el paso de

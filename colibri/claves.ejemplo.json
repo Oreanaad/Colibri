@@ -1,5 +1,6 @@
 {
   "GOOGLE_BOOKS": "la clave de la Books API, de console.cloud.google.com",
   "SUPABASE_URL": "https://xxxxx.supabase.co",
-  "SUPABASE_CLAVE": "sb_publishable_...  (la pública, NUNCA la sb_secret_)"
+  "SUPABASE_CLAVE": "sb_publishable_...  (la pública, NUNCA la sb_secret_)",
+  "APP_URL": "https://tu-app.netlify.app  (a dónde vuelve el correo de confirmación)"
 }
