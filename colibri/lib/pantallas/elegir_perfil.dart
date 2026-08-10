@@ -74,44 +74,52 @@ class _HojaDeLibrosState extends State<_HojaDeLibros> {
 
               if (todos.isNotEmpty)
                 Flexible(
-                  child: GridView.builder(
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.only(bottom: 8),
-                    gridDelegate:
-                        const SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 110,
-                          childAspectRatio: 0.62,
-                          crossAxisSpacing: 10,
-                          mainAxisSpacing: 12,
+                  // El ancho real de la hoja, que no es el de la pantalla.
+                  child: LayoutBuilder(
+                    builder: (context, medidas) => GridView.builder(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.only(bottom: 8),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: Medidas.columnasParaAncho(
+                          medidas.maxWidth,
                         ),
-                    itemCount: todos.length,
-                    itemBuilder: (_, i) {
-                      final libro = todos[i];
-                      final puesto = _elegidos.contains(libro.clave);
-                      final apagado = lleno && !puesto;
+                        childAspectRatio: 0.62,
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 12,
+                      ),
+                      itemCount: todos.length,
+                      itemBuilder: (_, i) {
+                        final libro = todos[i];
+                        final puesto = _elegidos.contains(libro.clave);
+                        final apagado = lleno && !puesto;
 
-                      return Opacity(
-                        opacity: apagado ? 0.32 : 1,
-                        child: InkWell(
-                          onTap: apagado ? null : () => _alternar(libro),
-                          child: LayoutBuilder(
-                            builder: (_, m) => Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Tapa(libro, ancho: m.maxWidth, marcada: puesto),
-                                const SizedBox(height: 4),
-                                Text(
-                                  libro.titulo,
-                                  style: Tipo.meta.copyWith(fontSize: 10.5),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
+                        return Opacity(
+                          opacity: apagado ? 0.32 : 1,
+                          child: InkWell(
+                            onTap: apagado ? null : () => _alternar(libro),
+                            child: LayoutBuilder(
+                              builder: (_, m) => Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Tapa(
+                                    libro,
+                                    ancho: m.maxWidth,
+                                    marcada: puesto,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    libro.titulo,
+                                    style: Tipo.meta.copyWith(fontSize: 10.5),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
                 ),
 

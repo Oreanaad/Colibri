@@ -100,13 +100,48 @@ class Medidas {
   static double margen(BuildContext c) =>
       MediaQuery.sizeOf(c).width < 400 ? 16 : 20;
 
-  /// El ancho que le toca a cada tapa en una grilla.
+  /// Cuántas columnas de tapas entran.
   ///
-  /// Al fijar el ancho de la tapa en vez de la cantidad de columnas, la
-  /// grilla suma columnas sola cuando hay lugar: tres en un teléfono,
-  /// cinco o seis en una computadora, y siempre tapas del mismo tamaño.
-  static double anchoDeTapa(BuildContext c) =>
-      MediaQuery.sizeOf(c).width < 380 ? 100 : 118;
+  /// # Por qué columnas y no ancho máximo
+  ///
+  /// Antes se fijaba el ancho de la tapa y se dejaba que la grilla sumara
+  /// columnas sola. Suena bien y estaba mal: al pedir "ninguna tapa más
+  /// ancha que 118", cuando el espacio cruza un múltiplo la grilla suma
+  /// una columna y **todas las tapas se achican de golpe**. Medido:
+  ///
+  ///     pantalla de 360 px  ->  tapas de 103
+  ///     pantalla de 375 px  ->  tapas de  78   <- más grande, más chicas
+  ///     pantalla de 412 px  ->  tapas de 117
+  ///     pantalla de 430 px  ->  tapas de  90   <- otra vez
+  ///
+  /// O sea que en un iPhone 13 mini las tapas quedaban más chicas que en
+  /// un teléfono más angosto, y en el Pro Max más chicas que en el normal.
+  ///
+  /// Fijando las columnas se invierte: dentro de cada tramo la tapa solo
+  /// puede crecer, y los saltos pasan a estar donde uno los decide.
+  ///
+  /// # Dónde están los cortes
+  ///
+  /// Donde la tapa que resulta no baja de unos 100 px. Todos los
+  /// teléfonos —de 320 a 430 de pantalla— caen en tres columnas, y ahí la
+  /// tapa va de 89 a 123 px creciendo siempre. Los otros dos cortes ya
+  /// son tablet.
+  ///
+  /// # Por qué recibe el ancho y no el contexto
+  ///
+  /// Porque tiene que ser **el ancho que la grilla tiene de verdad**, no
+  /// el de la pantalla. Las grillas viven dentro de [Columna], que le pone
+  /// un techo de [anchoComodo]: en un monitor de 1400 px, `MediaQuery`
+  /// diría 1400 mientras la grilla tiene 580, y la cuenta saldría mal.
+  ///
+  /// Quien la llama pasa el ancho de un `LayoutBuilder`, que es el único
+  /// lugar donde ese número se conoce. De paso queda una función pura,
+  /// que se puede probar sin dibujar nada.
+  static int columnasParaAncho(double ancho) {
+    if (ancho < 420) return 3;
+    if (ancho < 540) return 4;
+    return 5;
+  }
 }
 
 /// Centra el contenido y le pone un techo de ancho.

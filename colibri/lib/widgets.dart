@@ -801,29 +801,37 @@ class GrillaLibros extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: libros.length,
-      // Fijamos el ancho de cada tapa, no la cantidad de columnas: así
-      // la grilla suma columnas sola cuando hay lugar —tres en un
-      // teléfono, seis en un monitor— y las tapas nunca se agrandan.
-      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: Medidas.anchoDeTapa(context),
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 14,
-        childAspectRatio: 2 / 3,
+    // LayoutBuilder y no MediaQuery: hace falta el ancho que esta grilla
+    // tiene de verdad, no el de la pantalla. Ver
+    // [Medidas.columnasParaAncho].
+    return LayoutBuilder(
+      builder: (context, medidas) => GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: libros.length,
+        // Fijamos las columnas y no el ancho de la tapa. Al revés —que
+        // era como estaba— las tapas se achicaban cuando la pantalla
+        // crecía.
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: Medidas.columnasParaAncho(medidas.maxWidth),
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 14,
+          childAspectRatio: 2 / 3,
+        ),
+        itemBuilder: (_, i) {
+          final l = libros[i];
+          return GestureDetector(
+            onTap: () => alTocar(l),
+            child: LayoutBuilder(
+              builder: (_, c) => Tapa(
+                l,
+                ancho: c.maxWidth,
+                marcada: marcados.contains(l.clave),
+              ),
+            ),
+          );
+        },
       ),
-      itemBuilder: (_, i) {
-        final l = libros[i];
-        return GestureDetector(
-          onTap: () => alTocar(l),
-          child: LayoutBuilder(
-            builder: (_, c) =>
-                Tapa(l, ancho: c.maxWidth, marcada: marcados.contains(l.clave)),
-          ),
-        );
-      },
     );
   }
 }

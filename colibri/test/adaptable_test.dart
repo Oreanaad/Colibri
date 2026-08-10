@@ -23,12 +23,17 @@ Future<void> enPantallaDe(
   await tester.pumpWidget(
     MaterialApp(
       theme: construirTema(),
-      // El mismo margen lateral que usan las pantallas de verdad: sin
-      // él, el test mide una grilla que no existe en ningún lado.
+      // El mismo margen lateral y el mismo techo de ancho que usan las
+      // pantallas de verdad: sin ellos el test mide una grilla que no
+      // existe en ningún lado. Sin la Columna, en un monitor de 1200 la
+      // grilla medía 1160 y las tapas salían de 224 px; en la app esa
+      // grilla nunca pasa de 620.
       home: Scaffold(
-        body: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: hijo,
+        body: Columna(
+          hijo: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: hijo,
+          ),
         ),
       ),
     ),

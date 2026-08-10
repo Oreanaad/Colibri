@@ -218,18 +218,27 @@ class _PantallaEdicionesState extends State<PantallaEdiciones> {
   Widget _grilla(List<Libro> ediciones) {
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      sliver: SliverGrid.builder(
-        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: 132,
-          childAspectRatio: 0.52,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 18,
-        ),
-        itemCount: ediciones.length,
-        itemBuilder: (_, i) => _Edicion(
-          ediciones[i],
-          esLaTuya: ediciones[i].tapaId == widget.libro.tapaId,
-          alElegir: () => _elegir(ediciones[i]),
+      // Las columnas se fijan y la tapa se estira para llenarlas, no al
+      // revés. Ver [Medidas.columnasParaAncho]: pedir "ninguna más ancha
+      // que 132" hacía que las tapas se achicaran justo al agrandarse la
+      // pantalla. Acá se nota más que en ningún lado, porque esta
+      // pantalla es para mirar tapas y decidir cuál es la tuya.
+      sliver: SliverLayoutBuilder(
+        // crossAxisExtent y no el ancho de la ventana: es el ancho que
+        // la grilla tiene de verdad, ya sin los 20 de sangría.
+        builder: (context, medidas) => SliverGrid.builder(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: Medidas.columnasParaAncho(medidas.crossAxisExtent),
+            childAspectRatio: 0.52,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 18,
+          ),
+          itemCount: ediciones.length,
+          itemBuilder: (_, i) => _Edicion(
+            ediciones[i],
+            esLaTuya: ediciones[i].tapaId == widget.libro.tapaId,
+            alElegir: () => _elegir(ediciones[i]),
+          ),
         ),
       ),
     );
