@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+#
+# Instala Colibrí en un iPhone conectado por cable.
+#
+#     ./herramientas/iphone.sh
+#
+# # Por qué nativo y no la web
+#
+# La versión web en el iPhone tiene un techo que no se puede levantar
+# escribiendo mejor código: el navegador tiene que bajar y arrancar
+# 1 MB de JavaScript, 2,6 MB de CanvasKit —el motor que dibuja— y 1 MB
+# más de WebAssembly solo para el escáner. Recién después empieza la app.
+#
+# Nativo no baja nada de eso. El código va compilado a instrucciones del
+# procesador en vez de interpretado, dibuja con Metal directo contra la
+# GPU, y el escáner es el de Apple, el mismo que usa la app de Cámara.
+#
+# # Lo que hace falta una sola vez
+#
+# 1. Xcode, del App Store. Son unos 15 GB y es lo único que no se puede
+#    automatizar: lo pide Apple con su cuenta.
+# 2. Abrir Xcode una vez y aceptar la licencia.
+# 3. En Xcode: Settings -> Accounts -> agregar el Apple ID (el común, no
+#    hace falta pagar nada).
+# 4. Abrir ios/Runner.xcworkspace y en Signing & Capabilities elegir el
+#    equipo "Personal Team". Sin eso no hay firma y el iPhone no instala.
+# 5. En el iPhone, la primera vez: Ajustes -> General -> VPN y
+#    administración de dispositivos -> confiar en el desarrollador.
+#
+# # Los 7 días
+#
+# Con un Apple ID gratis, la firma dura una semana. A los 7 días la app
+# no abre más y hay que volver a correr esto con el cable. Los libros no
+# se pierden: quedan en el teléfono, y si hay cuenta, en la nube.
+#
+# Con el programa de desarrollador de Apple —99 dólares por año— la
+# firma dura un año y se puede repartir por TestFlight, que es como se
+# le daría a alguien más para probar sin cable.
+set -euo pipefail
+
+export PATH="$PATH:/Users/oreanaad/flutter/bin"
+export PATH="/opt/homebrew/bin:$PATH" # CocoaPods, instalado con brew
+
+cd "$(dirname "${BASH_SOURCE[0]}")/../colibri"
+
+if ! xcodebuild -version >/dev/null 2>&1; then
+  echo "Falta Xcode."
+  echo
+  echo "  1. App Store -> buscar Xcode -> Obtener  (unos 15 GB)"
+  echo "  2. Abrirlo una vez y aceptar la licencia"
+  echo "  3. sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer"
+  echo "  4. sudo xcodebuild -runFirstLaunch"
+  echo
+  echo "Mientras baja, la app anda igual en Android:"
+  echo "  ./herramientas/apk.sh"
+  exit 1
+fi
+
+[ -f claves.json ] || { echo "Falta colibri/claves.json"; exit 1; }
+
+# Las dependencias nativas de los plugins. Flutter lo corre solo al
+# compilar, pero la primera vez baja el índice entero de CocoaPods y
+# tarda varios minutos: mejor que se vea qué está pasando.
+if [ ! -d ios/Pods ]; then
+  echo "Preparando las dependencias nativas (la primera vez tarda)…"
+  flutter precache --ios
+  (cd ios && pod install)
+fi
+
+# Un iPhone de verdad, no el simulador: el simulador no tiene cámara, y
+# el escáner es justo lo que hay que probar en el teléfono.
+TELEFONO=$(flutter devices --machine 2>/dev/null \
+  | python3 -c "
+import json, sys
+try:
+    equipos = json.load(sys.stdin)
+except Exception:
+    equipos = []
+for e in equipos:
+    if e.get('targetPlatform', '').startswith('ios') and not e.get('emulator'):
+        print(e['id']); break
+")
+
+if [ -z "$TELEFONO" ]; then
+  echo "No veo ningún iPhone conectado."
+  echo
+  echo "  - Cable, y desbloqueado"
+  echo "  - Si aparece 'Confiar en esta computadora', confiar"
+  echo "  - flutter devices  para ver qué detecta"
+  exit 1
+fi
+
+echo "Instalando en $TELEFONO…"
+# --release y no debug: en debug el código Dart va interpretado y la app
+# se siente casi tan lenta como la web, que es justo lo que se quiere
+# dejar atrás. En release va compilado.
+flutter run --release -d "$TELEFONO" --dart-define-from-file=claves.json

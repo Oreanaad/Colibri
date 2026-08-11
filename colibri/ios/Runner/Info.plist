@@ -4,6 +4,13 @@
 <dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Para leer el código de barras de la contratapa y sumar el libro a tu biblioteca. Colibrí no saca fotos ni guarda nada de lo que ve la cámara.</string>
+	<!-- En iOS 14 y de ahí para arriba este texto no se muestra nunca: el
+	     selector de fotos nuevo no le da a la app acceso a la biblioteca,
+	     le pasa la foto elegida y nada más. Va igual porque el proyecto
+	     admite iOS 13, donde se usa el selector viejo, y ahí iOS cierra
+	     la app sin aviso si este texto no está. -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Para elegir tu foto de perfil. Colibrí no mira el resto de tus fotos: solo recibe la que elegís.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
@@ -18,6 +25,23 @@
 	<string>6.0</string>
 	<key>CFBundleName</key>
 	<string>colibri</string>
+	<!-- Con esto el sistema sabe que ar.colibri.colibri:// lo abre esta
+	     app. Es lo que hace que el enlace del correo de confirmación
+	     vuelva a Colibrí en vez de dejar a la lectora en Safari.
+	     Ver `vueltaDelCorreo` en lib/servidor_supabase.dart. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>ar.colibri.colibri</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>ar.colibri.colibri</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

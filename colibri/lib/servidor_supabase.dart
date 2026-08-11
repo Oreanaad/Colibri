@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'cuenta.dart';
@@ -46,6 +47,30 @@ const clavePublicaSupabase = String.fromEnvironment('SUPABASE_CLAVE');
 /// permitidas. Poner esto sin agregarla allá no alcanza.
 const urlDeLaApp = String.fromEnvironment('APP_URL');
 
+/// El esquema con el que el teléfono sabe volver a Colibrí.
+///
+/// En la web, la dirección de vuelta es una dirección web y alcanza. En un
+/// teléfono no: un enlace `https://` lo abre el navegador, y lo que pasa
+/// es que la lectora toca el enlace del correo, se le abre Safari, y ahí
+/// queda —confirmada, sí, pero en el navegador, mientras la app sigue
+/// esperando en la pantalla de antes—.
+///
+/// `ar.colibri.colibri://` es un esquema propio: no lo entiende internet,
+/// lo entiende el sistema operativo, que lo traduce a "abrí Colibrí". Está
+/// declarado en `ios/Runner/Info.plist` y en el `AndroidManifest.xml`, y
+/// tiene que estar además en la lista de Supabase. Si el esquema cambia,
+/// son cuatro lugares: eso lo cuida `test/vuelta_test.dart`.
+const esquemaPropio = 'ar.colibri.colibri';
+
+/// A dónde se le pide a Supabase que vuelva, según dónde corra la app.
+///
+/// Devuelve vacío solo si no hay a dónde volver, y en ese caso no se le
+/// pasa nada a Supabase y manda a lo que tenga configurado el proyecto.
+String vueltaDelCorreo({required bool enLaWeb}) {
+  if (!enLaWeb) return '$esquemaPropio://login-callback/';
+  return urlDeLaApp;
+}
+
 bool get haySupabase =>
     urlSupabase.isNotEmpty && clavePublicaSupabase.isNotEmpty;
 
@@ -80,12 +105,15 @@ class ServidorSupabase implements ServidorDeCuentas {
     }
 
     try {
+      // Sin esto, el enlace del correo apunta a lo que tenga configurado
+      // el proyecto, que de fábrica es localhost. Y en el teléfono, una
+      // dirección web abre el navegador en vez de la app: ver
+      // [vueltaDelCorreo].
+      final vuelta = vueltaDelCorreo(enLaWeb: kIsWeb);
       final r = await _base.auth.signUp(
         email: correo,
         password: clave,
-        // Sin esto, el enlace del correo apunta a lo que tenga
-        // configurado el proyecto, que de fábrica es localhost.
-        emailRedirectTo: urlDeLaApp.isEmpty ? null : urlDeLaApp,
+        emailRedirectTo: vuelta.isEmpty ? null : vuelta,
       );
 
       // Sin sesión quiere decir que Supabase mandó un correo para

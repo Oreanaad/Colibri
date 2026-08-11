@@ -115,3 +115,42 @@ if __name__ == "__main__":
         if d.exists():
             icono(lado).save(d / "ic_launcher.png")
     print("iconos generados en colibri/android/")
+
+    # iPhone. Los tamaños no se escriben acá: se leen del Contents.json
+    # que ya tiene el proyecto. Si Xcode alguna vez pide otro, aparece
+    # ahí y esto lo genera solo, sin que haya que acordarse.
+    #
+    # Van sin margen y sin transparencia: iOS recorta las esquinas él
+    # mismo, y un PNG con canal alfa hace que la subida a la App Store
+    # falle con un error que no dice cuál es el archivo.
+    import json
+
+    ios = pathlib.Path(__file__).parent.parent / "colibri" / "ios"
+    conjunto = ios / "Runner" / "Assets.xcassets" / "AppIcon.appiconset"
+    if (conjunto / "Contents.json").exists():
+        indice = json.loads((conjunto / "Contents.json").read_text())
+        hechos = {}
+        for imagen in indice["images"]:
+            nombre = imagen.get("filename")
+            if not nombre:
+                continue
+            lado = float(imagen["size"].split("x")[0])
+            escala = int(imagen["scale"].rstrip("x"))
+            hechos[nombre] = round(lado * escala)
+        for nombre, lado in sorted(hechos.items()):
+            icono(lado).convert("RGB").save(conjunto / nombre)
+        print(f"iconos generados en colibri/ios/ ({len(hechos)} tamaños)")
+
+    # La pantalla de arranque. La plantilla de Flutter la deja en blanco,
+    # y en una app de fondo violeta oscuro eso es un fogonazo blanco cada
+    # vez que se abre. Un cuadrado del color del fondo alcanza: no se ve
+    # como una pantalla, se ve como que la app ya arrancó.
+    lanzamiento = ios / "Runner" / "Assets.xcassets" / "LaunchImage.imageset"
+    if lanzamiento.exists():
+        for nombre, lado in [
+            ("LaunchImage.png", 1),
+            ("LaunchImage@2x.png", 2),
+            ("LaunchImage@3x.png", 3),
+        ]:
+            Image.new("RGB", (lado, lado), NOCHE).save(lanzamiento / nombre)
+        print("pantalla de arranque generada en colibri/ios/")

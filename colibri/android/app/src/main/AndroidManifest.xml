@@ -24,6 +24,17 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Que ar.colibri.colibri:// abra esta app. Es lo que hace
+                 que el enlace del correo de confirmación vuelva a Colibrí
+                 en vez de dejar a la lectora en el navegador. El mismo
+                 esquema está en ios/Runner/Info.plist y en
+                 `vueltaDelCorreo`, en lib/servidor_supabase.dart. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="ar.colibri.colibri"/>
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
