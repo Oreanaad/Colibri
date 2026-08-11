@@ -47,7 +47,22 @@ import 'ficha.dart';
 /// etiqueta. Se repiten acá a propósito y no se inventan otras: que
 /// parecieran distintas sugeriría que hay más contenido real del que hay.
 class BibliotecaDestacada extends StatefulWidget {
-  const BibliotecaDestacada({super.key});
+  /// Solo el carrusel, sin las reseñas de muestra.
+  ///
+  /// # Por qué existe este modo
+  ///
+  /// El bloque entero mide **1099 píxeles**: el rótulo, el texto, el
+  /// carrusel, el botón, y después las reseñas de muestra. Medido en un
+  /// iPhone 15 Pro —852 px de alto— puesto arriba del estante, el primer
+  /// libro propio caía en y=1286: había que bajar una pantalla y media
+  /// para ver algo tuyo.
+  ///
+  /// En la pantalla de explorar el bloque completo está bien, porque ahí
+  /// no hay nada tuyo que tapar y las reseñas de muestra explican a dónde
+  /// va la app. Arriba de tu biblioteca, no: ahí va solo el carrusel.
+  final bool compacta;
+
+  const BibliotecaDestacada({super.key, this.compacta = false});
 
   @override
   State<BibliotecaDestacada> createState() => _BibliotecaDestacadaState();
@@ -206,8 +221,10 @@ class _BibliotecaDestacadaState extends State<BibliotecaDestacada> {
         const Rotulo('Descubrir'),
         const SizedBox(height: 2),
         Text(
-          'Al azar, de un mazo curado. Todavía no sabemos qué te gusta a '
-          'vos: eso empieza cuando armes tu perfil.',
+          widget.compacta
+              ? 'Al azar, para cuando no sepas qué leer.'
+              : 'Al azar, de un mazo curado. Todavía no sabemos qué te gusta '
+                    'a vos: eso empieza cuando armes tu perfil.',
           style: Tipo.meta,
         ),
         const SizedBox(height: 14),
@@ -232,16 +249,18 @@ class _BibliotecaDestacadaState extends State<BibliotecaDestacada> {
           ),
         ],
 
-        const SizedBox(height: 28),
-        const Rotulo('Reseñas de muestra'),
-        const SizedBox(height: 6),
-        Text(
-          'Todavía no hay comunidad de verdad: esto es cómo se van a ver '
-          'las reseñas cuando la haya.',
-          style: Tipo.meta,
-        ),
-        const SizedBox(height: 12),
-        const _ReseniasDeMuestra(),
+        if (!widget.compacta) ...[
+          const SizedBox(height: 28),
+          const Rotulo('Reseñas de muestra'),
+          const SizedBox(height: 6),
+          Text(
+            'Todavía no hay comunidad de verdad: esto es cómo se van a ver '
+            'las reseñas cuando la haya.',
+            style: Tipo.meta,
+          ),
+          const SizedBox(height: 12),
+          const _ReseniasDeMuestra(),
+        ],
       ],
     );
   }

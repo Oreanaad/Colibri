@@ -163,7 +163,9 @@ void main() {
       await abrir(tester, const PantallaBiblioteca());
 
       expect(find.text('Explorar'), findsNothing);
-      expect(find.textContaining('Cometierra'), findsOneWidget);
+      // Más de uno a propósito: el título va dentro de la tapa dibujada y
+      // además debajo de ella, como nombre del libro en el estante.
+      expect(find.textContaining('Cometierra'), findsWidgets);
     });
 
     testWidgets('armar el perfil desde ahí vuelve al estante solo', (

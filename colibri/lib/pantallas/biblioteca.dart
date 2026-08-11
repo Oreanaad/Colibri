@@ -4,6 +4,7 @@ import '../modelos.dart';
 import '../tema.dart';
 import '../widgets.dart';
 import 'buscar.dart';
+import 'destacados.dart';
 import 'estantes.dart';
 import 'ficha.dart';
 import 'vos.dart';
@@ -255,6 +256,19 @@ class _PantallaBibliotecaState extends State<PantallaBiblioteca> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
       children: [
+        // Descubrir, arriba de tu estante.
+        //
+        // Vivía solo en la pantalla de explorar, o sea que se veía
+        // **únicamente antes de tener perfil**: el día que alguien creaba
+        // su cuenta desaparecía para siempre, justo cuando empieza a
+        // servir para algo. Ahora está en las dos.
+        //
+        // En modo compacto: solo el carrusel, sin las reseñas de muestra.
+        // El bloque entero mide 1099 px y dejaba tu primer libro en
+        // y=1286, o sea una pantalla y media abajo. Ver [BibliotecaDestacada.compacta].
+        const BibliotecaDestacada(compacta: true),
+        const SizedBox(height: 26),
+
         if (ahora != null) ...[
           const Rotulo('Ahora mismo'),
           const SizedBox(height: 10),

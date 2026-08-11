@@ -118,11 +118,22 @@ if echo "$MODO" | grep -qi "disabled"; then
   exit 1
 fi
 
-echo "Instalando en ${TELEFONO}…"
+echo "Compilando…"
 # --release y no debug: en debug el código Dart va interpretado y la app
 # se siente casi tan lenta como la web, que es justo lo que se quiere
-# dejar atrás. En release va compilado.
-flutter run --release -d "$TELEFONO" --dart-define-from-file=claves.json
+# dejar atrás. En release va compilado a instrucciones arm64.
+flutter build ios --release --dart-define-from-file=claves.json
+
+# Y la instalación aparte, con devicectl.
+#
+# `flutter run` también instala, pero después **queda enganchado a la
+# app**: se queda esperando que alguien apriete `q` para desconectarse.
+# Está bien cuando querés ver los mensajes de la app mientras la usás; no
+# está bien cuando lo único que querés es dejarla instalada, porque el
+# comando no termina nunca.
+echo "Instalando en ${TELEFONO}…"
+xcrun devicectl device install app --device "$TELEFONO" \
+  build/ios/iphoneos/Runner.app 2>&1 | grep -E "App installed|bundleID|error|Error" || true
 
 # Y antes de soltar el cable, cuánto dura esta firma. Es el dato que hace
 # que reinstalar sea algo que se agenda en vez de algo que se descubre

@@ -39,11 +39,15 @@ void main() {
     }
   }
 
+  /// Alto generoso por defecto.
+  ///
+  /// Arriba del estante ahora va el carrusel de Descubrir, así que las
+  /// secciones empiezan más abajo, y la lista es perezosa: lo que no entra
+  /// no existe. Estas pruebas miran **qué secciones hay**, no dónde caen;
+  /// dónde caen en un teléfono de verdad lo mide `tamanos_test.dart`.
   Future<void> abrir(WidgetTester tester, {Size? tamano}) async {
-    if (tamano != null) {
-      await tester.binding.setSurfaceSize(tamano);
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-    }
+    await tester.binding.setSurfaceSize(tamano ?? const Size(800, 1600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
       const MaterialApp(home: Scaffold(body: PantallaBiblioteca())),
     );

@@ -836,17 +836,50 @@ class GrillaLibros extends StatelessWidget {
           crossAxisCount: Medidas.columnasParaAncho(medidas.maxWidth),
           crossAxisSpacing: 10,
           mainAxisSpacing: 14,
-          childAspectRatio: 2 / 3,
+          // 0,52 y no 2/3: la tapa sola es 2/3, y abajo van el título y
+          // las estrellas. Sin este aire, la celda le queda corta y el
+          // renglón de abajo se corta con las rayas de error.
+          childAspectRatio: 0.52,
         ),
         itemBuilder: (_, i) {
           final l = libros[i];
           return GestureDetector(
             onTap: () => alTocar(l),
             child: LayoutBuilder(
-              builder: (_, c) => Tapa(
-                l,
-                ancho: c.maxWidth,
-                marcada: marcados.contains(l.clave),
+              builder: (_, c) => Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Tapa(
+                    l,
+                    ancho: c.maxWidth,
+                    marcada: marcados.contains(l.clave),
+                  ),
+                  const SizedBox(height: 5),
+                  // El título debajo de la tapa.
+                  //
+                  // Una grilla de tapas sin nombre obliga a abrir cada una
+                  // para saber qué es, y con veinte libros eso es veinte
+                  // toques. Ya estaba así en Descubrir, donde se probó que
+                  // se puede decidir mirando; en los estantes faltaba.
+                  //
+                  // Dos renglones: los títulos largos —«Harry Potter y la
+                  // Orden del Fénix»— no entran en uno a este ancho, y
+                  // cortarlos en «Harry Potter y la…» los deja sin decir
+                  // cuál es.
+                  Text(
+                    l.titulo,
+                    style: Tipo.meta.copyWith(fontSize: 10.5, height: 1.25),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  // Las estrellas solo si puntuaste. Cinco estrellas
+                  // apagadas en cada libro sin puntaje se leen como un
+                  // cero, y no es cero: es que todavía no dijiste nada.
+                  if (l.puntaje > 0) ...[
+                    const SizedBox(height: 3),
+                    Estrellas(l.puntaje, tamano: 10),
+                  ],
+                ],
               ),
             ),
           );

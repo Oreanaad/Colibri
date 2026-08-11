@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:colibri/cuenta.dart';
 import 'package:colibri/modelos.dart';
 import 'package:colibri/pantallas/biblioteca.dart';
+import 'package:colibri/pantallas/destacados.dart';
 import 'package:colibri/tema.dart';
 import 'package:colibri/widgets.dart';
 
@@ -47,6 +48,144 @@ void main() {
       // enormes y habría que desplazar el doble.
       expect(Medidas.columnasParaAncho(0), 3);
       expect(Medidas.columnasParaAncho(100), 3);
+    });
+  });
+
+  group('Descubrir arriba del estante, sin taparlo', () {
+    // El bug que esto atrapa: Descubrir vivía solo en la pantalla de
+    // explorar, así que se veía únicamente **antes** de tener perfil. Al
+    // subirlo a la biblioteca, el bloque entero medía 1099 px —el
+    // carrusel más las reseñas de muestra más el bloque de Goodreads— y
+    // en un iPhone 15 Pro, de 852 px de alto, el primer libro propio
+    // caía en y=1286: una pantalla y media hacia abajo.
+    //
+    // Arriba del estante va solo el carrusel.
+
+    testWidgets('el estante se ve sin desplazar nada', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      await biblioteca.cargar();
+      for (final l in [...biblioteca.todos]) {
+        await biblioteca.quitar(l);
+      }
+      await cuenta.crear(usuario: 'lectora', nombre: 'L');
+      for (var i = 0; i < 9; i++) {
+        await biblioteca.agregar(
+          Libro(
+            id: '$i',
+            titulo: 'Libro $i',
+            autor: 'Alguien',
+            estado: Estado.pendiente,
+          ),
+        );
+      }
+
+      await tester.binding.setSurfaceSize(const Size(393, 852));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: PantallaBiblioteca())),
+      );
+      await tester.pumpAndSettle();
+
+      // Que Descubrir no se coma la pantalla.
+      final descubrir = tester.getRect(find.byType(BibliotecaDestacada));
+      expect(
+        descubrir.height,
+        lessThan(450),
+        reason: 'el bloque completo mide 1099 px; arriba va el modo compacto',
+      );
+
+      // Y que el estante caiga dentro de la primera pantalla, no solo
+      // dentro del árbol de widgets.
+      expect(find.text('PENDIENTES · 9'), findsOneWidget);
+      expect(tester.getRect(find.text('PENDIENTES · 9')).top, lessThan(852));
+    });
+
+    testWidgets('en explorar sí va el bloque entero', (tester) async {
+      // Ahí no hay nada tuyo que tapar, y las reseñas de muestra son las
+      // que explican a dónde va la app.
+      await tester.binding.setSurfaceSize(const Size(2600, 2400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      SharedPreferences.setMockInitialValues({});
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: BibliotecaDestacada())),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('RESEÑAS DE MUESTRA'), findsOneWidget);
+    });
+
+    testWidgets('en la biblioteca no van las reseñas de muestra', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(2600, 2400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      SharedPreferences.setMockInitialValues({});
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: BibliotecaDestacada(compacta: true)),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('DESCUBRIR'), findsOneWidget);
+      expect(find.text('RESEÑAS DE MUESTRA'), findsNothing);
+    });
+  });
+
+  group('el nombre y las estrellas debajo de cada tapa', () {
+    Future<void> conEstosLibros(WidgetTester tester, List<int> puntajes) async {
+      SharedPreferences.setMockInitialValues({});
+      await biblioteca.cargar();
+      for (final l in [...biblioteca.todos]) {
+        await biblioteca.quitar(l);
+      }
+      await cuenta.crear(usuario: 'lectora', nombre: 'L');
+      for (var i = 0; i < puntajes.length; i++) {
+        await biblioteca.agregar(
+          Libro(
+            id: '$i',
+            titulo: 'Titulo numero $i',
+            autor: 'Alguien',
+            puntaje: puntajes[i],
+          ),
+        );
+      }
+
+      await tester.binding.setSurfaceSize(const Size(500, 1400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: GrillaLibros(biblioteca.todos, alTocar: (_) {})),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('el título va debajo, no solo dentro de la tapa', (
+      tester,
+    ) async {
+      // Una grilla de tapas sin nombre obliga a abrir cada una para saber
+      // qué es. Ya estaba así en Descubrir; en los estantes faltaba.
+      await conEstosLibros(tester, [0, 0, 0]);
+
+      // Dos veces cada uno: en la tapa dibujada y como nombre debajo.
+      expect(find.text('Titulo numero 0'), findsNWidgets(2));
+    });
+
+    testWidgets('las estrellas solo en los que puntuaste', (tester) async {
+      // Cinco estrellas apagadas en cada libro sin puntaje se leen como
+      // un cero, y no es cero: es que todavía no dijiste nada.
+      await conEstosLibros(tester, [5, 0, 3, 0]);
+
+      expect(find.byType(Estrellas), findsNWidgets(2));
+    });
+
+    testWidgets('la celda le da lugar al renglón de abajo', (tester) async {
+      // Con la proporción de la tapa sola —2/3— el título y las estrellas
+      // no entraban y el renglón se cortaba con las rayas de error.
+      await conEstosLibros(tester, [5, 4, 3]);
+
+      expect(tester.takeException(), isNull);
     });
   });
 

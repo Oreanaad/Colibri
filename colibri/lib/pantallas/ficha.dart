@@ -376,7 +376,10 @@ class _PantallaFichaState extends State<PantallaFicha> {
         _Capas(avance: _avance, leyendo: l.estado == Estado.leyendo),
         30,
       ),
-      () => rotulado('La frase más subrayada', const _FraseSubrayada(), 0),
+      // Solo si hay una de verdad. Un rótulo «La frase más subrayada»
+      // arriba de un hueco es peor que no tener la sección.
+      if (_FraseSubrayada.hayAlguna)
+        () => rotulado('La frase más subrayada', const _FraseSubrayada(), 0),
 
       if (enBiblioteca)
         () => Padding(
@@ -1291,35 +1294,32 @@ class _CapasState extends State<_Capas> {
   }
 }
 
-/// La frase va en oro porque es un encuentro: otras personas marcaron
-/// exactamente lo mismo que vos ibas a marcar.
+/// La frase que más gente subrayó de este libro.
+///
+/// # Por qué devuelve nada
+///
+/// Acá había una frase fija —«La oscuridad no se hereda…»— con el texto
+/// «subrayada por 43 personas» debajo, en oro. Salía igual en la ficha de
+/// cualquier libro: en el oro que esta app reserva para los encuentros con
+/// otra persona, debía de una novela que no la contiene, con un número de
+/// personas que no existen.
+///
+/// El oro es la promesa más fuerte de Colibrí: «alguien más marcó esto».
+/// Gastarla en algo inventado la vacía para cuando sea verdad.
+///
+/// Cuando haya frases subidas de varias personas, esto va a mirar la tabla
+/// `frases` y traer la más repetida de esta edición. Hasta entonces
+/// devuelve nada, y la ficha no dibuja la sección: ver [_secciones].
 class _FraseSubrayada extends StatelessWidget {
   const _FraseSubrayada();
 
+  /// Todavía no hay de dónde sacarla.
+  ///
+  /// Es un getter y no una constante para que se lea como lo que es: una
+  /// pregunta que hoy siempre se contesta «no» y que mañana va a mirar la
+  /// base.
+  static bool get hayAlguna => false;
+
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: const BoxDecoration(
-        color: Paleta.oroTenue,
-        border: Border(left: BorderSide(color: Paleta.oro, width: 3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '“La oscuridad no se hereda: se elige, todos los días, en cosas '
-            'muy pequeñas.”',
-            style: Tipo.lectura,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'subrayada por 43 personas',
-            style: Tipo.meta.copyWith(color: Paleta.oro, fontSize: 11.5),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }
