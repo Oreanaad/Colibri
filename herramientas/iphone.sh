@@ -41,7 +41,8 @@ set -euo pipefail
 export PATH="$PATH:/Users/oreanaad/flutter/bin"
 export PATH="/opt/homebrew/bin:$PATH" # CocoaPods, instalado con brew
 
-cd "$(dirname "${BASH_SOURCE[0]}")/../colibri"
+HERRAMIENTAS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$HERRAMIENTAS/../colibri"
 
 if ! xcodebuild -version >/dev/null 2>&1; then
   echo "Falta Xcode."
@@ -139,4 +140,4 @@ xcrun devicectl device install app --device "$TELEFONO" \
 # que reinstalar sea algo que se agenda en vez de algo que se descubre
 # cuando la app no abre.
 echo
-"$(dirname "${BASH_SOURCE[0]}")/dias.sh" || true
+"$HERRAMIENTAS/dias.sh" || true
