@@ -3,16 +3,18 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'api.dart';
 import 'fanfic.dart';
 import 'modelos.dart';
 
-/// Subir tu biblioteca a Supabase.
+/// Tu biblioteca, de ida y de vuelta con Supabase.
 ///
-/// # Lo que hace y lo que no
+/// # Las dos direcciones
 ///
-/// Sube. No hay "bajar" todavía: entrar en un teléfono nuevo te trae el
-/// perfil, pero no tus libros. Traerlos es el paso que sigue a este, y
-/// no está hecho a propósito de dejarlo afuera en vez de hacerlo mal.
+/// Sube sola, libro por libro, a medida que cambian ([conectar]). Y baja
+/// cuando entrás, o cuando lo pedís desde tu perfil ([bajarTodo]). Durante
+/// un tiempo solo subía, y eso hacía que la nube fuera un pozo: entrar en
+/// un teléfono nuevo te traía el perfil y una biblioteca vacía.
 ///
 /// # Por qué Biblioteca no sabe que esto existe
 ///
@@ -36,14 +38,38 @@ import 'modelos.dart';
 /// de nuevo. Sin algo que la recuerde, cada vez que tocaras una estrella
 /// de un libro cargado a mano se crearía **una edición nueva**. Por eso
 /// se guarda, en este teléfono, qué fila de la nube le corresponde a cada
-/// libro. Si se pierde esa libreta —la app se reinstala, se borra el
-/// almacenamiento— el próximo cambio crea una edición de más: la lectura
-/// no se pierde, pero el catálogo le queda un fantasma. Es una limitación
-/// conocida y no un bug que se nos escapó.
+/// libro.
+///
+/// Perder esa libreta —reinstalar la app, borrar el almacenamiento— dejaba
+/// un fantasma en el catálogo al primer cambio. Ahora [bajarTodo] la
+/// reconstruye, porque cada lectura viene con el id de su edición: era una
+/// limitación conocida y dejó de serlo cuando se pudo bajar.
 class Nube {
   static const _clave = 'colibri.nube.v1';
 
   SupabaseClient get _base => Supabase.instance.client;
+
+  /// Quién está en sesión, o `null` si no hay a quién preguntarle.
+  ///
+  /// # Por qué no alcanza con `_base.auth.currentUser`
+  ///
+  /// Porque `Supabase.instance` **tira** si la app arrancó sin claves, y
+  /// ese acceso estaba afuera del `try` de cada método: en vez de no
+  /// hacer nada, se caía. En la app no se notaba porque `main` solo
+  /// engancha la nube cuando hay claves, así que el camino era
+  /// inalcanzable; pero era una trampa esperando a que alguien llamara a
+  /// estos métodos desde otro lado, y hacía que la clase no se pudiera
+  /// probar sin un servidor de verdad.
+  ///
+  /// Sin servidor y sin sesión son el mismo caso desde acá: no hay dónde
+  /// guardar nada, y la biblioteca sigue viviendo en el teléfono.
+  String? get _quienSoy {
+    try {
+      return _base.auth.currentUser?.id;
+    } catch (_) {
+      return null;
+    }
+  }
 
   /// Cuelga esta nube de una biblioteca. A partir de acá, cada cambio
   /// intenta subirse solo.
@@ -68,9 +94,47 @@ class Nube {
     }
   }
 
-  Future<void> subirLibro(Libro libro) async {
-    final yo = _base.auth.currentUser;
-    if (yo == null) return;
+  /// Poner las dos puntas de acuerdo: bajar lo que falta acá y subir lo
+  /// que falta allá.
+  ///
+  /// # El orden importa, y el segundo paso mira una lista de antes
+  ///
+  /// Se baja primero. Si se subiera primero, en un teléfono recién
+  /// reinstalado no habría nada que subir y después la bajada traería todo
+  /// igual, así que da lo mismo; pero al revés no: bajar primero deja la
+  /// biblioteca completa antes de decidir qué mandar.
+  ///
+  /// Y se manda **solo lo que ya estaba en el teléfono**, no todo. Un
+  /// libro que acaba de bajar ya está en la nube por definición: subirlo
+  /// de nuevo son seis pedidos para dejar todo exactamente como estaba.
+  /// Con doscientos libros, más de mil pedidos desde un teléfono para
+  /// nada. Por eso se anotan las claves antes de bajar.
+  Future<({int bajados, int subidos})> sincronizar(
+    Biblioteca biblioteca,
+  ) async {
+    final yaEstaban = {for (final l in biblioteca.todos) l.clave};
+
+    final bajados = await bajarTodo(biblioteca);
+
+    var subidos = 0;
+    for (final libro in biblioteca.todos) {
+      if (!yaEstaban.contains(libro.clave)) continue;
+      if (await subirLibro(libro)) subidos++;
+    }
+
+    return (bajados: bajados, subidos: subidos);
+  }
+
+  /// Sube un libro. Devuelve si de verdad llegó.
+  ///
+  /// Devuelve algo aunque el enganche de [Biblioteca] no lo mire: quien
+  /// sincroniza necesita saber cuántos llegaron para poder decirlo, y
+  /// contar las llamadas en vez de los resultados sería contar mal. Esta
+  /// función se traga los errores a propósito —abajo se explica por qué—
+  /// así que desde afuera no habría otra forma de enterarse.
+  Future<bool> subirLibro(Libro libro) async {
+    final yo = _quienSoy;
+    if (yo == null) return false;
 
     try {
       final registro = await _leerRegistro(libro.clave);
@@ -82,11 +146,11 @@ class Nube {
         fanficId = await _idDeFanfic(libro);
         edicionId = null;
       } else {
-        final obraId = await _idDeObra(libro, cargadaPor: yo.id);
+        final obraId = await _idDeObra(libro, cargadaPor: yo);
         edicionId = await _idDeEdicion(
           libro,
           obraId: obraId,
-          cargadaPor: yo.id,
+          cargadaPor: yo,
           cacheado: registro?.edicionId,
         );
         fanficId = null;
@@ -97,7 +161,7 @@ class Nube {
           .upsert(
             filaDeLectura(
               libro,
-              perfilId: yo.id,
+              perfilId: yo,
               edicionId: edicionId,
               fanficId: fanficId,
             ),
@@ -114,17 +178,111 @@ class Nube {
         _Registro(edicionId: edicionId, fanficId: fanficId),
       );
 
-      await _reemplazarHijos(libro, lecturaId, perfilId: yo.id);
+      await _reemplazarHijos(libro, lecturaId, perfilId: yo);
+      return true;
     } catch (_) {
       // Sin internet, o el servidor no contestó: la lectura queda igual
       // en el teléfono. Se va a volver a intentar la próxima vez que se
       // toque este libro, y no hay nada que romper acá adentro: el
       // guardado local ya pasó antes de que se llame a esto.
+      return false;
     }
   }
 
+  /// Traer de la nube los libros que este teléfono no tiene.
+  ///
+  /// # Por qué esto importa más que parecía
+  ///
+  /// Sin esto, la nube era un pozo: todo entraba y nada salía. Entrar con
+  /// tu cuenta en un teléfono nuevo te traía el perfil y una biblioteca
+  /// vacía, y reinstalar la app era perder todo aunque estuviera guardado
+  /// del otro lado. Con la firma gratis de Apple, que dura siete días,
+  /// reinstalar no es un accidente raro: es todas las semanas.
+  ///
+  /// # Lo que hace con lo que ya está
+  ///
+  /// **No pisa nada.** Un libro que ya está en el teléfono se saltea, con
+  /// lo que tenga puesto. La razón es que no se puede saber cuál de las
+  /// dos versiones es la más nueva: la base guarda cuándo se actualizó la
+  /// lectura, pero el teléfono no guarda nada equivalente, así que
+  /// comparar sería inventar. Ante la duda gana lo que está a la vista,
+  /// que es lo que la lectora acaba de escribir.
+  ///
+  /// Es la misma regla que [Biblioteca.agregarVarios] ya usaba para
+  /// Goodreads, y por eso se usa esa y no un bucle de `agregar`.
+  ///
+  /// # De paso arregla la libreta
+  ///
+  /// La libreta —qué fila de la nube es cada libro— vivía solo en este
+  /// teléfono, y el comentario de arriba de [Nube] decía que perderla
+  /// dejaba un fantasma en el catálogo la próxima vez que se editara algo.
+  /// Bajando se puede reconstruir, porque cada lectura viene con el id de
+  /// su edición o de su fanfic. Así que reinstalar ya no deja fantasmas.
+  ///
+  /// Devuelve cuántos entraron.
+  Future<int> bajarTodo(Biblioteca biblioteca) async {
+    final yo = _quienSoy;
+    if (yo == null) return 0;
+
+    final List<dynamic> filas;
+    try {
+      filas = await _base
+          .from('lecturas')
+          .select(todoLoDeUnaLectura)
+          .eq('perfil_id', yo);
+    } catch (_) {
+      // Sin internet o el servidor no contestó. La biblioteca local queda
+      // como estaba, que es lo correcto: no bajar nada no rompe nada.
+      return 0;
+    }
+
+    final libros = <Libro>[];
+    final direcciones = <String, _Registro>{};
+
+    for (final cruda in filas) {
+      final fila = (cruda as Map).cast<String, dynamic>();
+      final libro = libroDeFila(fila);
+      if (libro == null) continue;
+      libros.add(libro);
+      direcciones[libro.clave] = _Registro(
+        edicionId: fila['edicion_id'] as String?,
+        fanficId: fila['fanfic_id'] as String?,
+      );
+    }
+
+    // Los estantes tienen que existir en la lista aparte, no solo dentro
+    // de los libros: sin esto un estante bajado no aparece como solapa.
+    for (final libro in libros) {
+      for (final estante in libro.estantes) {
+        await biblioteca.crearEstante(estante); // ignora los repetidos
+      }
+    }
+
+    // Sin el enganche mientras entran. Si no, cada libro que acaba de
+    // bajar se sube de nuevo al instante: con doscientos libros son más
+    // de mil pedidos para dejar la nube exactamente como estaba.
+    final enganche = biblioteca.alGuardarUnLibro;
+    biblioteca.alGuardarUnLibro = null;
+    final int cuantos;
+    try {
+      cuantos = await biblioteca.agregarVarios(libros);
+    } finally {
+      biblioteca.alGuardarUnLibro = enganche;
+    }
+
+    // La libreta se guarda para todos los que bajaron, no solo para los
+    // que entraron: si un libro ya estaba en el teléfono pero la libreta
+    // se había perdido, esta es justo la ocasión de recuperar su
+    // dirección, y es el caso que dejaba fantasmas.
+    for (final entrada in direcciones.entries) {
+      await _guardarRegistro(entrada.key, entrada.value);
+    }
+
+    return cuantos;
+  }
+
   Future<void> borrarLibro(String clave) async {
-    final yo = _base.auth.currentUser;
+    final yo = _quienSoy;
     if (yo == null) return;
 
     try {
@@ -134,7 +292,7 @@ class Nube {
       // Se borra la lectura, nunca la obra ni la edición ni el fanfic:
       // esos son del catálogo compartido, y sacar tu lectura no puede
       // sacarle el libro a nadie más.
-      final query = _base.from('lecturas').delete().eq('perfil_id', yo.id);
+      final query = _base.from('lecturas').delete().eq('perfil_id', yo);
       if (registro.edicionId != null) {
         await query.eq('edicion_id', registro.edicionId!);
       } else if (registro.fanficId != null) {
@@ -378,7 +536,13 @@ Map<String, dynamic> filaDeEdicion(
   'editorial': libro.editorial,
   'anio': libro.anio,
   'paginas': libro.paginas,
-  'tapa_url': libro.tapaUrl,
+  // La dirección resuelta y no `libro.tapaUrl` a secas. Los libros que
+  // vienen de Open Library —o sea casi todos— no traen una dirección:
+  // traen un número de tapa, y la dirección se arma con él. Mandando el
+  // campo crudo se subía `null`, y la tapa se perdía en el viaje: al
+  // bajar la biblioteca en otro teléfono, esos libros salían con la tapa
+  // dibujada en vez de la de verdad. Ver [Api.tapaDe].
+  'tapa_url': Api.tapaDe(libro),
   'isbn': libro.isbn,
   'origen': libro.origen == Origen.propio ? 'propio' : 'catalogo',
   'cargada_por': cargadaPor,
@@ -412,6 +576,128 @@ Map<String, dynamic> filaDeLectura(
   if (libro.terminado != null) 'terminado': _yyyyMMdd(libro.terminado!),
   'resena': libro.resena,
   'resena_con_spoilers': libro.resenaConSpoilers,
+};
+
+/// Todo lo que hace falta de una lectura, en un solo pedido.
+///
+/// # Por qué una sola consulta y no siete
+///
+/// Una lectura son ocho tablas: la lectura, su edición, la obra de esa
+/// edición —o el fanfic, si es uno—, los ánimos, los personajes, las
+/// frases, y los estantes por el medio. Pidiéndolas de a una serían ocho
+/// viajes por libro: con doscientos libros, mil seiscientos pedidos desde
+/// un teléfono. Así es uno.
+///
+/// Los nombres entre paréntesis no son inventados: PostgREST los resuelve
+/// siguiendo las claves ajenas que ya están declaradas en el esquema. Si
+/// alguno estuviera mal escrito, la respuesta sería un 400 diciendo cuál,
+/// y eso es justo lo que prueba `servidor/probar_bajada.sh`.
+const todoLoDeUnaLectura =
+    '*,'
+    'ediciones(*,obras(titulo,autor)),'
+    'fanfics(*),'
+    'lectura_animos(animo),'
+    'personajes(nombre),'
+    'frases(texto,pagina,creada),'
+    'estante_lecturas(estantes(nombre))';
+
+/// Una lectura de la nube, convertida en un [Libro] de la app.
+///
+/// Es lo inverso de [filaDeLectura] y compañía, y como ellas es pura: se
+/// le da el mapa que devolvió PostgREST y devuelve el libro, sin tocar la
+/// red. Por eso se puede probar de verdad, con las respuestas que da el
+/// servidor, en vez de solo esperar que ande.
+///
+/// Devuelve `null` si la fila no tiene ni edición ni fanfic. La base no
+/// deja que eso pase —hay un `check` que lo prohíbe— pero la app no tiene
+/// por qué caerse si algún día pasa.
+Libro? libroDeFila(Map<String, dynamic> fila) {
+  final edicion = (fila['ediciones'] as Map?)?.cast<String, dynamic>();
+  final fanfic = (fila['fanfics'] as Map?)?.cast<String, dynamic>();
+  if (edicion == null && fanfic == null) return null;
+
+  final paginas = (edicion?['paginas'] ?? fanfic?['capitulos']) as int?;
+
+  return Libro(
+    // El id que tenía en el teléfono de antes no viajó, así que se usa el
+    // de la nube. No se pierde nada por eso: lo único que lo usaba era
+    // pedirle a Open Library las otras ediciones, y [Api.ediciones] ya
+    // sabe arreglárselas cuando el id no es uno de Open Library —busca la
+    // obra por título y autoría—, porque hacía falta para los libros que
+    // vienen de Google.
+    id: (edicion?['id'] ?? fanfic?['id']) as String,
+    titulo: (edicion?['titulo'] ?? fanfic?['titulo']) as String,
+    autor:
+        ((edicion?['obras'] as Map?)?['autor'] ?? fanfic?['autoria'] ?? '')
+            as String,
+    tapaUrl: edicion?['tapa_url'] as String?,
+    isbn: edicion?['isbn'] as String?,
+    enlace: fanfic?['enlace'] as String?,
+    fandom: fanfic?['fandom'] as String?,
+    editorial: edicion?['editorial'] as String?,
+    anio: edicion?['anio'] as int?,
+    paginas: paginas,
+    origen: fanfic != null
+        ? Origen.fanfic
+        : edicion?['origen'] == 'propio'
+        ? Origen.propio
+        : Origen.catalogo,
+    estado: _estadoDe(fila['estado'] as String?),
+    puntaje: (fila['puntaje'] as int?) ?? 0,
+    lagrimas: (fila['lagrimas'] as int?) ?? 0,
+    romantico: (fila['romantico'] as int?) ?? 0,
+    picante: (fila['picante'] as int?) ?? 0,
+    paginaActual: (fila['pagina_actual'] as int?) ?? 0,
+    empezado: DateTime.tryParse((fila['empezado'] as String?) ?? ''),
+    terminado: DateTime.tryParse((fila['terminado'] as String?) ?? ''),
+    resena: fila['resena'] as String?,
+    resenaConSpoilers: (fila['resena_con_spoilers'] as bool?) ?? false,
+    animos: _lista(fila['lectura_animos'], 'animo'),
+    personajes: _lista(fila['personajes'], 'nombre'),
+    frases: _frasesDe(fila['frases'], paginas: paginas),
+    estantes: _estantesDe(fila['estante_lecturas']),
+  );
+}
+
+Estado _estadoDe(String? nombre) => Estado.values.firstWhere(
+  (e) => e.name == nombre,
+  orElse: () => Estado.pendiente,
+);
+
+/// Los valores de una columna, de una lista de filas embebidas.
+List<String> _lista(Object? filas, String columna) => [
+  if (filas is List)
+    for (final f in filas)
+      if (f is Map && f[columna] is String) f[columna] as String,
+];
+
+/// Las frases, con la posición reconstruida.
+///
+/// La app guarda dónde estaba la frase como una fracción de 0 a 1 y la
+/// base guarda un número de página: ver [paginaDeFrase], que hace el
+/// camino de ida. La vuelta divide por las páginas **de esta** edición, y
+/// solo si se conocen las dos cosas. Si no, la frase igual vuelve: el
+/// texto es lo que importa, la posición es el adorno.
+List<Frase> _frasesDe(Object? filas, {int? paginas}) => [
+  if (filas is List)
+    for (final f in filas)
+      if (f is Map && f['texto'] is String)
+        Frase(
+          texto: f['texto'] as String,
+          guardada: DateTime.tryParse((f['creada'] as String?) ?? ''),
+          posicion: (f['pagina'] is int && paginas != null && paginas > 0)
+              ? ((f['pagina'] as int) / paginas).clamp(0.0, 1.0)
+              : null,
+        ),
+];
+
+/// Los estantes vienen con una tabla del medio, así que hay dos niveles.
+Set<String> _estantesDe(Object? filas) => {
+  if (filas is List)
+    for (final f in filas)
+      if (f is Map && f['estantes'] is Map)
+        if ((f['estantes'] as Map)['nombre'] is String)
+          (f['estantes'] as Map)['nombre'] as String,
 };
 
 String _yyyyMMdd(DateTime d) {

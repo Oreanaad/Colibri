@@ -95,3 +95,9 @@ echo "Instalando en $TELEFONO…"
 # se siente casi tan lenta como la web, que es justo lo que se quiere
 # dejar atrás. En release va compilado.
 flutter run --release -d "$TELEFONO" --dart-define-from-file=claves.json
+
+# Y antes de soltar el cable, cuánto dura esta firma. Es el dato que hace
+# que reinstalar sea algo que se agenda en vez de algo que se descubre
+# cuando la app no abre.
+echo
+"$(dirname "${BASH_SOURCE[0]}")/dias.sh" || true

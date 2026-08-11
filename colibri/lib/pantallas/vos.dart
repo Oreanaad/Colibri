@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../cuenta.dart';
 import '../modelos.dart';
+import '../nube.dart';
 import '../tema.dart';
 import '../widgets.dart';
 import '../insignias.dart';
@@ -361,6 +362,50 @@ class _ComoTeDejan extends StatelessWidget {
 }
 
 /// Dónde vive todo esto, dicho sin vueltas.
+/// Traer la biblioteca de la nube, a mano.
+///
+/// # Por qué hace falta un botón si ya se hace solo
+///
+/// Al entrar se sincroniza sin que nadie lo pida, pero eso pasa una vez y
+/// puede fallar: justo en ese momento no había señal, o el servidor no
+/// contestó. Sin un botón, la única forma de reintentar sería salir y
+/// volver a entrar, y quien acaba de reinstalar la app y ve su biblioteca
+/// vacía no tiene por qué adivinar eso.
+///
+/// Y con la firma gratis de Apple —siete días— reinstalar no es algo raro
+/// que pasa una vez: es todas las semanas.
+class _TraerMisLibros extends StatefulWidget {
+  const _TraerMisLibros();
+
+  @override
+  State<_TraerMisLibros> createState() => _TraerMisLibrosState();
+}
+
+class _TraerMisLibrosState extends State<_TraerMisLibros> {
+  bool _trayendo = false;
+
+  Future<void> _traer() async {
+    if (_trayendo) return; // dos toques no son dos sincronizaciones
+    setState(() => _trayendo = true);
+
+    final cuenta = await nube.sincronizar(biblioteca);
+    if (!mounted) return;
+
+    setState(() => _trayendo = false);
+    avisar(ScaffoldMessenger.of(context), switch (cuenta.bajados) {
+      0 => 'Ya tenías todo lo que hay en tu cuenta.',
+      1 => 'Volvió 1 libro.',
+      final n => 'Volvieron $n libros.',
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => BotonContorno(
+    _trayendo ? 'Trayendo…' : 'Traer mis libros',
+    alTocar: _trayendo ? null : _traer,
+  );
+}
+
 class _EstadoDeLaCuenta extends StatelessWidget {
   const _EstadoDeLaCuenta();
 
@@ -391,6 +436,7 @@ class _EstadoDeLaCuenta extends StatelessWidget {
             style: Tipo.meta.copyWith(color: aSalvo ? null : Paleta.oroTexto),
           ),
           const SizedBox(height: 12),
+          if (aSalvo) ...[const _TraerMisLibros(), const SizedBox(height: 10)],
           BotonContorno(
             'Borrar mi perfil',
             alTocar: () => _confirmarSalir(context),

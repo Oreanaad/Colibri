@@ -339,8 +339,11 @@ void main() {
 
       // La señal que faltaba: la pantalla de entrar ya no está.
       expect(find.byType(PantallaEntrar), findsNothing);
+      // Dice «trayendo» y no «subiendo»: entrar es el momento en que
+      // alguien llega desde un teléfono nuevo o reinstalado, y lo que
+      // espera es que aparezcan sus libros, no que se vayan los de acá.
       expect(
-        find.text('Sesión iniciada. Tu biblioteca se está subiendo.'),
+        find.text('Sesión iniciada. Estamos trayendo tu biblioteca.'),
         findsOneWidget,
       );
 

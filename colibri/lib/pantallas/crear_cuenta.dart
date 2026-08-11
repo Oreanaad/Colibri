@@ -686,15 +686,23 @@ class _PantallaEntrarState extends State<PantallaEntrar> {
       return;
     }
 
-    // Puede haber quedado biblioteca armada en este teléfono desde antes
-    // de confirmar el correo: sube ahora que ya hay sesión.
-    unawaited(nube.subirTodo(biblioteca));
+    // Las dos direcciones, y en este orden: ver [Nube.sincronizar].
+    //
+    // Bajar es lo que importa acá y no subir, que era lo único que se
+    // hacía antes. Éste es el momento en que alguien entra en un teléfono
+    // reinstalado o nuevo: si solo se subiera, se quedaría mirando una
+    // biblioteca vacía con todos sus libros guardados del otro lado.
+    //
+    // Sin esperarlo: los libros van a ir apareciendo solos, porque la
+    // biblioteca avisa cuando entran. Quedarse con la pantalla trabada
+    // mientras bajan doscientos no le sirve a nadie.
+    unawaited(nube.sincronizar(biblioteca));
 
     // El mensajero se guarda antes de cerrar: después del pop este
     // contexto ya no existe.
     final mensajero = ScaffoldMessenger.of(context);
     Navigator.of(context).pop();
-    avisar(mensajero, 'Sesión iniciada. Tu biblioteca se está subiendo.');
+    avisar(mensajero, 'Sesión iniciada. Estamos trayendo tu biblioteca.');
   }
 
   @override
