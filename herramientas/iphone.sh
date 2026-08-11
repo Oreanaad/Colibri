@@ -90,7 +90,35 @@ if [ -z "$TELEFONO" ]; then
   exit 1
 fi
 
-echo "Instalando en $TELEFONO…"
+# El candado que Apple agregó en iOS 16, y que no se parece a un candado.
+#
+# Confiar en la computadora no alcanza: el teléfono además tiene que estar
+# en "modo de desarrollador", y hasta que lo esté, Apple **no registra el
+# teléfono** y por lo tanto no emite la firma. El error que llega es
+# "Your team has no devices from which to generate a provisioning
+# profile", que suena a que el cable no está puesto y no tiene nada que
+# ver: el cable estaba puesto, el teléfono aparecía en `flutter devices`,
+# y el problema estaba en Ajustes.
+#
+# Se revisa antes de compilar porque compilar tarda minutos y el error
+# aparece recién al final, después de todo el trabajo, diciendo otra cosa.
+MODO=$(xcrun devicectl device info details --device "$TELEFONO" 2>/dev/null \
+  | grep -i "developerModeStatus" | head -1)
+
+if echo "$MODO" | grep -qi "disabled"; then
+  echo "El iPhone no está en modo de desarrollador."
+  echo
+  echo "  En el teléfono:"
+  echo "  1. Ajustes -> Privacidad y seguridad"
+  echo "  2. Abajo del todo: Modo de desarrollador -> activar"
+  echo "  3. Te pide reiniciar. Reiniciá."
+  echo "  4. Al encender sale '¿Activar el modo de desarrollador?' -> Activar"
+  echo
+  echo "  El paso 4 aparece una sola vez, después de reiniciar."
+  exit 1
+fi
+
+echo "Instalando en ${TELEFONO}…"
 # --release y no debug: en debug el código Dart va interpretado y la app
 # se siente casi tan lenta como la web, que es justo lo que se quiere
 # dejar atrás. En release va compilado.

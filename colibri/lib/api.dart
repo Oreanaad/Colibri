@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'google.dart';
 import 'isbn.dart';
 import 'modelos.dart';
@@ -15,6 +16,13 @@ import 'modelos.dart';
 ///
 /// Cuando no se filtra por idioma, todas caen en [confirmadas].
 typedef Ediciones = ({List<Libro> confirmadas, List<Libro> sinIdioma});
+
+/// Una edición con los idiomas que Open Library le anotó.
+///
+/// Los idiomas van al lado del libro y no adentro porque un libro no tiene
+/// idioma: lo tiene su edición. Agregarle un campo al modelo entero por
+/// algo que solo usa la pantalla de elegir edición sería ensuciarlo.
+typedef Edicion = ({Libro libro, List<String> idiomas});
 
 /// Open Library: abierta, gratis y sin clave.
 /// Es floja en ediciones latinoamericanas, y esta demo sirve justamente
@@ -342,64 +350,159 @@ class Api {
     String? idioma,
     int maximo = 40,
   }) async {
-    // El id de la obra viene de la búsqueda, con la forma /works/OL123W.
-    var obraId = obra.id;
-
-    if (!obraId.startsWith('/works/')) {
-      // Vino de Google o lo cargó alguien a mano: no tiene obra en Open
-      // Library, así que primero hay que encontrarla por título y autoría.
-      // Sin esto, justo los libros del segundo catálogo —que son los que
-      // más se escanean— eran los únicos que no podían cambiar de edición.
-      final enOpenLibrary = await primero(obra.titulo, obra.autor);
-      if (enOpenLibrary == null || !enOpenLibrary.id.startsWith('/works/')) {
-        return const (confirmadas: <Libro>[], sinIdioma: <Libro>[]);
-      }
-      obraId = enOpenLibrary.id;
+    final obraId = await _obraEnOpenLibrary(obra);
+    if (obraId == null) {
+      return const (confirmadas: <Libro>[], sinIdioma: <Libro>[]);
     }
+
+    final entradas = await _entradasDeEdiciones(obraId);
+    if (entradas == null) {
+      return const (confirmadas: <Libro>[], sinIdioma: <Libro>[]);
+    }
+
+    return porIdioma(edicionesDe(entradas, obra, obraId), idioma);
+  }
+
+  /// Todas las ediciones de una obra, sin filtrar por idioma.
+  ///
+  /// Es lo que usa la pantalla de elegir edición: pide una vez y después
+  /// filtra en el teléfono con [porIdioma], en vez de volver a preguntarle
+  /// a Open Library cada vez que alguien toca un idioma.
+  static Future<List<Edicion>> todasLasEdiciones(Libro obra) async {
+    final obraId = await _obraEnOpenLibrary(obra);
+    if (obraId == null) return const [];
+
+    final entradas = await _entradasDeEdiciones(obraId);
+    if (entradas == null) return const [];
+
+    return edicionesDe(entradas, obra, obraId);
+  }
+
+  /// El id de la obra con la forma `/works/OL123W`, buscándolo si hace falta.
+  ///
+  /// Un libro que vino de Google o que alguien cargó a mano no tiene obra
+  /// en Open Library, así que primero hay que encontrarla por título y
+  /// autoría. Sin esto, justo los libros del segundo catálogo —que son los
+  /// que más se escanean— eran los únicos que no podían cambiar de edición.
+  static Future<String?> _obraEnOpenLibrary(Libro obra) async {
+    if (obra.id.startsWith('/works/')) return obra.id;
+
+    final enOpenLibrary = await primero(obra.titulo, obra.autor);
+    if (enOpenLibrary == null || !enOpenLibrary.id.startsWith('/works/')) {
+      return null;
+    }
+    return enOpenLibrary.id;
+  }
+
+  /// Las ediciones crudas de una obra, pedidas una sola vez.
+  ///
+  /// # Por qué se guardan
+  ///
+  /// Este es el pedido más lento de toda la app, y no por nuestra culpa:
+  /// medido contra Open Library, la mediana es de 12 segundos y la cola
+  /// llega a 60, con 503 de vez en cuando. **Y no depende de cuánto se le
+  /// pida**: `limit=24` tarda lo mismo que `limit=200` (11,9 s contra
+  /// 13,0 s), así que pedir menos no arregla nada; el trabajo es del lado
+  /// del servidor, no del transporte.
+  ///
+  /// Lo único que está en nuestra mano es que pase una sola vez. La lista
+  /// de ediciones de un libro no cambia de un día para el otro, así que se
+  /// guarda una semana. Volver a la misma pantalla pasa a ser instantáneo.
+  static Future<List<Map<String, dynamic>>?> _entradasDeEdiciones(
+    String obraId,
+  ) async {
+    final guardadas = await _leerEdicionesGuardadas(obraId);
+    if (guardadas != null) return guardadas;
 
     final uri = Uri.https('openlibrary.org', '$obraId/editions.json', {
       'limit': '200',
     });
 
-    final respuesta = await http
-        .get(uri, headers: _cabeceras)
-        .timeout(const Duration(seconds: 20));
-    if (respuesta.statusCode != 200) {
-      return const (confirmadas: <Libro>[], sinIdioma: <Libro>[]);
+    try {
+      final respuesta = await http
+          .get(uri, headers: _cabeceras)
+          // 20 segundos era poco: la cola de este endpoint pasa de 45. Con
+          // 40 se atrapan casi todas las respuestas lentas en vez de
+          // tirarlas justo antes de que lleguen.
+          .timeout(const Duration(seconds: 40));
+      if (respuesta.statusCode != 200) return null;
+
+      final datos = jsonDecode(utf8.decode(respuesta.bodyBytes));
+      final entradas = ((datos['entries'] as List?) ?? const [])
+          .cast<Map<String, dynamic>>();
+
+      await _guardarEdiciones(obraId, entradas);
+      return entradas;
+    } catch (_) {
+      return null;
     }
+  }
 
-    final datos = jsonDecode(utf8.decode(respuesta.bodyBytes));
-    final entradas = (datos['entries'] as List?) ?? const [];
+  static const _claveEdiciones = 'colibri.ediciones.v1';
+  static const _duranEdiciones = Duration(days: 7);
 
-    final salida = <Libro>[];
-    final sinIdioma = <Libro>[];
+  static Future<List<Map<String, dynamic>>?> _leerEdicionesGuardadas(
+    String obraId,
+  ) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final crudo = prefs.getString('$_claveEdiciones.$obraId');
+      if (crudo == null) return null;
 
-    for (final e in entradas.cast<Map<String, dynamic>>()) {
+      final guardado = jsonDecode(crudo) as Map<String, dynamic>;
+      final cuando = DateTime.tryParse((guardado['cuando'] as String?) ?? '');
+      if (cuando == null ||
+          DateTime.now().difference(cuando) > _duranEdiciones) {
+        return null;
+      }
+
+      return (guardado['entries'] as List).cast<Map<String, dynamic>>();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> _guardarEdiciones(
+    String obraId,
+    List<Map<String, dynamic>> entradas,
+  ) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        '$_claveEdiciones.$obraId',
+        jsonEncode({
+          'cuando': DateTime.now().toIso8601String(),
+          'entries': entradas,
+        }),
+      );
+    } catch (_) {
+      // Si no se pudo guardar, la próxima vez se pide de nuevo y listo.
+    }
+  }
+
+  /// Cada entrada cruda, convertida en un libro con sus idiomas al lado.
+  ///
+  /// Los idiomas viajan aparte del [Libro] porque un libro no tiene idioma
+  /// —tiene el de su edición— y agregarle un campo que solo usa esta
+  /// pantalla sería ensuciar el modelo entero por una lista.
+  static List<Edicion> edicionesDe(
+    List<Map<String, dynamic>> entradas,
+    Libro obra,
+    String obraId,
+  ) {
+    final salida = <Edicion>[];
+
+    for (final e in entradas) {
       final idiomas = ((e['languages'] as List?) ?? const [])
           .map((l) => ((l as Map)['key'] as String?) ?? '')
           .map((k) => k.split('/').last)
           .toList();
 
-      // Open Library muchas veces no anota el idioma. No es un caso raro:
-      // de las 200 ediciones de Harry Potter, **78 no lo tienen**, y la
-      // primera de esa lista es «Harry Potter y la piedra filosofal» de
-      // Salamandra. Filtrando por español, esa quedaba afuera.
-      //
-      // No se adivina por el título: «Pedra Filosofal» es portugués y
-      // «kamień filozoficzny» es polaco, y equivocarse sería peor que no
-      // saber. Se muestran aparte y se avisa que el catálogo no lo dice.
-      final desconocido = idiomas.isEmpty;
-      if (idioma != null && !desconocido && !idiomas.contains(idioma)) {
-        continue;
-      }
-
       final tapas = (e['covers'] as List?)?.whereType<int>().toList();
       final editoriales = (e['publishers'] as List?)?.cast<String>();
 
-      final donde = (idioma != null && idiomas.isEmpty) ? sinIdioma : salida;
-
-      donde.add(
-        Libro(
+      salida.add((
+        libro: Libro(
           id: (e['key'] as String?) ?? '$obraId-${salida.length}',
           titulo: (e['title'] as String?) ?? obra.titulo,
           autor: obra.autor,
@@ -410,14 +513,55 @@ class Api {
           anio: _anio(e['publish_date'] as String?),
           paginas: e['number_of_pages'] as int?,
         ),
-      );
+        idiomas: idiomas,
+      ));
+    }
 
-      if (salida.length + sinIdioma.length >= maximo) break;
+    return salida;
+  }
+
+  /// Parte las ediciones en las de ese idioma y las que no lo dicen.
+  ///
+  /// # Por qué esto es una función y no otra consulta
+  ///
+  /// Antes, tocar un idioma volvía a pedirle las 200 ediciones a Open
+  /// Library: otros 12 a 60 segundos, para filtrar datos que la pantalla
+  /// ya tenía en la mano. Filtrar no necesita internet —es mirar una lista
+  /// que ya está— y ahora tocar «Español» es instantáneo.
+  ///
+  /// # Las que no dicen el idioma
+  ///
+  /// Open Library muchas veces no lo anota. No es un caso raro: de las 200
+  /// ediciones de Harry Potter, **78 no lo tienen**, y la primera de esa
+  /// lista es «Harry Potter y la piedra filosofal» de Salamandra.
+  /// Filtrando por español, esa quedaba afuera.
+  ///
+  /// No se adivina por el título: «Pedra Filosofal» es portugués y
+  /// «kamień filozoficzny» es polaco, y equivocarse sería peor que no
+  /// saber. Se devuelven aparte y la pantalla avisa que el catálogo no lo
+  /// dice.
+  static Ediciones porIdioma(List<Edicion> todas, String? idioma) {
+    if (idioma == null) {
+      return (
+        confirmadas: [for (final e in todas) e.libro],
+        sinIdioma: const <Libro>[],
+      );
+    }
+
+    final confirmadas = <Libro>[];
+    final sinIdioma = <Libro>[];
+
+    for (final e in todas) {
+      if (e.idiomas.isEmpty) {
+        sinIdioma.add(e.libro);
+      } else if (e.idiomas.contains(idioma)) {
+        confirmadas.add(e.libro);
+      }
     }
 
     // El orden y las repetidas los resuelve la pantalla, en paraMirar:
     // son decisiones de cómo se mira, no de qué hay.
-    return (confirmadas: salida, sinIdioma: sinIdioma);
+    return (confirmadas: confirmadas, sinIdioma: sinIdioma);
   }
 
   /// Las fechas vienen de mil formas: "2018", "08/08/2015", "Jun 04, 2020".

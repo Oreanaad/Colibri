@@ -4,6 +4,7 @@ import '../modelos.dart';
 import '../tema.dart';
 import '../widgets.dart';
 import 'animos.dart';
+import 'cargar_libro.dart' show CampoDeTexto;
 import 'ediciones.dart';
 import 'estantes.dart';
 import 'exigir_cuenta.dart';
@@ -26,7 +27,16 @@ class _PantallaFichaState extends State<PantallaFicha> {
   void initState() {
     super.initState();
     l = biblioteca.buscarPorClave(widget.libro.clave) ?? widget.libro;
-    l.paginas ??= 320; // la demo necesita un total para mostrar el avance
+
+    // Acá había un `l.paginas ??= 320`, con el comentario «la demo necesita
+    // un total para mostrar el avance». No era para mostrar: **le escribía
+    // 320 páginas al libro**, y quedaba guardado. Cada libro que se abría
+    // sin páginas anotadas se llevaba un total inventado, y después el
+    // porcentaje de avance y las estadísticas del perfil contaban con él
+    // como si fuera un dato.
+    //
+    // Ahora, sin total, no se muestra la barra y se ofrece escribirlo. Ver
+    // [editarPaginas].
 
     // Queda anotado que estabas acá, para que recargar no te devuelva a
     // la biblioteca.
@@ -383,7 +393,12 @@ class _PantallaFichaState extends State<PantallaFicha> {
   }
 
   Widget _avanceLectura() {
-    final total = l.paginas ?? 320;
+    // Sin total conocido, el deslizador no tiene sentido: no se puede
+    // mostrar «por dónde vas» de algo que no se sabe cuánto mide. Antes
+    // acá había un 320 inventado, así que el deslizador y el porcentaje
+    // mentían sin avisar.
+    final total = l.paginas;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -391,32 +406,263 @@ class _PantallaFichaState extends State<PantallaFicha> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Rotulo('Por dónde vas'),
-            Text(
-              'página ${l.paginaActual} de $total',
-              style: Tipo.meta.copyWith(fontSize: 11),
+            // Tocar el número lo abre para escribirlo. Con un libro de 800
+            // páginas, arrastrar el deslizador hasta la 437 exacta es
+            // imposible, y la 437 es justo el dato que alguien quiere
+            // anotar cuando cierra el libro.
+            // Flexible y con ellipsis: sin esto el renglón se desbordaba
+            // 28 píxeles y aparecían las rayas de error. Y no es solo el
+            // caso raro: «página 1200 de 1248» de un libro gordo es más
+            // largo que el ancho que queda al lado del rótulo. Dice «120
+            // de 254» y no «página 120 de 254» porque el rótulo de al lado
+            // ya dice de qué se trata.
+            Flexible(
+              child: InkWell(
+                onTap: _editarPaginas,
+                borderRadius: BorderRadius.circular(6),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 3,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          total == null
+                              ? 'página ${l.paginaActual}'
+                              : '${l.paginaActual} de $total',
+                          overflow: TextOverflow.ellipsis,
+                          style: Tipo.meta.copyWith(
+                            fontSize: 11,
+                            color: Paleta.lila,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(
+                        Icons.edit_outlined,
+                        size: 12,
+                        color: Paleta.lila,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ],
         ),
-        SliderTheme(
-          data: SliderTheme.of(context).copyWith(
-            activeTrackColor: Paleta.lila,
-            inactiveTrackColor: Paleta.linea,
-            thumbColor: Paleta.lila,
-            overlayColor: const Color(0x22B9A6E6),
-            trackHeight: 4,
+
+        if (total == null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 4),
+            child: Text(
+              'El catálogo no dice cuántas páginas tiene esta edición. '
+              'Tocá arriba para ponerlo y te queda la barra de avance.',
+              style: Tipo.meta.copyWith(fontSize: 11),
+            ),
+          )
+        else ...[
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: Paleta.lila,
+              inactiveTrackColor: Paleta.linea,
+              thumbColor: Paleta.lila,
+              overlayColor: const Color(0x22B9A6E6),
+              trackHeight: 4,
+            ),
+            child: Slider(
+              value: l.paginaActual.toDouble().clamp(0, total.toDouble()),
+              max: total.toDouble(),
+              onChanged: (v) => setState(() => l.paginaActual = v.round()),
+              onChangeEnd: (_) => _guardar(),
+            ),
           ),
-          child: Slider(
-            value: l.paginaActual.toDouble().clamp(0, total.toDouble()),
-            max: total.toDouble(),
-            onChanged: (v) => setState(() => l.paginaActual = v.round()),
-            onChangeEnd: (_) => _guardar(),
+          Text(
+            'Moviendo esto se abren las reseñas de más abajo.',
+            style: Tipo.meta.copyWith(fontSize: 11),
           ),
-        ),
-        Text(
-          'Moviendo esto se abren las reseñas de más abajo.',
-          style: Tipo.meta.copyWith(fontSize: 11),
-        ),
+        ],
       ],
+    );
+  }
+
+  Future<void> _editarPaginas() async {
+    final r = await editarPaginas(
+      context,
+      paginaActual: l.paginaActual,
+      total: l.paginas,
+    );
+    if (r == null || !mounted) return;
+
+    setState(() {
+      l.paginas = r.total;
+      // Si el total nuevo es más chico que donde estabas, se recorta: la
+      // página 400 de un libro de 250 no existe. Pasa de verdad al
+      // corregir el total hacia abajo después de haber arrastrado el
+      // deslizador con el total viejo.
+      l.paginaActual = r.total == null
+          ? r.paginaActual
+          : r.paginaActual.clamp(0, r.total!);
+    });
+    await _guardar();
+  }
+}
+
+/// Escribir en qué página vas y cuántas tiene **tu** edición.
+///
+/// # Por qué se puede corregir el total
+///
+/// Porque el catálogo se equivoca seguido, y porque la edición que alguien
+/// tiene en la mano no es siempre la que Open Library anotó: la de bolsillo
+/// tiene 480 páginas donde la de tapa dura tiene 352, y el mismo libro en
+/// otra editorial puede tener cien de diferencia. Con el total mal, el
+/// porcentaje de avance miente y la barra queda inservible.
+///
+/// # Por qué se escribe y no solo se arrastra
+///
+/// El deslizador está bien para moverse a ojo, pero con un libro de 800
+/// páginas llegar arrastrando a la 437 exacta no se puede. Y 437 es
+/// justamente el número que alguien quiere anotar cuando marca la página y
+/// cierra el libro.
+Future<({int paginaActual, int? total})?> editarPaginas(
+  BuildContext context, {
+  required int paginaActual,
+  required int? total,
+}) => showModalBottomSheet<({int paginaActual, int? total})>(
+  context: context,
+  backgroundColor: Paleta.nocheAlta,
+  isScrollControlled: true,
+  shape: const RoundedRectangleBorder(
+    borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+  ),
+  builder: (_) => _HojaDePaginas(paginaActual: paginaActual, total: total),
+);
+
+class _HojaDePaginas extends StatefulWidget {
+  final int paginaActual;
+  final int? total;
+
+  const _HojaDePaginas({required this.paginaActual, required this.total});
+
+  @override
+  State<_HojaDePaginas> createState() => _HojaDePaginasState();
+}
+
+class _HojaDePaginasState extends State<_HojaDePaginas> {
+  late final _pagina = TextEditingController(
+    // Un cero de arranque es ruido: se borra para escribir arriba.
+    text: widget.paginaActual == 0 ? '' : '${widget.paginaActual}',
+  );
+  late final _total = TextEditingController(
+    text: widget.total == null ? '' : '${widget.total}',
+  );
+
+  String? _problema;
+
+  @override
+  void dispose() {
+    _pagina.dispose();
+    _total.dispose();
+    super.dispose();
+  }
+
+  void _guardar() {
+    final pagina = int.tryParse(_pagina.text.trim()) ?? 0;
+    final total = int.tryParse(_total.text.trim());
+
+    if (pagina < 0 || (total != null && total <= 0)) {
+      setState(() => _problema = 'Los números tienen que ser positivos.');
+      return;
+    }
+    if (total != null && pagina > total) {
+      setState(
+        () => _problema =
+            'La página $pagina no existe en un libro de $total páginas.',
+      );
+      return;
+    }
+
+    Navigator.of(context).pop((paginaActual: pagina, total: total));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        // El teclado: sin esto tapa los campos que se están escribiendo.
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(context).bottom,
+        ),
+        child: Columna(
+          hijo: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 38,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Paleta.linea,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text('Por dónde vas', style: Tipo.subtitulo),
+                const SizedBox(height: 6),
+                Text(
+                  'El total es el de tu edición. Si tu ejemplar tiene más o '
+                  'menos páginas que lo que dice el catálogo, corregilo acá: '
+                  'lo que manda es el libro que tenés en la mano.',
+                  style: Tipo.meta,
+                ),
+                const SizedBox(height: 18),
+
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: CampoDeTexto(
+                        rotulo: 'Vas en la',
+                        controlador: _pagina,
+                        ejemplo: '137',
+                        soloNumeros: true,
+                        largoMaximo: 5,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: CampoDeTexto(
+                        rotulo: 'De un total',
+                        controlador: _total,
+                        ejemplo: '254',
+                        soloNumeros: true,
+                        largoMaximo: 5,
+                      ),
+                    ),
+                  ],
+                ),
+
+                if (_problema != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    _problema!,
+                    style: Tipo.meta.copyWith(color: Paleta.oroTexto),
+                  ),
+                ],
+
+                const SizedBox(height: 18),
+                BotonLleno('Guardar', alTocar: _guardar),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -894,8 +1140,24 @@ class _AnimosDeLaComunidad extends StatelessWidget {
   }
 }
 
-/// Reseñas de la comunidad por capas. Todavía son de mentira: van a ser
-/// reales cuando haya servidor y cuentas.
+/// Reseñas de la comunidad, por tramos de spoiler.
+///
+/// # Por qué acá no hay reseñas de muestra
+///
+/// Antes había tres, firmadas «Caro Vidal», «Juli Peralta» y «Mara
+/// Giménez», y en ningún lado decía que fueran inventadas. Puestas en la
+/// ficha de cualquier libro, se leían como si tres personas hubieran
+/// opinado de *ese* libro: se elogiaba «la mitad del medio, cuando aparece
+/// la casa» de una novela que no tiene ninguna casa.
+///
+/// En la pantalla de Descubrir sí quedan reseñas de muestra, pero ahí están
+/// rotuladas «RESEÑAS DE MUESTRA» y dicen en voz alta que todavía no hay
+/// comunidad. Eso es una maqueta; esto era una afirmación falsa.
+///
+/// Los tres tramos se quedan, apagados, porque explican cómo va a
+/// funcionar: cada uno se abre cuando llegás a esa parte del libro, así
+/// nadie te arruina el final. Cuando haya reseñas de verdad van a entrar
+/// justo ahí.
 class _Capas extends StatefulWidget {
   final double avance;
   final bool leyendo;
@@ -911,33 +1173,12 @@ class _CapasState extends State<_Capas> {
 
   static const _nombres = ['Sin spoilers', 'Hasta la mitad', 'El final'];
   static const _umbrales = [0.0, 0.5, 0.95];
-  static const _textos = [
-    (
-      'Empieza como una novela de terror y termina siendo sobre un padre y un '
-          'hijo. Aguantá las primeras cien páginas, que después no la soltás.',
-      'Caro Vidal',
-      5,
-    ),
-    (
-      'La mitad del medio es la mejor: cuando aparece la casa, el libro cambia '
-          'de género y se vuelve otra cosa. Ahí entendí de qué iba todo.',
-      'Juli Peralta',
-      4,
-    ),
-    (
-      'El final me dejó dos días sin poder empezar otro libro. No es un cierre, '
-          'es una despedida, y por eso duele tanto.',
-      'Mara Giménez',
-      5,
-    ),
-  ];
 
   bool _abierta(int i) => widget.avance >= _umbrales[i];
 
   @override
   Widget build(BuildContext context) {
     if (!_abierta(_elegida)) _elegida = 0;
-    final texto = _textos[_elegida];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -996,14 +1237,22 @@ class _CapasState extends State<_Capas> {
             );
           }),
         ),
-        const SizedBox(height: 14),
-        Text('“${texto.$1}”', style: Tipo.lectura),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Text('${texto.$2}  ', style: Tipo.meta.copyWith(fontSize: 11.5)),
-            Estrellas(texto.$3, tamano: 12),
-          ],
+        const SizedBox(height: 16),
+
+        // El vacío se dice, no se disimula. Una ficha con este espacio en
+        // blanco parecería que algo no cargó.
+        Text(
+          'Todavía no hay reseñas de este tramo.',
+          style: Tipo.cuerpo.copyWith(color: Paleta.bruma),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          _abierta(2)
+              ? 'Sos de las primeras. Escribí la tuya más arriba y va a ser '
+                    'la que lea quien llegue después.'
+              : 'Cuando haya, cada tramo se abre al llegar a esa parte del '
+                    'libro: nadie te cuenta el final antes de tiempo.',
+          style: Tipo.meta,
         ),
         if (!_abierta(2)) ...[
           const SizedBox(height: 14),

@@ -34,10 +34,27 @@ class PantallaEdiciones extends StatefulWidget {
 }
 
 class _PantallaEdicionesState extends State<PantallaEdiciones> {
-  Ediciones? _ediciones;
+  /// Todas las ediciones, con sus idiomas, pedidas una sola vez.
+  ///
+  /// # Por qué se guardan acá
+  ///
+  /// Antes, cada toque en un idioma volvía a pedirle las 200 ediciones a
+  /// Open Library. Medido: la mediana de ese pedido es de **12 segundos** y
+  /// la cola llega a 60, con algún 503 en el medio. O sea que probar
+  /// «Español», después «Todos», después «Portugués» eran tres esperas de
+  /// más de diez segundos cada una, para filtrar una lista que la pantalla
+  /// ya tenía completa en la memoria.
+  ///
+  /// Filtrar no necesita internet. Ahora se pide una vez y cada idioma es
+  /// instantáneo. Ver [Api.porIdioma].
+  List<Edicion>? _todas;
   String? _idioma = 'spa'; // lo más probable, y se cambia de un toque
   bool _cargando = true;
   bool _fallo = false;
+
+  /// Lo que se muestra: las de este idioma, calculado sin red.
+  Ediciones? get _ediciones =>
+      _todas == null ? null : Api.porIdioma(_todas!, _idioma);
 
   @override
   void initState() {
@@ -51,10 +68,10 @@ class _PantallaEdicionesState extends State<PantallaEdiciones> {
       _fallo = false;
     });
     try {
-      final r = await Api.ediciones(widget.libro, idioma: _idioma);
+      final r = await Api.todasLasEdiciones(widget.libro);
       if (!mounted) return;
       setState(() {
-        _ediciones = r;
+        _todas = r;
         _cargando = false;
       });
     } catch (_) {

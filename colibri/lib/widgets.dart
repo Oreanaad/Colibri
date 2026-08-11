@@ -525,8 +525,28 @@ final tapasGuardadas = CacheManager(
     // quinientos libros es mucha biblioteca, y doce megas en el teléfono
     // no son nada.
     maxNrOfCacheObjects: 500,
+    fileService: _bajadorDeTapas,
   ),
 );
+
+/// Cuántas tapas se bajan al mismo tiempo.
+///
+/// El paquete trae 10 de fábrica, y con una grilla de 24 tapas eso son dos
+/// tandas: la segunda arranca cuando termina la primera. Medido contra el
+/// servidor de Open Library, con 24 tapas:
+///
+///     de a una       32,1 s
+///     10 a la vez     2,6 s   <- lo que hacía antes
+///     24 a la vez     2,3 s
+///
+/// La diferencia es chica porque las tapas pesan poco —20 KB— y el cuello
+/// es la latencia, no el ancho de banda. Pero es gratis, y en una conexión
+/// de celular, donde cada viaje cuesta más, la diferencia crece.
+///
+/// No se sube más: la idea no es abrir cien conexiones al mismo servidor,
+/// que es una forma de hacerse bloquear —ya nos devolvió un 503 midiendo—.
+/// 24 es lo que entra en una pantalla.
+final _bajadorDeTapas = HttpFileService()..concurrentFetches = 24;
 
 /// La cara de alguien, dibujada.
 ///

@@ -523,9 +523,20 @@ class CampoDeTexto extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Flexible: un rótulo largo en un campo de media pantalla —dos
+        // campos lado a lado— desbordaba el renglón y dibujaba las rayas
+        // de error. Que se recorte con puntos suspensivos es mucho mejor
+        // que eso, y el campo de abajo se sigue entendiendo.
         Row(
           children: [
-            Text(rotulo.toUpperCase(), style: Tipo.rotulo),
+            Flexible(
+              child: Text(
+                rotulo.toUpperCase(),
+                style: Tipo.rotulo,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
             if (obligatorio) ...[
               const SizedBox(width: 5),
               Text('·', style: Tipo.rotulo.copyWith(color: Paleta.lila)),
