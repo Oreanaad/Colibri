@@ -27,6 +27,7 @@ autoría— y en la app sale con la tapa dibujada, que es lo que ya hacía.
 """
 import json
 import pathlib
+import re
 import sys
 import time
 import urllib.parse
@@ -69,6 +70,35 @@ MAZO = [
 ]
 
 CABECERAS = {"User-Agent": "Colibri/1.0 (herramienta de build)"}
+
+
+def categorias_del_dart():
+    """Las etiquetas que usa la app, leídas de destacados.dart.
+
+    No se copian acá: dos listas separadas se desincronizan y el mazo
+    quedaría horneado con categorías que la app ya no muestra.
+    """
+    d = (pathlib.Path(__file__).parent.parent / "colibri" / "lib" /
+         "pantallas" / "destacados.dart").read_text()
+    bloque = re.search(r"_categorias = <\(String, String\)>\[(.*?)\n  \];",
+                       d, re.S)
+    if not bloque:
+        return []
+    return re.findall(r"\('([^']+)',\s*'([^']+)'\)", bloque.group(1))
+
+
+def libros_de(etiqueta):
+    """Las obras de una categoría, como las devuelve Open Library."""
+    url = f"https://openlibrary.org/subjects/{etiqueta}.json?limit=20"
+    for intento in range(3):
+        try:
+            with urllib.request.urlopen(
+                urllib.request.Request(url, headers=CABECERAS), timeout=40
+            ) as r:
+                return json.load(r).get("works", [])
+        except Exception:
+            time.sleep(2 + intento * 4)
+    return []
 
 
 def buscar(par):
@@ -141,6 +171,36 @@ if __name__ == "__main__":
             f"{num(paginas)}),"
         )
 
+    # Y las categorías, que tardaban lo mismo por otra razón: son un
+    # pedido de unos 3 segundos —hasta 10 en la más lenta— cada vez que
+    # alguien toca una ficha. Las etiquetas tampoco cambian de un día para
+    # el otro, así que se hornean igual y la app las muestra al instante.
+    cats = categorias_del_dart()
+    print(f"Resolviendo {len(cats)} categorías…")
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        obrasPorCat = list(ex.map(lambda c: (c, libros_de(c[1])), cats))
+
+    catLineas = []
+    for (nombre, etiqueta), obras in obrasPorCat:
+        buenas = [o for o in obras if o.get("title") and o.get("cover_id")]
+        print(f"  {nombre:20} {len(buenas):2} libros con tapa")
+        catLineas.append(f"  {dart(etiqueta)}: [")
+        for o in buenas[:16]:
+            autores = o.get("authors") or []
+            autor = (autores[0].get("name") if autores else None) or "Autor desconocido"
+            catLineas.append(
+                f"    ({dart(o['title'])}, {dart(autor)}, "
+                f"{dart(o.get('key') or o['title'])}, {num(o.get('cover_id'))}, "
+                f"{num(o.get('first_publish_year'))}, null),"
+            )
+        catLineas.append("  ],")
+
+    flojas = [n for (n, _), obras in obrasPorCat
+              if len([o for o in obras if o.get("cover_id")]) < 8]
+    if flojas:
+        print(f"  OJO, con pocos libros: {', '.join(flojas)}")
+        print("  Revisá con ./servidor/probar_categorias.sh")
+
     salida = pathlib.Path(__file__).parent.parent / "colibri" / "lib" / "mazo.dart"
     salida.write_text(
         '''// GENERADO POR herramientas/mazo.py — no editar a mano.
@@ -174,6 +234,28 @@ const mazoDeDescubrir =
     <(String, String, String?, int?, int?, int?)>[
 '''
         + "\n".join(lineas)
-        + "\n];\n"
+        + """
+];
+
+/// Las categorías de Descubrir, ya resueltas.
+///
+/// # Por qué también van horneadas
+///
+/// Tocar una ficha de categoría pedía la lista a Open Library: unos 3
+/// segundos, hasta 10 en la más lenta. Las etiquetas no cambian de un día
+/// para el otro, así que se resuelven al compilar y la fila aparece al
+/// instante, igual que el mazo.
+///
+/// La app **igual pregunta de fondo**, sin hacer esperar a nadie: si el
+/// catálogo tiene algo distinto, la fila se actualiza sola. Lo horneado es
+/// el piso, no el techo. Ver `_elegirCategoria` en destacados.dart.
+///
+/// La clave es la etiqueta de Open Library, no el nombre en castellano:
+/// el nombre se cambia sin tocar esto.
+const categoriasDeDescubrir =
+    <String, List<(String, String, String?, int?, int?, int?)>>{
+"""
+        + "\n".join(catLineas)
+        + "\n};\n"
     )
     print(f"escrito: {salida.relative_to(salida.parent.parent.parent)}")

@@ -147,18 +147,8 @@ class _BibliotecaDestacadaState extends State<BibliotecaDestacada> {
     final tanda = disponibles.take(_porTanda);
     setState(() {
       for (final i in tanda) {
-        final (titulo, autor, clave, tapa, anio, paginas) = mazoDeDescubrir[i];
-        _yaRepartidos.add(titulo);
-        _libros.add(
-          Libro(
-            id: clave ?? titulo,
-            titulo: titulo,
-            autor: autor,
-            tapaId: tapa,
-            anio: anio,
-            paginas: paginas,
-          ),
-        );
+        _yaRepartidos.add(mazoDeDescubrir[i].$1);
+        _libros.add(_libroDe(mazoDeDescubrir[i]));
       }
       _cargando = false;
     });
@@ -166,17 +156,46 @@ class _BibliotecaDestacadaState extends State<BibliotecaDestacada> {
 
   /// Cambia de categoría, o vuelve al mazo si [etiqueta] es null.
   ///
-  /// Lo que ya se había repartido se descarta a propósito: son dos listas
-  /// distintas, y mezclar «Romantasy» con el mazo al azar dejaría una fila
-  /// donde no se entiende qué se está mirando.
+  /// # Lo horneado primero, el catálogo después
+  ///
+  /// Tocar una ficha pedía la lista a Open Library y había que esperar:
+  /// medido, unos 3 segundos, hasta 10 en la más lenta. Ahora las ocho
+  /// categorías vienen resueltas en la app —ver `herramientas/mazo.py`—
+  /// así que la fila aparece al instante, sin red.
+  ///
+  /// Y **igual se pregunta**, de fondo, sin hacer esperar a nadie. Lo que
+  /// llegue nuevo se suma al final. Lo horneado es el piso, no el techo:
+  /// el catálogo crece y una app compilada en agosto no tiene por qué
+  /// mostrar para siempre lo de agosto.
+  ///
+  /// # Por qué se suma y no se reemplaza
+  ///
+  /// Porque reemplazar reordena la fila mientras alguien la está mirando,
+  /// y una tapa que se mueve sola debajo del dedo es peor que una tapa de
+  /// menos. Sumando, lo que ya se veía se queda donde estaba.
+  ///
+  /// # Lo que ya se había repartido se descarta
+  ///
+  /// A propósito: el mazo y una categoría son dos listas distintas, y
+  /// mezclar «Romantasy» con el sorteo dejaría una fila donde no se
+  /// entiende qué se está mirando.
   Future<void> _elegirCategoria(String? etiqueta) async {
     if (etiqueta == _categoria) return;
+
+    final horneados = etiqueta == null
+        ? const <(String, String, String?, int?, int?, int?)>[]
+        : (categoriasDeDescubrir[etiqueta] ?? const []);
 
     setState(() {
       _categoria = etiqueta;
       _libros.clear();
       _yaRepartidos.clear();
-      _cargando = true;
+      for (final l in horneados) {
+        _libros.add(_libroDe(l));
+        _yaRepartidos.add(l.$1);
+      }
+      // Solo se muestra la rueda si no hay nada horneado que mostrar.
+      _cargando = etiqueta != null && horneados.isEmpty;
     });
 
     if (etiqueta == null) {
@@ -184,28 +203,43 @@ class _BibliotecaDestacadaState extends State<BibliotecaDestacada> {
       return;
     }
 
-    final guardados = await _leerCategoria(etiqueta);
-    if (guardados != null) {
-      if (!mounted || _categoria != etiqueta) return;
-      setState(() {
-        _libros.addAll(guardados);
-        _cargando = false;
-      });
+    // De acá para abajo ya no hay nadie esperando: la fila está en
+    // pantalla. Primero lo guardado de la semana, y si no hay, el
+    // catálogo.
+    final frescos =
+        await _leerCategoria(etiqueta) ?? await Api.porCategoria(etiqueta);
+
+    // Si mientras tanto se tocó otra ficha, esta respuesta ya no sirve:
+    // pisarla sería mostrar libros de la categoría anterior.
+    if (!mounted || _categoria != etiqueta) return;
+
+    if (frescos.isEmpty) {
+      setState(() => _cargando = false);
       return;
     }
 
-    final libros = await Api.porCategoria(etiqueta);
-
-    // Si mientras bajaba se tocó otra categoría, esta respuesta ya no
-    // sirve: pisarla sería mostrar libros de la anterior.
+    await _guardarCategoria(etiqueta, frescos);
     if (!mounted || _categoria != etiqueta) return;
 
-    await _guardarCategoria(etiqueta, libros);
-    if (!mounted || _categoria != etiqueta) return;
     setState(() {
-      _libros.addAll(libros);
+      for (final libro in frescos) {
+        if (_yaRepartidos.add(libro.titulo)) _libros.add(libro);
+      }
       _cargando = false;
     });
+  }
+
+  /// Una entrada horneada, como [Libro].
+  Libro _libroDe((String, String, String?, int?, int?, int?) l) {
+    final (titulo, autor, clave, tapa, anio, paginas) = l;
+    return Libro(
+      id: clave ?? titulo,
+      titulo: titulo,
+      autor: autor,
+      tapaId: tapa,
+      anio: anio,
+      paginas: paginas,
+    );
   }
 
   // ---------- Lo que se guarda de las categorías ----------

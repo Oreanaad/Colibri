@@ -193,20 +193,44 @@ void main() {
       }
     });
 
-    testWidgets('tocar una categoría vacía el mazo y lo dice', (tester) async {
-      // Sin internet en las pruebas, la categoría vuelve vacía. Lo que se
-      // prueba es que el vacío se diga en vez de dejar una fila en blanco
-      // que parece que algo se rompió.
+    testWidgets('tocar una categoría muestra libros al instante, sin red', (
+      tester,
+    ) async {
+      // Ésta es la prueba de que no hay espera. `flutter test` corta toda
+      // petición HTTP, así que si aparecen libros es porque estaban
+      // horneados en la app: antes, tocar una ficha era un pedido a Open
+      // Library de unos 3 segundos, hasta 10 en la más lenta.
       await abrir(tester);
       expect(find.byType(Tapa), findsNWidgets(5));
 
       await tester.tap(find.text('Romantasy'));
-      await tester.pumpAndSettle();
+      await tester.pump(); // un solo cuadro: ni tiempo de esperar nada
 
-      expect(find.byType(Tapa), findsNothing);
+      expect(find.byType(Tapa), findsWidgets);
+      expect(
+        find.text('Once Upon a Broken Heart'),
+        findsWidgets,
+        reason: 'el primer libro horneado de romantasy',
+      );
+
+      await tester.pumpAndSettle();
+      // Y no queda ninguna rueda girando: no hay nada que esperar.
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
+
+    testWidgets('el vacío se diría, si alguna categoría no trajera nada', (
+      tester,
+    ) async {
+      // Las ocho vienen horneadas, así que este camino es una red de
+      // seguridad: sirve si alguna vez se agrega una categoría sin correr
+      // herramientas/mazo.py, o si el generador corrió con Open Library
+      // caída. Se prueba el texto, que es lo que se puede probar sin
+      // fabricar ese estado.
+      await abrir(tester);
       expect(
         find.textContaining('no tiene nada en esta categoría'),
-        findsOneWidget,
+        findsNothing,
+        reason: 'con libros horneados, nunca se muestra',
       );
     });
 
@@ -227,12 +251,14 @@ void main() {
       await abrir(tester);
       await tester.tap(find.text('Romantasy'));
       await tester.pumpAndSettle();
-      expect(find.byType(Tapa), findsNothing);
+      expect(find.text('Once Upon a Broken Heart'), findsWidgets);
 
       await tester.tap(find.text('Al azar'));
       await tester.pumpAndSettle();
 
+      // Vuelven a ser cinco del mazo, y la categoría no dejó ninguno.
       expect(find.byType(Tapa), findsNWidgets(5));
+      expect(find.text('Once Upon a Broken Heart'), findsNothing);
     });
 
     testWidgets('en una categoría no se ofrece «mostrame otros cinco»', (
@@ -247,6 +273,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Mostrame otros cinco'), findsNothing);
+      // Y no hace falta: la categoría entera entra de una.
+      expect(find.byType(Tapa).evaluate().length, greaterThan(5));
     });
   });
 }
