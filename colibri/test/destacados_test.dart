@@ -53,11 +53,12 @@ void main() {
     // Una fila de tapas sin nombre obliga a abrir cada una para saber
     // qué es. Con el título debajo se puede decidir mirando.
     //
-    // Se cuentan las que están dentro del carrusel: las reseñas de
-    // muestra, más abajo, también llevan estrellas.
+    // Se cuentan las de adentro del carrusel, por su llave: las reseñas
+    // de muestra también llevan estrellas, y ahora además hay una fila de
+    // categorías que es otra lista horizontal.
     expect(
       find.descendant(
-        of: find.byType(ListView).first,
+        of: find.byKey(const Key('carrusel')),
         matching: find.byType(Estrellas),
       ),
       findsNWidgets(5),
@@ -76,7 +77,10 @@ void main() {
     // la app sabe algo de tus gustos, y no sabe nada todavía.
     await abrir(tester);
 
-    expect(find.textContaining('Al azar'), findsOneWidget);
+    // Dos veces: la ficha de categoría que dice «Al azar» y el texto que
+    // explica de dónde salen. Lo que importa es la palabra que **no**
+    // puede estar.
+    expect(find.textContaining('Al azar'), findsWidgets);
     expect(find.textContaining('recomendad'), findsNothing);
   });
 
@@ -142,13 +146,24 @@ void main() {
     expect(find.byType(PantallaFicha), findsOneWidget);
   });
 
-  testWidgets('un libro ya visto no se vuelve a pedir', (tester) async {
-    // No se puede observar la red desde acá, pero sí lo que queda
-    // guardado: después de una mano, tiene que haber algo en la libreta.
+  testWidgets('el mazo no pide nada: viene horneado en la app', (tester) async {
+    // Antes, cada libro del mazo era una búsqueda a Open Library, y se
+    // guardaba el resultado para no repetirla. Ahora se resuelven al
+    // compilar —ver herramientas/mazo.py— así que no hay nada que pedir
+    // ni nada que guardar: el carrusel aparece sin red.
+    //
+    // La prueba de que no pide: `flutter test` corta toda petición HTTP,
+    // y aun así los cinco libros salen con su título de verdad.
     await abrir(tester);
 
+    expect(find.byType(Tapa), findsNWidgets(5));
+
     final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getString('colibri.descubrir.cache.v1'), isNotNull);
+    expect(
+      prefs.getKeys().where((k) => k.startsWith('colibri.descubrir')),
+      isEmpty,
+      reason: 'el mazo no necesita caché porque no necesita internet',
+    );
   });
 
   group('dónde queda en una pantalla de teléfono', () {

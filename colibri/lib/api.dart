@@ -84,6 +84,89 @@ class Api {
     return unir(abiertos, await Google.buscar(consulta));
   }
 
+  /// Los libros de una categoría.
+  ///
+  /// # Cómo se eligieron las categorías
+  ///
+  /// Midiendo, y el resultado contradijo lo que yo esperaba. Probé
+  /// dieciocho categorías amplias —«Fantasía», «Romance», «Poesía»— y las
+  /// tres devuelven dominio público: *Robinson Crusoe* aparece en Poesía,
+  /// *La letra escarlata* en Manga, *Alicia en el país de las maravillas*
+  /// en Ciencia ficción. Ese endpoint ordena por peso del catálogo, y lo
+  /// más pesado son los libros de hace cien años. `published_in` no lo
+  /// arregla: probado, devuelve exactamente lo mismo y más lento.
+  ///
+  /// Las que sirven son las **específicas**, justo las que yo había
+  /// descartado por tener catálogos chicos: `romantasy` tiene 127 obras y
+  /// las diez primeras son *Once Upon a Broken Heart*, *The Serpent & the
+  /// Wings of Night*, todas de 2020 en adelante. `literatura_argentina`
+  /// tiene 50 y arranca con *El hacedor* y *Plan de evasión*. El tamaño
+  /// del catálogo no medía nada; lo que medía era si los libros son los
+  /// que alguien está leyendo hoy.
+  ///
+  /// Google Books tampoco sirvió acá: `subject:` contesta en 0,7 s pero
+  /// con `langRestrict=es` devolvió **cero** libros en español.
+  ///
+  /// # Y de paso es una sola consulta
+  ///
+  /// Devuelve hasta veinte libros con su número de tapa en un pedido de
+  /// unos 3 segundos. La búsqueda por título, en cambio, es un pedido por
+  /// libro.
+  static Future<List<Libro>> porCategoria(String etiqueta) async {
+    final uri = Uri.https('openlibrary.org', '/subjects/$etiqueta.json', {
+      'limit': '20',
+    });
+
+    try {
+      final respuesta = await http
+          .get(uri, headers: _cabeceras)
+          .timeout(const Duration(seconds: 25));
+      if (respuesta.statusCode != 200) return const [];
+
+      final datos = jsonDecode(utf8.decode(respuesta.bodyBytes));
+      return librosDeCategoria((datos['works'] as List?) ?? const []);
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Las obras de una categoría, convertidas en libros.
+  ///
+  /// Aparte y pública porque es lo único de acá que se puede probar sin
+  /// red: recibe la lista que devolvió Open Library y no toca internet.
+  static List<Libro> librosDeCategoria(List<dynamic> obras) {
+    final salida = <Libro>[];
+    final vistos = <String>{};
+
+    for (final cruda in obras) {
+      if (cruda is! Map) continue;
+      final o = cruda.cast<String, dynamic>();
+
+      final titulo = o['title'] as String?;
+      if (titulo == null || titulo.trim().isEmpty) continue;
+
+      final autores = (o['authors'] as List?) ?? const [];
+      final autor = autores.isEmpty
+          ? 'Autor desconocido'
+          : (((autores.first as Map)['name'] as String?) ??
+                'Autor desconocido');
+
+      final libro = Libro(
+        id: (o['key'] as String?) ?? titulo,
+        titulo: titulo,
+        autor: autor,
+        tapaId: o['cover_id'] as int?,
+        anio: o['first_publish_year'] as int?,
+      );
+
+      // Sin repetidos: la misma obra puede venir dos veces con claves
+      // distintas, y en una fila de cinco tapas eso se nota enseguida.
+      if (vistos.add(libro.clave)) salida.add(libro);
+    }
+
+    return salida;
+  }
+
   /// Junta dos catálogos sin repetir libros.
   ///
   /// El orden importa: primero lo que ya estaba. Quien busca casi siempre

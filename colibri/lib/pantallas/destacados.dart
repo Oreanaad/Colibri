@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api.dart';
+import '../mazo.dart';
 import '../modelos.dart';
 import '../tema.dart';
 import '../widgets.dart';
@@ -82,39 +83,23 @@ class _BibliotecaDestacadaState extends State<BibliotecaDestacada> {
   static const _porTanda = 5;
   static const _tope = 20;
 
-  /// El mazo. Narrativa latinoamericana y las sagas que ya tienen
-  /// insignia propia: son los dos públicos que la app ya sabe que tiene.
-  static const _mazo = [
-    ('Cometierra', 'Dolores Reyes'),
-    ('Las malas', 'Camila Sosa Villada'),
-    ('Cien años de soledad', 'Gabriel García Márquez'),
-    ('Pedro Páramo', 'Juan Rulfo'),
-    ('Nuestra parte de noche', 'Mariana Enriquez'),
-    ('Chicas muertas', 'Selva Almada'),
-    ('La uruguaya', 'Pedro Mairal'),
-    ('Catedrales', 'Claudia Piñeiro'),
-    ('Rayuela', 'Julio Cortázar'),
-    ('Distancia de rescate', 'Samanta Schweblin'),
-    ('Los detectives salvajes', 'Roberto Bolaño'),
-    ('La casa de los espíritus', 'Isabel Allende'),
-    ('Como agua para chocolate', 'Laura Esquivel'),
-    ('Ficciones', 'Jorge Luis Borges'),
-    ('Kentukis', 'Samanta Schweblin'),
-    ('La virgen cabeza', 'Gabriela Cabezón Cámara'),
-    ('Mugre rosa', 'Fernanda Trías'),
-    ('Temporada de huracanes', 'Fernanda Melchor'),
-    ("Harry Potter and the Philosopher's Stone", 'J. K. Rowling'),
-    ('The Hunger Games', 'Suzanne Collins'),
-    ('Divergent', 'Veronica Roth'),
-    ('Percy Jackson and the Lightning Thief', 'Rick Riordan'),
-    ('City of Bones', 'Cassandra Clare'),
-    ('A Court of Thorns and Roses', 'Sarah J. Maas'),
-    ('Fourth Wing', 'Rebecca Yarros'),
-    ('It Ends With Us', 'Colleen Hoover'),
-    ('The Seven Husbands of Evelyn Hugo', 'Taylor Jenkins Reid'),
-    ('A Game of Thrones', 'George R. R. Martin'),
-    ('The Fellowship of the Ring', 'J. R. R. Tolkien'),
-    ('Pride and Prejudice', 'Jane Austen'),
+  /// Las categorías, elegidas midiendo y no a ojo.
+  ///
+  /// Probé dieciocho y las amplias no sirven: «Poesía» devuelve *Robinson
+  /// Crusoe*, «Manga» devuelve *La letra escarlata*. Ese endpoint ordena
+  /// por peso del catálogo y lo más pesado son los libros de hace cien
+  /// años. Las que quedaron son las específicas —justo las que había
+  /// descartado por tener catálogos chicos— porque son las que devuelven
+  /// los libros que alguien está leyendo hoy. Ver [Api.porCategoria].
+  static const _categorias = <(String, String)>[
+    ('Romantasy', 'romantasy'),
+    ('Enemies to lovers', 'enemies_to_lovers'),
+    ('Dark romance', 'dark_romance'),
+    ('Fantasía épica', 'epic_fantasy'),
+    ('Realismo mágico', 'magic_realism'),
+    ('Latinoamericana', 'spanish_american_literature'),
+    ('Argentina', 'literatura_argentina'),
+    ('Fanfiction', 'fan_fiction'),
   ];
 
   final _random = Random();
@@ -124,10 +109,17 @@ class _BibliotecaDestacadaState extends State<BibliotecaDestacada> {
   final List<Libro> _libros = [];
   final Set<String> _yaRepartidos = {};
 
+  /// La categoría elegida, o null para el mazo al azar.
+  String? _categoria;
+
   bool _cargando = true;
 
+  /// En el mazo hay tope porque es finito; en una categoría, el tope lo
+  /// pone el catálogo.
   bool get _hayMas =>
-      _libros.length < _tope && _yaRepartidos.length < _mazo.length;
+      _categoria == null &&
+      _libros.length < _tope &&
+      _yaRepartidos.length < mazoDeDescubrir.length;
 
   @override
   void initState() {
@@ -135,82 +127,139 @@ class _BibliotecaDestacadaState extends State<BibliotecaDestacada> {
     _repartir();
   }
 
-  /// Reparte [_porTanda] títulos nuevos y los resuelve **todos a la vez**.
+  /// Reparte [_porTanda] libros del mazo. **Sin red.**
   ///
-  /// Antes se pedían de a uno, esperando cada respuesta antes de mandar
-  /// la siguiente. Medido contra Open Library: ocho en fila tardaban 9,2
-  /// segundos y cinco en fila 5,9, mientras que cinco a la vez tardan
-  /// 1,2. La diferencia no era la cantidad, era la espera encadenada.
-  Future<void> _repartir() async {
-    setState(() => _cargando = true);
+  /// Antes, cada libro del mazo era una búsqueda a Open Library. Salían en
+  /// paralelo, pero la más lenta manda: medido, entre 2 y 10 segundos antes
+  /// de ver la primera tapa, y otras cinco búsquedas en cada «mostrame
+  /// otros cinco». Y la respuesta era siempre la misma, porque los títulos
+  /// del mazo son fijos.
+  ///
+  /// Ahora se resuelven al compilar, con `herramientas/mazo.py`, y esto no
+  /// pide nada: lo único que baja son las imágenes de las tapas. Por eso es
+  /// sincrónico —no hay ningún await— y aparece de una.
+  void _repartir() {
+    final disponibles = <int>[
+      for (var i = 0; i < mazoDeDescubrir.length; i++)
+        if (!_yaRepartidos.contains(mazoDeDescubrir[i].$1)) i,
+    ]..shuffle(_random);
 
-    final disponibles =
-        _mazo.where((t) => !_yaRepartidos.contains('${t.$1}|${t.$2}')).toList()
-          ..shuffle(_random);
-
-    final tanda = disponibles.take(_porTanda).toList();
-    for (final (titulo, autor) in tanda) {
-      _yaRepartidos.add('$titulo|$autor');
-    }
-
-    final prefs = await SharedPreferences.getInstance();
-    final cache = _leerCache(prefs);
-
-    // Future.wait y no un for con await adentro: eso es todo el arreglo.
-    final resueltos = await Future.wait(
-      tanda.map((par) => _resolver(par, cache)),
-    );
-
-    final nuevos = <String, dynamic>{};
-    for (final (i, libro) in resueltos.indexed) {
-      final clave = '${tanda[i].$1}|${tanda[i].$2}';
-      if (!cache.containsKey(clave)) nuevos[clave] = libro.aJson();
-    }
-    if (nuevos.isNotEmpty) {
-      await prefs.setString(_cache, jsonEncode({...cache, ...nuevos}));
-    }
-
-    if (!mounted) return;
+    final tanda = disponibles.take(_porTanda);
     setState(() {
-      _libros.addAll(resueltos);
+      for (final i in tanda) {
+        final (titulo, autor, clave, tapa, anio, paginas) = mazoDeDescubrir[i];
+        _yaRepartidos.add(titulo);
+        _libros.add(
+          Libro(
+            id: clave ?? titulo,
+            titulo: titulo,
+            autor: autor,
+            tapaId: tapa,
+            anio: anio,
+            paginas: paginas,
+          ),
+        );
+      }
       _cargando = false;
     });
   }
 
-  Future<Libro> _resolver(
-    (String, String) par,
-    Map<String, dynamic> cache,
-  ) async {
-    final (titulo, autor) = par;
-    final guardado = cache['$titulo|$autor'];
-    if (guardado != null) {
-      return Libro.desdeJson(guardado as Map<String, dynamic>);
+  /// Cambia de categoría, o vuelve al mazo si [etiqueta] es null.
+  ///
+  /// Lo que ya se había repartido se descarta a propósito: son dos listas
+  /// distintas, y mezclar «Romantasy» con el mazo al azar dejaría una fila
+  /// donde no se entiende qué se está mirando.
+  Future<void> _elegirCategoria(String? etiqueta) async {
+    if (etiqueta == _categoria) return;
+
+    setState(() {
+      _categoria = etiqueta;
+      _libros.clear();
+      _yaRepartidos.clear();
+      _cargando = true;
+    });
+
+    if (etiqueta == null) {
+      _repartir(); // el mazo, instantáneo
+      return;
     }
 
+    final guardados = await _leerCategoria(etiqueta);
+    if (guardados != null) {
+      if (!mounted || _categoria != etiqueta) return;
+      setState(() {
+        _libros.addAll(guardados);
+        _cargando = false;
+      });
+      return;
+    }
+
+    final libros = await Api.porCategoria(etiqueta);
+
+    // Si mientras bajaba se tocó otra categoría, esta respuesta ya no
+    // sirve: pisarla sería mostrar libros de la anterior.
+    if (!mounted || _categoria != etiqueta) return;
+
+    await _guardarCategoria(etiqueta, libros);
+    if (!mounted || _categoria != etiqueta) return;
+    setState(() {
+      _libros.addAll(libros);
+      _cargando = false;
+    });
+  }
+
+  // ---------- Lo que se guarda de las categorías ----------
+  //
+  // Una categoría sí necesita red —el mazo no— y ese pedido tarda unos
+  // tres segundos. Las categorías no cambian de un día para el otro, así
+  // que se guardan una semana y volver a tocarlas es instantáneo.
+
+  static const _duran = Duration(days: 7);
+
+  Future<List<Libro>?> _leerCategoria(String etiqueta) async {
     try {
-      return await Api.primero(titulo, autor) ??
-          Libro(id: titulo, titulo: titulo, autor: autor);
+      final prefs = await SharedPreferences.getInstance();
+      final crudo = prefs.getString('$_cache.$etiqueta');
+      if (crudo == null) return null;
+
+      final g = jsonDecode(crudo) as Map<String, dynamic>;
+      final cuando = DateTime.tryParse((g['cuando'] as String?) ?? '');
+      if (cuando == null || DateTime.now().difference(cuando) > _duran) {
+        return null;
+      }
+      return [
+        for (final l in (g['libros'] as List))
+          Libro.desdeJson((l as Map).cast<String, dynamic>()),
+      ];
     } catch (_) {
-      // Sin red o con el catálogo caído: igual se muestra, con la tapa
-      // dibujada. Un hueco sería peor que un libro sin foto.
-      return Libro(id: titulo, titulo: titulo, autor: autor);
+      return null;
     }
   }
 
-  Map<String, dynamic> _leerCache(SharedPreferences prefs) {
-    final crudo = prefs.getString(_cache);
-    if (crudo == null) return {};
-    try {
-      return jsonDecode(crudo) as Map<String, dynamic>;
-    } catch (_) {
-      return {}; // formato viejo o roto: se arranca de cero
-    }
-  }
+  String _nombreDe(String etiqueta) => _categorias
+      .firstWhere((c) => c.$2 == etiqueta, orElse: () => (etiqueta, etiqueta))
+      .$1;
 
   void _abrir(Libro libro) {
     Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => PantallaFicha(libro)));
+  }
+
+  Future<void> _guardarCategoria(String etiqueta, List<Libro> libros) async {
+    if (libros.isEmpty) return; // no vale la pena recordar un vacío
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        '$_cache.$etiqueta',
+        jsonEncode({
+          'cuando': DateTime.now().toIso8601String(),
+          'libros': [for (final l in libros) l.aJson()],
+        }),
+      );
+    } catch (_) {
+      // Si no se pudo guardar, la próxima vez se pide de nuevo.
+    }
   }
 
   @override
@@ -221,15 +270,41 @@ class _BibliotecaDestacadaState extends State<BibliotecaDestacada> {
         const Rotulo('Descubrir'),
         const SizedBox(height: 2),
         Text(
-          widget.compacta
+          _categoria != null
+              // Nombra la categoría en vez de decir «al azar», que sería
+              // falso: acá los libros salen de una etiqueta del catálogo.
+              ? 'Lo que el catálogo tiene etiquetado como '
+                    '${_nombreDe(_categoria!).toLowerCase()}.'
+              : widget.compacta
               ? 'Al azar, para cuando no sepas qué leer.'
               : 'Al azar, de un mazo curado. Todavía no sabemos qué te gusta '
                     'a vos: eso empieza cuando armes tu perfil.',
           style: Tipo.meta,
         ),
+        const SizedBox(height: 12),
+
+        // Las categorías, antes del carrusel: primero se elige qué mirar.
+        _Categorias(
+          categorias: _categorias,
+          activa: _categoria,
+          alElegir: _elegirCategoria,
+        ),
         const SizedBox(height: 14),
 
         _Carrusel(libros: _libros, cargando: _cargando, alTocar: _abrir),
+
+        // Una categoría puede venir vacía: son etiquetas de Open Library y
+        // el catálogo cambia. Decirlo es mejor que dejar una fila en blanco
+        // que parece que algo se rompió.
+        if (!_cargando && _libros.isEmpty && _categoria != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Text(
+              'El catálogo no tiene nada en esta categoría ahora mismo. '
+              'Probá otra.',
+              style: Tipo.meta,
+            ),
+          ),
 
         if (_hayMas) ...[
           const SizedBox(height: 10),
@@ -262,6 +337,91 @@ class _BibliotecaDestacadaState extends State<BibliotecaDestacada> {
           const _ReseniasDeMuestra(),
         ],
       ],
+    );
+  }
+}
+
+/// La fila de categorías, que se desliza.
+///
+/// # Por qué una fila que se desliza y no un menú
+///
+/// Un menú esconde las opciones detrás de un toque, y acá las opciones
+/// **son** el contenido: leer «Romantasy», «Enemies to lovers», «Dark
+/// romance» ya es parte de descubrir algo. Con ocho categorías en una fila
+/// se ven cuatro y se adivina que hay más, que es justo lo que hace que
+/// alguien arrastre.
+///
+/// «Al azar» va primera y es la que está puesta al entrar: es la única que
+/// no necesita internet, porque el mazo viene horneado en la app.
+class _Categorias extends StatelessWidget {
+  final List<(String, String)> categorias;
+  final String? activa;
+  final ValueChanged<String?> alElegir;
+
+  const _Categorias({
+    required this.categorias,
+    required this.activa,
+    required this.alElegir,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 32,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        // Sin esto, la primera ficha arranca pegada al borde de la
+        // pantalla y parece cortada.
+        padding: EdgeInsets.zero,
+        children: [
+          _Ficha(
+            'Al azar',
+            puesta: activa == null,
+            alTocar: () => alElegir(null),
+          ),
+          for (final (nombre, etiqueta) in categorias)
+            _Ficha(
+              nombre,
+              puesta: activa == etiqueta,
+              alTocar: () => alElegir(etiqueta),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Ficha extends StatelessWidget {
+  final String texto;
+  final bool puesta;
+  final VoidCallback alTocar;
+
+  const _Ficha(this.texto, {required this.puesta, required this.alTocar});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 7),
+      child: InkWell(
+        onTap: alTocar,
+        borderRadius: BorderRadius.circular(30),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6),
+          decoration: BoxDecoration(
+            color: puesta ? Paleta.lila : null,
+            border: Border.all(color: puesta ? Paleta.lila : Paleta.linea),
+            borderRadius: BorderRadius.circular(30),
+          ),
+          child: Text(
+            texto,
+            style: TextStyle(
+              fontSize: 12.5,
+              color: puesta ? Paleta.noche : Paleta.luz,
+              fontWeight: puesta ? FontWeight.w600 : FontWeight.w400,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -309,6 +469,10 @@ class _Carrusel extends StatelessWidget {
     return SizedBox(
       height: _alto,
       child: ListView.separated(
+        // Una llave para poder apuntarle desde las pruebas: ahora hay dos
+        // listas horizontales en la pantalla —las categorías y ésta— y
+        // «la primera» ya no dice cuál es.
+        key: const Key('carrusel'),
         scrollDirection: Axis.horizontal,
         // +1 cuando está buscando más: la rueda va al final de la fila,
         // donde van a aparecer los que vienen, y no encima de los que ya
