@@ -189,6 +189,75 @@ class Nube {
     }
   }
 
+  /// Las reseñas que escribieron otras lectoras de este libro.
+  ///
+  /// # Por qué de la obra y no de la edición
+  ///
+  /// Porque una reseña es del libro, no del ejemplar. Si alguien leyó la
+  /// edición de Salamandra y vos tenés la de bolsillo, su reseña te sirve
+  /// igual: es la misma novela. Filtrando por edición, la ficha de tu
+  /// ejemplar quedaría vacía aunque veinte personas hubieran escrito sobre
+  /// el mismo libro.
+  ///
+  /// # Por qué por la clave y no por el id
+  ///
+  /// La app no sabe qué uuid tiene esta obra en la nube —eso vive en la
+  /// libreta, y solo para los libros que ya subiste—. Pero **sí puede
+  /// calcular su clave**: [Libro.claveDeObra] es título más apellido
+  /// normalizados, y es exactamente lo que la tabla `obras` guarda en su
+  /// columna `clave`, que además es única.
+  ///
+  /// Eso hace que esto ande incluso para un libro que vos nunca subiste:
+  /// abrís algo que encontraste buscando y ves lo que escribió otra
+  /// persona, sin haberlo agregado a tu biblioteca.
+  ///
+  /// # Lo que hace la base y no hace este código
+  ///
+  /// No hay ningún filtro acá de «solo los perfiles públicos». La regla de
+  /// `lecturas` en `servidor/esquema.sql` ya lo hace: una lectura se ve si
+  /// es tuya, o si hay sesión y el perfil es público. Escribirlo también
+  /// acá sería tener la misma decisión en dos lugares, y el día que
+  /// cambien uno solo, el que manda es el de la base.
+  ///
+  /// Devuelve vacío sin sesión: es lo que contesta el servidor, y está bien
+  /// que la comunidad sea de quien está adentro.
+  Future<List<ResenaAjena>> resenasDe(Libro libro) async {
+    if (_quienSoy == null) return const [];
+
+    try {
+      final List<dynamic> filas;
+
+      if (libro.origen == Origen.fanfic) {
+        // Un fanfic se identifica por su dirección, no por su título: el
+        // mismo fic cargado por cuatro mil personas tendría cuatro mil
+        // títulos y una sola dirección. Ver [Fanfic.identidad].
+        final identidad = libro.enlace == null
+            ? null
+            : Fanfic.identidad(libro.enlace!);
+        // Sin dirección reconocible no hay con qué juntar a dos personas
+        // que leyeron el mismo fic, y adivinar por título sería juntar
+        // fics distintos.
+        if (identidad == null) return const [];
+
+        filas = await _base
+            .from('lecturas')
+            .select(resenasDeUnFanfic)
+            .eq('fanfics.identidad', identidad)
+            .not('resena', 'is', null);
+      } else {
+        filas = await _base
+            .from('lecturas')
+            .select(resenasDeUnLibro)
+            .eq('ediciones.obras.clave', libro.claveDeObra)
+            .not('resena', 'is', null);
+      }
+
+      return resenasDeFilas(filas, yo: _quienSoy);
+    } catch (_) {
+      return const [];
+    }
+  }
+
   /// Traer de la nube los libros que este teléfono no tiene.
   ///
   /// # Por qué esto importa más que parecía
@@ -596,6 +665,131 @@ Map<String, dynamic> filaDeLectura(
   'resena': libro.resena,
   'resena_con_spoilers': libro.resenaConSpoilers,
 };
+
+/// Una reseña escrita por otra persona.
+///
+/// Es su propio tipo y no un [Libro] con la reseña adentro, porque no es un
+/// libro: es lo que alguien dijo de uno. Mezclarlas obligaría a inventar un
+/// libro falso alrededor de cada reseña.
+class ResenaAjena {
+  final String texto;
+  final bool conSpoilers;
+  final String usuario;
+  final String nombre;
+
+  /// De 0 a 5, o 0 si no puntuó.
+  final int puntaje;
+
+  /// Cuándo lo terminó, si lo anotó. Sirve para ordenar: la reseña de
+  /// alguien que acabó el libro anteayer es más útil que una de 2019.
+  final DateTime? terminado;
+
+  /// Si es tuya. Se marca para que no parezca que hay una desconocida
+  /// diciendo exactamente lo que vos escribiste.
+  final bool esTuya;
+
+  const ResenaAjena({
+    required this.texto,
+    required this.conSpoilers,
+    required this.usuario,
+    required this.nombre,
+    this.puntaje = 0,
+    this.terminado,
+    this.esTuya = false,
+  });
+
+  /// Cómo se firma: el nombre si lo puso, el @usuario si no.
+  String get comoSeLlama => nombre.trim().isEmpty ? '@$usuario' : nombre;
+}
+
+/// Lo que se le pide al servidor de cada reseña ajena.
+///
+/// # Por qué son dos consultas y no una
+///
+/// La primera versión pedía `ediciones!inner` **y** `fanfics!inner` en el
+/// mismo select, y habría devuelto **cero reseñas siempre**. `!inner` es un
+/// inner join: exige que haya coincidencia. Y `lecturas` tiene este check:
+///
+///     constraint una_cosa_por_lectura
+///       check (num_nonnulls(edicion_id, fanfic_id) = 1)
+///
+/// O sea que ninguna fila tiene las dos cosas, nunca. Pedir las dos con
+/// inner es pedir algo que la base prohíbe.
+///
+/// No lo atrapó ninguna prueba y no lo habría atrapado el servidor: la
+/// consulta es válida, contesta 200, y devuelve una lista vacía —que es
+/// exactamente lo que devuelve cuando de verdad no hay reseñas—. Se vio
+/// leyendo el check del esquema.
+///
+/// # Por qué `!inner` en las que sí van
+///
+/// Sin eso, PostgREST devuelve también las lecturas cuyo perfil no se puede
+/// ver, con el embebido en null, y habría que filtrarlas acá.
+const _comunes =
+    'resena,resena_con_spoilers,puntaje,terminado,perfil_id,'
+    'perfiles!inner(usuario,nombre)';
+
+/// Para un libro: se cruza hasta la clave de la obra.
+///
+/// Una reseña es del libro y no del ejemplar. Si alguien leyó la edición de
+/// Salamandra y vos tenés la de bolsillo, su reseña te sirve igual.
+const resenasDeUnLibro = '$_comunes,ediciones!inner(obras!inner(clave))';
+
+/// Para un fanfic: por su dirección, que es su identidad.
+const resenasDeUnFanfic = '$_comunes,fanfics!inner(identidad)';
+
+/// Las filas del servidor, convertidas en reseñas.
+///
+/// Pura, así que se prueba con las respuestas que da el servidor sin
+/// necesitar internet — lo mismo que [libroDeFila].
+///
+/// # El orden
+///
+/// Las que tienen fecha de terminado primero, de la más reciente a la más
+/// vieja, y las que no la tienen al final. Quien acabó el libro anteayer
+/// tiene más fresco lo que sintió que quien lo terminó en 2019.
+///
+/// **La tuya va primera de todas.** No por vanidad: es lo que hace que se
+/// entienda de un vistazo que una de esas voces sos vos, en vez de leerla
+/// creyendo que es de otra persona.
+List<ResenaAjena> resenasDeFilas(List<dynamic> filas, {String? yo}) {
+  final salida = <ResenaAjena>[];
+
+  for (final cruda in filas) {
+    if (cruda is! Map) continue;
+    final f = cruda.cast<String, dynamic>();
+
+    final texto = (f['resena'] as String?)?.trim();
+    if (texto == null || texto.isEmpty) continue;
+
+    final perfil = (f['perfiles'] as Map?)?.cast<String, dynamic>();
+    if (perfil == null) continue;
+
+    salida.add(
+      ResenaAjena(
+        texto: texto,
+        conSpoilers: (f['resena_con_spoilers'] as bool?) ?? false,
+        usuario: (perfil['usuario'] as String?) ?? '',
+        nombre: (perfil['nombre'] as String?) ?? '',
+        puntaje: (f['puntaje'] as int?) ?? 0,
+        terminado: DateTime.tryParse((f['terminado'] as String?) ?? ''),
+        esTuya: yo != null && f['perfil_id'] == yo,
+      ),
+    );
+  }
+
+  salida.sort((a, b) {
+    if (a.esTuya != b.esTuya) return a.esTuya ? -1 : 1;
+    final ta = a.terminado;
+    final tb = b.terminado;
+    if (ta == null && tb == null) return 0;
+    if (ta == null) return 1; // sin fecha, al final
+    if (tb == null) return -1;
+    return tb.compareTo(ta);
+  });
+
+  return salida;
+}
 
 /// Todo lo que hace falta de una lectura, en un solo pedido.
 ///

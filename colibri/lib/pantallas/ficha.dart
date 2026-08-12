@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../cuenta.dart';
 import '../modelos.dart';
+import '../nube.dart';
 import '../tema.dart';
 import '../widgets.dart';
 import 'animos.dart';
@@ -390,7 +391,7 @@ class _PantallaFichaState extends State<PantallaFicha> {
       ),
       () => rotulado(
         'Reseñas de la comunidad',
-        _Capas(avance: _avance, leyendo: l.estado == Estado.leyendo),
+        _Capas(libro: l, avance: _avance, leyendo: l.estado == Estado.leyendo),
         30,
       ),
       // Solo si hay una de verdad. Un rótulo «La frase más subrayada»
@@ -1160,155 +1161,299 @@ class _AnimosDeLaComunidad extends StatelessWidget {
   }
 }
 
-/// Reseñas de la comunidad, por tramos de spoiler.
+/// Las reseñas que escribieron otras lectoras, con los spoilers tapados.
 ///
-/// # Por qué acá no hay reseñas de muestra
+/// # De tres tramos a dos, porque los datos son dos
 ///
-/// Antes había tres, firmadas «Caro Vidal», «Juli Peralta» y «Mara
-/// Giménez», y en ningún lado decía que fueran inventadas. Puestas en la
-/// ficha de cualquier libro, se leían como si tres personas hubieran
-/// opinado de *ese* libro: se elogiaba «la mitad del medio, cuando aparece
-/// la casa» de una novela que no tiene ninguna casa.
+/// Acá había tres solapas —«Sin spoilers», «Hasta la mitad», «El final»—
+/// con tres reseñas inventadas adentro. Al conectarlas con las reseñas de
+/// verdad, el tramo del medio no tenía de dónde salir: cuando alguien
+/// escribe una reseña marca **un interruptor de spoilers**, no elige un
+/// tramo. No existe el dato «esta reseña cuenta hasta la mitad».
 ///
-/// En la pantalla de Descubrir sí quedan reseñas de muestra, pero ahí están
-/// rotuladas «RESEÑAS DE MUESTRA» y dicen en voz alta que todavía no hay
-/// comunidad. Eso es una maqueta; esto era una afirmación falsa.
+/// Dejar esa solapa vacía para siempre sería la misma clase de promesa
+/// falsa que las tres reseñas inventadas. Así que son dos, que es lo que la
+/// app sabe de verdad: las que se pueden leer en cualquier momento y las
+/// que hay que ganarse terminando el libro.
 ///
-/// Los tres tramos se quedan, apagados, porque explican cómo va a
-/// funcionar: cada uno se abre cuando llegás a esa parte del libro, así
-/// nadie te arruina el final. Cuando haya reseñas de verdad van a entrar
-/// justo ahí.
+/// La idea entera se mantiene: nadie te cuenta el final antes de tiempo.
+///
+/// # Cuándo se abren las de spoilers
+///
+/// Cuando lo terminaste, **o** cuando tu avance pasó el 95%. Dos caminos y
+/// no uno porque hay gente que marca «leído» sin anotar páginas y gente que
+/// arrastra la barra hasta el final sin cambiar el estado; pedir las dos
+/// cosas dejaría el candado cerrado para la mitad.
 class _Capas extends StatefulWidget {
+  final Libro libro;
   final double avance;
   final bool leyendo;
 
-  const _Capas({required this.avance, required this.leyendo});
+  const _Capas({
+    required this.libro,
+    required this.avance,
+    required this.leyendo,
+  });
 
   @override
   State<_Capas> createState() => _CapasState();
 }
 
 class _CapasState extends State<_Capas> {
-  int _elegida = 0;
+  List<ResenaAjena>? _resenas;
+  bool _viendoSpoilers = false;
 
-  static const _nombres = ['Sin spoilers', 'Hasta la mitad', 'El final'];
-  static const _umbrales = [0.0, 0.5, 0.95];
+  @override
+  void initState() {
+    super.initState();
+    _traer();
+  }
 
-  bool _abierta(int i) => widget.avance >= _umbrales[i];
+  Future<void> _traer() async {
+    final r = await nube.resenasDe(widget.libro);
+    if (!mounted) return;
+    setState(() => _resenas = r);
+  }
+
+  /// Si ya se puede leer lo que cuenta el final.
+  bool get _terminado =>
+      widget.libro.estado == Estado.leido || widget.avance >= 0.95;
 
   @override
   Widget build(BuildContext context) {
-    if (!_abierta(_elegida)) _elegida = 0;
+    final todas = _resenas;
+
+    // Mientras llegan no se dice nada. Un «cargando» acá haría parpadear la
+    // ficha cada vez que se abre un libro, y lo que se está esperando puede
+    // terminar siendo cero reseñas.
+    if (todas == null) return const SizedBox(height: 34);
+
+    if (todas.isEmpty) return _SinResenas(libro: widget.libro);
+
+    final limpias = todas.where((r) => !r.conSpoilers).toList();
+    final conSpoilers = todas.where((r) => r.conSpoilers).toList();
+
+    // La solapa de spoilers no aparece si no hay ninguna: un candado sobre
+    // una habitación vacía es peor que no tener la puerta.
+    final hayDeLasDos = conSpoilers.isNotEmpty;
+    final abierto = _viendoSpoilers && _terminado;
+    final mostrando = abierto ? conSpoilers : limpias;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: List.generate(3, (i) {
-            final abierta = _abierta(i);
-            final es = i == _elegida;
-            return Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(right: 6),
-                child: InkWell(
-                  onTap: abierta ? () => setState(() => _elegida = i) : null,
-                  borderRadius: BorderRadius.circular(7),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    decoration: BoxDecoration(
-                      color: es ? Paleta.lila : null,
-                      border: Border.all(
-                        color: es ? Paleta.lila : Paleta.linea,
-                      ),
-                      borderRadius: BorderRadius.circular(7),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (!abierta) ...[
-                          const Icon(
-                            Icons.lock_outline_rounded,
-                            size: 11,
-                            color: Paleta.bruma,
-                          ),
-                          const SizedBox(width: 3),
-                        ],
-                        Flexible(
-                          child: Text(
-                            _nombres[i],
-                            textAlign: TextAlign.center,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: es
-                                  ? Paleta.noche
-                                  : (abierta ? Paleta.luz : Paleta.bruma),
-                              fontWeight: es
-                                  ? FontWeight.w600
-                                  : FontWeight.w400,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+        if (hayDeLasDos) ...[
+          Row(
+            children: [
+              _SolapaDeSpoilers(
+                'Sin spoilers · ${limpias.length}',
+                puesta: !_viendoSpoilers,
+                abierta: true,
+                alTocar: () => setState(() => _viendoSpoilers = false),
               ),
-            );
-          }),
-        ),
-        const SizedBox(height: 16),
+              const SizedBox(width: 7),
+              _SolapaDeSpoilers(
+                'El final · ${conSpoilers.length}',
+                puesta: _viendoSpoilers,
+                abierta: _terminado,
+                alTocar: () => setState(() => _viendoSpoilers = true),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+        ],
 
-        // El vacío se dice, no se disimula. Una ficha con este espacio en
-        // blanco parecería que algo no cargó.
+        if (_viendoSpoilers && !_terminado)
+          _Candado(leyendo: widget.leyendo)
+        else if (mostrando.isEmpty)
+          Text(
+            _viendoSpoilers
+                ? 'Nadie escribió todavía sobre el final.'
+                : 'Las que hay cuentan el final. Se abren cuando llegues.',
+            style: Tipo.cuerpo.copyWith(color: Paleta.bruma),
+          )
+        else
+          for (final (i, r) in mostrando.indexed) ...[
+            if (i > 0) const SizedBox(height: 18),
+            _UnaResena(r),
+          ],
+      ],
+    );
+  }
+}
+
+/// Cuando no hay ninguna reseña de este libro.
+///
+/// Se dice, y se ofrece escribir la primera. Un hueco en silencio se lee
+/// como que algo no cargó.
+class _SinResenas extends StatelessWidget {
+  final Libro libro;
+  const _SinResenas({required this.libro});
+
+  @override
+  Widget build(BuildContext context) {
+    final hayLaTuya = libro.tieneResena;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         Text(
-          'Todavía no hay reseñas de este tramo.',
+          hayLaTuya
+              ? 'Por ahora la única reseña de este libro es la tuya.'
+              : 'Todavía no hay reseñas de este libro.',
           style: Tipo.cuerpo.copyWith(color: Paleta.bruma),
         ),
         const SizedBox(height: 6),
         Text(
-          _abierta(2)
-              ? 'Sos de las primeras. Escribí la tuya más arriba y va a ser '
-                    'la que lea quien llegue después.'
-              : 'Cuando haya, cada tramo se abre al llegar a esa parte del '
-                    'libro: nadie te cuenta el final antes de tiempo.',
+          hayLaTuya
+              // Sin prometer que va a llegar gente: no sabemos cuándo.
+              ? 'Cuando alguien más lo lea y escriba, va a aparecer acá.'
+              : 'Si lo leíste, escribí la tuya más arriba: va a ser la que '
+                    'lea quien llegue después.',
           style: Tipo.meta,
         ),
-        if (!_abierta(2)) ...[
-          const SizedBox(height: 14),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              border: Border.all(color: Paleta.linea),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(
-                  Icons.lock_outline_rounded,
-                  size: 13,
-                  color: Paleta.bruma,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    widget.leyendo
-                        ? 'Los tramos cerrados se abren solos cuando llegues. '
-                              'Moviendo la barra de arriba lo podés probar.'
-                        : 'Poné el libro en “Leyendo” y anotá por dónde vas: '
-                              'los otros tramos se abren solos.',
-                    style: Tipo.meta.copyWith(fontSize: 11.5),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ],
     );
   }
+}
+
+/// Una reseña ajena, como se lee.
+class _UnaResena extends StatelessWidget {
+  final ResenaAjena resena;
+  const _UnaResena(this.resena);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('“${resena.texto}”', style: Tipo.lectura),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Flexible(
+              child: Text(
+                resena.comoSeLlama,
+                overflow: TextOverflow.ellipsis,
+                style: Tipo.meta.copyWith(
+                  fontSize: 11.5,
+                  // La tuya en lila: que se entienda de un vistazo que esa
+                  // voz sos vos, y no una desconocida diciendo justo lo
+                  // mismo que escribiste.
+                  color: resena.esTuya ? Paleta.lila : null,
+                ),
+              ),
+            ),
+            if (resena.esTuya)
+              Text(
+                ' · vos',
+                style: Tipo.meta.copyWith(fontSize: 11.5, color: Paleta.lila),
+              ),
+            if (resena.puntaje > 0) ...[
+              const SizedBox(width: 8),
+              Estrellas(resena.puntaje, tamano: 12),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Una de las dos solapas.
+class _SolapaDeSpoilers extends StatelessWidget {
+  final String texto;
+  final bool puesta;
+  final bool abierta;
+  final VoidCallback alTocar;
+
+  const _SolapaDeSpoilers(
+    this.texto, {
+    required this.puesta,
+    required this.abierta,
+    required this.alTocar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      // Se puede tocar aunque esté cerrada, y eso es a propósito: al
+      // tocarla se ve **por qué** está cerrada y cómo se abre. Un botón que
+      // no hace nada te deja adivinando.
+      child: InkWell(
+        onTap: alTocar,
+        borderRadius: BorderRadius.circular(7),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+          decoration: BoxDecoration(
+            color: puesta ? Paleta.lila : null,
+            border: Border.all(color: puesta ? Paleta.lila : Paleta.linea),
+            borderRadius: BorderRadius.circular(7),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (!abierta) ...[
+                Icon(
+                  Icons.lock_outline_rounded,
+                  size: 11,
+                  color: puesta ? Paleta.noche : Paleta.bruma,
+                ),
+                const SizedBox(width: 3),
+              ],
+              Flexible(
+                child: Text(
+                  texto,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: puesta
+                        ? Paleta.noche
+                        : (abierta ? Paleta.luz : Paleta.bruma),
+                    fontWeight: puesta ? FontWeight.w600 : FontWeight.w400,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// El cartel de por qué está cerrado, y cómo se abre.
+class _Candado extends StatelessWidget {
+  final bool leyendo;
+  const _Candado({required this.leyendo});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    decoration: BoxDecoration(
+      border: Border.all(color: Paleta.linea),
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.lock_outline_rounded, size: 13, color: Paleta.bruma),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            leyendo
+                ? 'Estas cuentan el final. Se abren cuando termines: anotá '
+                      'por dónde vas más arriba y se destraban solas.'
+                : 'Estas cuentan el final. Se abren cuando marques el libro '
+                      'como leído.',
+            style: Tipo.meta.copyWith(fontSize: 11.5),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 /// La frase que más gente subrayó de este libro.

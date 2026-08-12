@@ -258,14 +258,20 @@ void main() {
 
       // La ficha es una lista perezosa: lo que está más abajo no existe
       // hasta que se llega. Hay que desplazarse, igual que una persona.
+      // Se baja hasta el rótulo de la sección y no hasta una solapa: las
+      // solapas ahora solo aparecen si hay reseñas de las dos clases, así
+      // que no sirven de ancla.
       await tester.scrollUntilVisible(
-        find.text('Sin spoilers'),
+        find.text('RESEÑAS DE LA COMUNIDAD'),
         400,
         scrollable: find.byType(Scrollable).first,
       );
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('Todavía no hay reseñas'), findsOneWidget);
+      expect(
+        find.textContaining('Todavía no hay reseñas de este libro'),
+        findsOneWidget,
+      );
       for (final inventada in ['Caro Vidal', 'Juli Peralta', 'Mara Giménez']) {
         expect(
           find.textContaining(inventada),
@@ -275,9 +281,12 @@ void main() {
       }
     });
 
-    testWidgets('los tres tramos siguen ahí, porque explican la idea', (
+    testWidgets('sin reseñas no hay solapas de spoiler que mostrar', (
       tester,
     ) async {
+      // Dejaron de ser tres y pasaron a ser dos, y solo aparecen cuando hay
+      // reseñas de las dos clases: un candado sobre una habitación vacía es
+      // peor que no tener la puerta. Ver _Capas en ficha.dart.
       await abrir(
         tester,
         Libro(
@@ -289,16 +298,18 @@ void main() {
         ),
       );
 
+      // Se baja hasta el rótulo de la sección y no hasta una solapa: las
+      // solapas ahora solo aparecen si hay reseñas de las dos clases, así
+      // que no sirven de ancla.
       await tester.scrollUntilVisible(
-        find.text('Sin spoilers'),
+        find.text('RESEÑAS DE LA COMUNIDAD'),
         400,
         scrollable: find.byType(Scrollable).first,
       );
       await tester.pumpAndSettle();
 
-      for (final tramo in ['Sin spoilers', 'Hasta la mitad', 'El final']) {
-        expect(find.text(tramo), findsOneWidget);
-      }
+      expect(find.textContaining('Sin spoilers'), findsNothing);
+      expect(find.textContaining('Hasta la mitad'), findsNothing);
     });
   });
 }
