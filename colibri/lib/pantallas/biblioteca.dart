@@ -50,6 +50,10 @@ class _PantallaBibliotecaState extends State<PantallaBiblioteca> {
   final _buscador = TextEditingController();
   String _filtro = '';
 
+  /// El orden queda recordado entre sesiones: quien ordena su estante
+  /// alfabético lo quiere alfabético mañana también.
+  late Orden _orden = sesion.orden;
+
   /// A partir de cuántos libros aparece el buscador.
   ///
   /// Con menos, los ves todos de un vistazo y un campo de búsqueda es
@@ -151,12 +155,32 @@ class _PantallaBibliotecaState extends State<PantallaBiblioteca> {
               // la biblioteca, y dejar una solapa marcada haría pensar
               // que solo busca ahí.
               if (!_buscando)
-                _Solapas(
-                  activa: _activa,
-                  alCambiar: (s) {
-                    setState(() => _activa = s);
-                    sesion.anotar(solapa: s.index);
-                  },
+                Row(
+                  children: [
+                    Expanded(
+                      child: _Solapas(
+                        activa: _activa,
+                        alCambiar: (s) {
+                          setState(() => _activa = s);
+                          sesion.anotar(solapa: s.index);
+                        },
+                      ),
+                    ),
+                    // En la misma fila que las solapas y no en un renglón
+                    // propio: en una pantalla de teléfono cada renglón que
+                    // se agrega arriba es un renglón de libros que se va
+                    // abajo. Y solo cuando hay suficientes libros para que
+                    // ordenar signifique algo.
+                    if (biblioteca.todos.length >= _desde &&
+                        _activa != _Solapa.estantes)
+                      _BotonDeOrden(
+                        orden: _orden,
+                        alElegir: (o) {
+                          setState(() => _orden = o);
+                          sesion.anotar(orden: o);
+                        },
+                      ),
+                  ],
                 ),
 
               Expanded(
@@ -241,9 +265,9 @@ class _PantallaBibliotecaState extends State<PantallaBiblioteca> {
   /// Leyendo, pendientes, leídos. Es la línea del tiempo de un libro:
   /// lo que estás haciendo, lo que sigue, lo que quedó atrás.
   Widget _todo() {
-    final leyendo = biblioteca.enEstado(Estado.leyendo);
-    final pendientes = biblioteca.enEstado(Estado.pendiente);
-    final leidos = biblioteca.enEstado(Estado.leido);
+    final leyendo = ordenados(biblioteca.enEstado(Estado.leyendo), _orden);
+    final pendientes = ordenados(biblioteca.enEstado(Estado.pendiente), _orden);
+    final leidos = ordenados(biblioteca.enEstado(Estado.leido), _orden);
     final ahora = biblioteca.leyendoAhora;
 
     if (biblioteca.todos.isEmpty) {
@@ -293,7 +317,7 @@ class _PantallaBibliotecaState extends State<PantallaBiblioteca> {
   }
 
   Widget _listaDeEstado(Estado estado) {
-    final libros = biblioteca.enEstado(estado);
+    final libros = ordenados(biblioteca.enEstado(estado), _orden);
     final leyendo = biblioteca.leyendoAhora;
 
     return ListView(
@@ -313,6 +337,77 @@ class _PantallaBibliotecaState extends State<PantallaBiblioteca> {
           GrillaLibros(libros, alTocar: _abrir),
         ],
       ],
+    );
+  }
+}
+
+/// El botón que cambia el orden del estante.
+///
+/// # Por qué un menú y no fichas como las categorías
+///
+/// Porque el orden **no es contenido**: leer «Por autoría» no te dice nada
+/// de tus libros, solo cambia cómo los mirás. Las categorías de Descubrir
+/// van en fichas porque leerlas ya es descubrir algo; esto va escondido
+/// detrás de un toque porque se elige una vez y no se vuelve a mirar.
+///
+/// Muestra el orden puesto en el propio botón —«Título», «Autoría»— y no
+/// un icono solo: un icono de flechitas no dice cómo está ordenado ahora,
+/// y esa es la única pregunta que alguien se hace mirando este botón.
+class _BotonDeOrden extends StatelessWidget {
+  final Orden orden;
+  final ValueChanged<Orden> alElegir;
+
+  const _BotonDeOrden({required this.orden, required this.alElegir});
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<Orden>(
+      onSelected: alElegir,
+      color: Paleta.nocheAlta,
+      tooltip: 'Ordenar',
+      position: PopupMenuPosition.under,
+      itemBuilder: (_) => [
+        for (final o in Orden.values)
+          PopupMenuItem(
+            value: o,
+            child: Row(
+              children: [
+                Icon(
+                  o == orden ? Icons.check_rounded : null,
+                  size: 16,
+                  color: Paleta.lila,
+                ),
+                const SizedBox(width: 8),
+                // Flexible: «Por cuándo lo leí» no entra en el ancho que
+                // le da el menú, y sin esto el renglón se desbordaba 7,7
+                // píxeles y dibujaba las rayas de error.
+                Flexible(
+                  child: Text(
+                    o.nombre,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: o == orden ? Paleta.lila : Paleta.luz,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+      child: Padding(
+        padding: const EdgeInsets.only(left: 4, right: 14),
+        child: Row(
+          children: [
+            const Icon(Icons.swap_vert_rounded, size: 16, color: Paleta.bruma),
+            const SizedBox(width: 3),
+            Text(
+              orden.corto,
+              style: Tipo.meta.copyWith(fontSize: 11.5, color: Paleta.bruma),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

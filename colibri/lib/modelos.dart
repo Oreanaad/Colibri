@@ -9,6 +9,96 @@ import 'fanfic.dart';
 /// Dónde está un libro en tu lectura. Es uno solo y siempre hay uno.
 enum Estado { leyendo, leido, pendiente }
 
+/// Cómo se ordena tu estante.
+///
+/// # Por qué «como los cargaste» es el orden de fábrica
+///
+/// Porque es el único que no le impone una idea a la biblioteca. Alfabético
+/// es cómodo para encontrar, pero convierte el estante en un fichero; por
+/// título perdés de vista lo último que sumaste, que es justo lo que
+/// alguien suele estar buscando cuando abre la app.
+enum Orden { cargados, titulo, autoria, terminados }
+
+extension DatosDeOrden on Orden {
+  String get nombre => switch (this) {
+    Orden.cargados => 'Como los cargué',
+    Orden.titulo => 'Por título',
+    Orden.autoria => 'Por autoría',
+    Orden.terminados => 'Por cuándo lo leí',
+  };
+
+  /// Corto, para la ficha que se muestra en pantalla.
+  String get corto => switch (this) {
+    Orden.cargados => 'Recientes',
+    Orden.titulo => 'Título',
+    Orden.autoria => 'Autoría',
+    Orden.terminados => 'Leídos',
+  };
+}
+
+/// Ordena una lista de libros, sin tocar la original.
+///
+/// # Por qué es una función aparte y no un método de Biblioteca
+///
+/// Para poder probarla con una lista escrita a mano, sin armar una
+/// biblioteca ni tocar el disco. Ordenar es una regla, y una regla se
+/// prueba sola.
+///
+/// # Los que no tienen el dato van al final, siempre
+///
+/// Un libro sin fecha de fin ordenado «por cuándo lo leí» no está ni
+/// primero ni último: no tiene lugar en esa pregunta. Mandarlos al final
+/// —en vez de al principio, que es lo que hace un null si se lo deja— es
+/// lo que evita que ordenar por fecha te tape los libros que sí terminaste
+/// con una pila de pendientes.
+List<Libro> ordenados(List<Libro> libros, Orden orden) {
+  final lista = [...libros];
+
+  switch (orden) {
+    case Orden.cargados:
+      // Ya vienen así: `agregar` inserta al principio. No se toca, porque
+      // reordenar por algo "equivalente" es la forma de introducir un
+      // cambio de orden que nadie pidió.
+      break;
+
+    case Orden.titulo:
+      lista.sort(
+        (a, b) =>
+            Libro._normalizar(a.titulo).compareTo(Libro._normalizar(b.titulo)),
+      );
+
+    case Orden.autoria:
+      // Por apellido y no por nombre de pila: en un estante los libros de
+      // Cortázar van juntos, no debajo de la J de Julio. Es la misma
+      // cuenta que usa `claveDeObra` para saber si dos fichas son el mismo
+      // libro, así que no hay dos ideas de "quién escribió esto".
+      lista.sort((a, b) {
+        final r = Libro._claveAutor(
+          a.autor,
+        ).compareTo(Libro._claveAutor(b.autor));
+        // Del mismo autor, por título: si no, el orden de sus libros
+        // cambia cada vez que se recarga la lista.
+        return r != 0
+            ? r
+            : Libro._normalizar(
+                a.titulo,
+              ).compareTo(Libro._normalizar(b.titulo));
+      });
+
+    case Orden.terminados:
+      lista.sort((a, b) {
+        final ta = a.terminado;
+        final tb = b.terminado;
+        if (ta == null && tb == null) return 0;
+        if (ta == null) return 1; // sin fecha, al final
+        if (tb == null) return -1;
+        return tb.compareTo(ta); // el más reciente primero
+      });
+  }
+
+  return lista;
+}
+
 extension NombreEstado on Estado {
   String get nombre => switch (this) {
     Estado.leyendo => 'Leyendo',
@@ -206,6 +296,23 @@ class Libro {
   String? resena;
   bool resenaConSpoilers;
 
+  /// Lo que anotás para vos, y que nadie más va a leer.
+  ///
+  /// # Por qué es otro campo y no «la reseña, pero privada»
+  ///
+  /// Porque son dos cosas que se escriben distinto. Una reseña se escribe
+  /// para alguien: se cuida el tono, se avisa de los spoilers, se piensa
+  /// si conviene contar el final. Una nota se escribe para una misma —«la
+  /// escena del tren me recordó a mi abuela», «releer el capítulo 12»— y
+  /// eso no se escribe igual si existe la posibilidad de que se publique.
+  ///
+  /// Del lado del servidor están en tablas separadas por una razón más
+  /// dura, que está escrita en `servidor/esquema.sql`: **Postgres protege
+  /// filas, no columnas.** Si la nota fuera una columna de `lecturas`, el
+  /// permiso que deja a otra persona ver tu estante dejaría ver también
+  /// tus notas. Separada, la regla es una línea y no se puede equivocar.
+  String? nota;
+
   /// Tus personajes favoritos.
   ///
   /// Son varios porque en un libro coral quedarse con uno solo es una
@@ -248,6 +355,7 @@ class Libro {
     this.terminado,
     this.resena,
     this.resenaConSpoilers = false,
+    this.nota,
     this.origen = Origen.catalogo,
     Set<String>? estantes,
     List<Frase>? frases,
@@ -259,6 +367,7 @@ class Libro {
        animos = animos ?? <String>[];
 
   bool get tieneResena => (resena ?? '').trim().isNotEmpty;
+  bool get tieneNota => (nota ?? '').trim().isNotEmpty;
 
   /// Cuántos días te llevó. Contamos el primero y el último, así que
   /// empezar y terminar el mismo día da 1 y no 0.
@@ -415,6 +524,7 @@ class Libro {
     'terminado': terminado?.toIso8601String(),
     'resena': resena,
     'resenaConSpoilers': resenaConSpoilers,
+    'nota': nota,
     'personajes': personajes,
     'frases': frases.map((f) => f.aJson()).toList(),
     'origen': origen.index,
@@ -450,6 +560,7 @@ class Libro {
     empezado: _fecha(j['empezado']),
     terminado: _fecha(j['terminado']),
     resena: j['resena'] as String?,
+    nota: j['nota'] as String?,
     resenaConSpoilers: (j['resenaConSpoilers'] as bool?) ?? false,
     // 'personaje' en singular es el nombre viejo, de cuando era uno
     // solo: lo leemos para no perderle el dato a nadie.
@@ -932,8 +1043,31 @@ class Sesion extends ChangeNotifier {
   /// Qué libro estabas mirando, o null si estabas en una lista.
   String? libro;
 
+  /// Cómo tenés ordenado el estante.
+  ///
+  /// Se guarda **por nombre** y no por número, siguiendo el consejo que
+  /// dejó escrito el comentario de arriba después de que las solapas se
+  /// corrieran dos veces: un número solo significa algo si la lista no
+  /// cambia nunca, y el día que se agregue un orden más, el número
+  /// guardado apuntaría a otra cosa.
+  Orden orden = Orden.cargados;
+
   Future<void> cargar() async {
     final prefs = await SharedPreferences.getInstance();
+
+    // Se vuelve a los valores de fábrica antes de leer.
+    //
+    // Sin esto, `cargar()` con el almacenamiento vacío dejaba los campos
+    // como estaban en memoria: no establecía el estado, lo pisaba a veces.
+    // En la app no se notaba porque arrancar el proceso ya los deja de
+    // fábrica; se notó en las pruebas, donde una prueba se llevaba el
+    // orden que había elegido la anterior. Un método que se llama
+    // «cargar» tiene que dejar el mismo estado siempre que se lo llame
+    // con el mismo almacenamiento.
+    seccion = 0;
+    solapa = 0;
+    libro = null;
+    orden = Orden.cargados;
 
     final crudo = prefs.getString(_clave);
     if (crudo != null) {
@@ -967,6 +1101,12 @@ class Sesion extends ChangeNotifier {
       seccion = (j['seccion'] as int?) ?? 0;
       solapa = (j['solapa'] as int?) ?? 0;
       libro = j['libro'] as String?;
+      orden = Orden.values.firstWhere(
+        (o) => o.name == j['orden'],
+        // Un nombre que la app ya no conoce vuelve al de fábrica, que es
+        // mejor que caerse al arrancar.
+        orElse: () => Orden.cargados,
+      );
     } catch (_) {
       // Formato roto: arrancamos en la biblioteca y listo.
     }
@@ -976,10 +1116,12 @@ class Sesion extends ChangeNotifier {
     int? seccion,
     int? solapa,
     String? libro,
+    Orden? orden,
     bool cerrarLibro = false,
   }) async {
     if (seccion != null) this.seccion = seccion;
     if (solapa != null) this.solapa = solapa;
+    if (orden != null) this.orden = orden;
     if (cerrarLibro) {
       this.libro = null;
     } else if (libro != null) {
@@ -993,6 +1135,7 @@ class Sesion extends ChangeNotifier {
         'seccion': this.seccion,
         'solapa': this.solapa,
         'libro': this.libro,
+        'orden': this.orden.name,
       }),
     );
   }

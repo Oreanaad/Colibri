@@ -412,6 +412,25 @@ class Nube {
     String lecturaId, {
     required String perfilId,
   }) async {
+    // La nota privada, en su propia tabla.
+    //
+    // No es un capricho de esquema: `servidor/esquema.sql` lo explica en
+    // su encabezado —Postgres protege filas, no columnas—. Si la nota
+    // fuera una columna de `lecturas`, el permiso que deja a otra persona
+    // ver tu estante dejaría ver también tus notas. Acá arriba se sube la
+    // lectura, que algún día va a ser visible; esto va aparte.
+    if (libro.tieneNota) {
+      await _base.from('notas').upsert({
+        'lectura_id': lecturaId,
+        'texto': libro.nota,
+      }, onConflict: 'lectura_id');
+    } else {
+      // Borrar la nota tiene que borrarla del servidor, no solo del
+      // teléfono. Es lo mínimo que se le debe a algo que se prometió
+      // privado.
+      await _base.from('notas').delete().eq('lectura_id', lecturaId);
+    }
+
     await _base.from('lectura_animos').delete().eq('lectura_id', lecturaId);
     if (libro.animos.isNotEmpty) {
       await _base.from('lectura_animos').insert([
@@ -599,6 +618,7 @@ const todoLoDeUnaLectura =
     'lectura_animos(animo),'
     'personajes(nombre),'
     'frases(texto,pagina,creada),'
+    'notas(texto),'
     'estante_lecturas(estantes(nombre))';
 
 /// Una lectura de la nube, convertida en un [Libro] de la app.
@@ -652,11 +672,25 @@ Libro? libroDeFila(Map<String, dynamic> fila) {
     terminado: DateTime.tryParse((fila['terminado'] as String?) ?? ''),
     resena: fila['resena'] as String?,
     resenaConSpoilers: (fila['resena_con_spoilers'] as bool?) ?? false,
+    nota: _notaDe(fila['notas']),
     animos: _lista(fila['lectura_animos'], 'animo'),
     personajes: _lista(fila['personajes'], 'nombre'),
     frases: _frasesDe(fila['frases'], paginas: paginas),
     estantes: _estantesDe(fila['estante_lecturas']),
   );
+}
+
+/// La nota privada, que viene embebida como una fila o como null.
+///
+/// PostgREST devuelve un objeto y no una lista porque `notas` tiene el
+/// `lectura_id` como clave primaria: hay una nota por lectura, o ninguna.
+String? _notaDe(Object? embebido) {
+  if (embebido is Map) return embebido['texto'] as String?;
+  // Por si alguna vez viene como lista de una: no cuesta nada aguantarlo.
+  if (embebido is List && embebido.isNotEmpty && embebido.first is Map) {
+    return (embebido.first as Map)['texto'] as String?;
+  }
+  return null;
 }
 
 Estado _estadoDe(String? nombre) => Estado.values.firstWhere(

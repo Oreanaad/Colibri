@@ -9,6 +9,7 @@ import 'ediciones.dart';
 import 'estantes.dart';
 import 'exigir_cuenta.dart';
 import 'frases.dart';
+import 'nota.dart';
 import 'resena.dart';
 
 /// Ficha de un libro: todo lo tuyo sobre él, y lo que dice la comunidad.
@@ -324,6 +325,22 @@ class _PantallaFichaState extends State<PantallaFicha> {
         ),
 
         () => rotulado('Tu reseña', ResenaPropia(l)),
+
+        // Al lado de la reseña, y con su propio rótulo: verlas juntas es
+        // lo que hace evidente que son dos cosas distintas, una para
+        // afuera y otra para adentro.
+        () => rotulado(
+          'Tus notas',
+          NotaPropia(
+            l,
+            alTocar: () async {
+              await Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => PantallaNota(l)));
+              if (mounted) setState(() {});
+            },
+          ),
+        ),
         () => rotulado('Tus frases', _Frases(l)),
 
         () => rotulado(
