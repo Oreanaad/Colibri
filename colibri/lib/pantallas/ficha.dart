@@ -6,6 +6,7 @@ import '../tema.dart';
 import '../widgets.dart';
 import 'animos.dart';
 import 'cargar_libro.dart' show CampoDeTexto;
+import 'compartir_resena.dart';
 import 'ediciones.dart';
 import 'estantes.dart';
 import 'exigir_cuenta.dart';
@@ -325,7 +326,29 @@ class _PantallaFichaState extends State<PantallaFicha> {
           _Personajes(l, alSumar: _sumarPersonaje, alSacar: _sacarPersonaje),
         ),
 
-        () => rotulado('Tu reseña', ResenaPropia(l)),
+        () => rotulado(
+          'Tu reseña',
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ResenaPropia(l),
+              // El botón de compartir solo cuando hay algo que compartir.
+              // Ofrecerlo con la reseña vacía sería ofrecer una imagen de
+              // un libro sin nada dicho sobre él.
+              if (l.tieneResena) ...[
+                const SizedBox(height: 10),
+                BotonContorno(
+                  'Compartir mi reseña como imagen',
+                  alTocar: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => PantallaCompartirResena(l),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
 
         // Al lado de la reseña, y con su propio rótulo: verlas juntas es
         // lo que hace evidente que son dos cosas distintas, una para
