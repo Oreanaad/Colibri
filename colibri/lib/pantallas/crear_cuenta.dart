@@ -737,10 +737,21 @@ class _PantallaEntrarState extends State<PantallaEntrar> {
                 const SizedBox(height: 24),
               ],
 
+              // Un solo campo para las dos cosas.
+              //
+              // La arroba las distingue sola: un correo siempre tiene una y
+              // un @usuario nunca puede tenerla. Dos campos, o un selector
+              // de «entrar con…», sería hacerle elegir a alguien algo que
+              // la app puede darse cuenta sola.
               CampoDeTexto(
-                rotulo: 'Tu correo',
+                rotulo: 'Tu usuario o tu correo',
                 controlador: _correo,
-                ejemplo: 'lucia@correo.com',
+                ejemplo: 'lu.lectora',
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Podés entrar con cualquiera de los dos.',
+                style: Tipo.meta.copyWith(fontSize: 11.5),
               ),
               const SizedBox(height: 18),
               CampoDeTexto(

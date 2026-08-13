@@ -512,8 +512,15 @@ class Cuenta extends ChangeNotifier {
     if (delServidor != null) {
       // Lo de arriba manda: si entraste desde otro teléfono, tu @usuario y
       // tu nombre son los que ya elegiste, no los que tenga este aparato.
-      // La foto no viaja —nunca se sube— así que se conserva la local.
-      await _guardar(delServidor.copiarCon(foto: _perfil?.foto));
+      //
+      // La foto se queda con la de arriba si hay, y con la de acá si no.
+      // El «si no» cubre dos casos de verdad: una cuenta creada antes de
+      // que las fotos viajaran, y una base a la que todavía no le
+      // corrieron `servidor/perfil_completo.sql`. En los dos, quedarse sin
+      // cara sería una pérdida y no una sincronización.
+      await _guardar(
+        delServidor.copiarCon(foto: delServidor.foto ?? _perfil?.foto),
+      );
       return;
     }
 

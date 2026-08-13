@@ -132,12 +132,48 @@ class ServidorSupabase implements ServidorDeCuentas {
   }
 
   @override
+  /// Entrar con el correo **o** con el @usuario.
+  ///
+  /// # Cómo sabe cuál le escribieron
+  ///
+  /// Por la arroba. Un correo siempre tiene una; un @usuario nunca puede
+  /// tenerla, porque el formato que admite la base es `[a-z0-9._]` y nada
+  /// más. No hay forma de confundirlos, así que no hace falta un selector
+  /// ni dos campos: se escribe lo que una se acuerde.
+  ///
+  /// # Por qué el usuario necesita una vuelta más
+  ///
+  /// Supabase autentica por correo. «@usuario» es una idea nuestra, que
+  /// vive en `perfiles`, y traducirla al correo tiene que pasar **antes**
+  /// de iniciar sesión: sin sesión, y contra `auth.users`, que la app no
+  /// puede leer nunca. Eso lo hace una función del servidor,
+  /// `correo_de_usuario`, que está en `servidor/entrar_con_usuario.sql`
+  /// con la explicación de lo que expone.
+  ///
+  /// Si esa función no está instalada, esto no se rompe: avisa que por
+  /// ahora hace falta el correo.
   Future<Resultado> entrar({
     required String correo,
     required String clave,
   }) async {
+    final escrito = correo.trim();
+
+    final String email;
+    if (escrito.contains('@')) {
+      email = escrito;
+    } else {
+      final encontrado = await _correoDe(escrito);
+      if (encontrado == null) {
+        // El mismo mensaje que una contraseña incorrecta, a propósito: si
+        // dijera «ese usuario no existe», cualquiera podría averiguar qué
+        // nombres están tomados probando de a uno.
+        return const Resultado.mal('Usuario o contraseña incorrectos.');
+      }
+      email = encontrado;
+    }
+
     try {
-      await _base.auth.signInWithPassword(email: correo, password: clave);
+      await _base.auth.signInWithPassword(email: email, password: clave);
       return const Resultado.bien();
     } on AuthException catch (e) {
       return Resultado.mal(mensajeDeAuth(e));
@@ -150,6 +186,37 @@ class ServidorSupabase implements ServidorDeCuentas {
 
   @override
   Future<void> salir() => _base.auth.signOut();
+
+  /// Una columna de texto[] de Postgres, como lista de Dart.
+  ///
+  /// Devuelve una lista vacía y no null si la columna todavía no existe:
+  /// así una app nueva contra una base a la que no le corrieron
+  /// `perfil_completo.sql` muestra un perfil sin libros, en vez de romper.
+  static List<String> _lista(Object? columna) => [
+    if (columna is List)
+      for (final x in columna)
+        if (x is String) x,
+  ];
+
+  /// El correo de un @usuario, preguntándole al servidor.
+  ///
+  /// Devuelve null si no existe, si la función no está instalada, o si no
+  /// hay internet. Los tres casos terminan en el mismo mensaje para quien
+  /// mira, y eso es a propósito: distinguirlos serviría sobre todo para
+  /// averiguar qué nombres existen.
+  Future<String?> _correoDe(String usuario) async {
+    if (usuario.isEmpty) return null;
+    try {
+      final r = await _base.rpc(
+        'correo_de_usuario',
+        params: {'nombre': usuario},
+      );
+      final correo = r as String?;
+      return (correo == null || correo.isEmpty) ? null : correo;
+    } catch (_) {
+      return null;
+    }
+  }
 
   @override
   Future<Perfil?> miPerfil() async {
@@ -171,6 +238,9 @@ class ServidorSupabase implements ServidorDeCuentas {
         desde:
             DateTime.tryParse((fila['desde'] as String?) ?? '') ??
             DateTime.now(),
+        foto: fila['foto'] as String?,
+        libros: _lista(fila['libros']),
+        insignias: _lista(fila['insignias']),
       );
     } catch (_) {
       return null;
@@ -210,6 +280,20 @@ class ServidorSupabase implements ServidorDeCuentas {
         'usuario': perfil.usuario,
         'nombre': perfil.nombre,
         'presentacion': perfil.presentacion,
+        // La foto, los libros y las insignias también.
+        //
+        // Antes no viajaban, y el resultado era que entrar desde otro
+        // aparato traía el nombre y nada más: ni la cara, ni los tres
+        // libros que elegiste, ni las insignias. Justo lo contrario de
+        // para qué sirve tener cuenta.
+        //
+        // La foto va como texto en base64 y no en un depósito de
+        // archivos aparte: son unos 39 KB en el peor caso medido, y una
+        // tabla en vez de dos. La razón entera está en
+        // `servidor/perfil_completo.sql`.
+        'foto': perfil.foto,
+        'libros': perfil.libros,
+        'insignias': perfil.insignias,
       });
       return const Resultado.bien();
     } on PostgrestException catch (e) {

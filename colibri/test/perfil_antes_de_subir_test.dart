@@ -153,9 +153,25 @@ void main() {
       );
     });
 
-    test('la foto no se pisa: no viaja al servidor', () async {
-      // `perfiles` no tiene columna de foto —nunca se suben— así que
-      // adoptar el perfil de arriba no puede borrar la que hay acá.
+    test('la foto de arriba gana si hay', () async {
+      await cuenta.crear(usuario: 'lectora', nombre: 'L', foto: 'la de acá');
+      servidor.enElServidor = Perfil(
+        usuario: 'lectora',
+        nombre: 'L',
+        desde: DateTime(2026, 1, 1),
+        foto: 'la de arriba',
+      );
+
+      await cuenta.entrar(correo: 'a@b.com', clave: 'unaClave123');
+
+      expect(cuenta.perfil?.foto, 'la de arriba');
+    });
+
+    test('sin foto arriba, se conserva la de este aparato', () async {
+      // Cubre dos casos de verdad: una cuenta creada antes de que las
+      // fotos viajaran, y una base a la que todavía no le corrieron
+      // perfil_completo.sql. En los dos, quedarse sin cara sería una
+      // pérdida y no una sincronización.
       await cuenta.crear(usuario: 'lectora', nombre: 'L', foto: 'unaFoto');
       servidor.enElServidor = Perfil(
         usuario: 'lectora',
@@ -166,6 +182,23 @@ void main() {
       await cuenta.entrar(correo: 'a@b.com', clave: 'unaClave123');
 
       expect(cuenta.perfil?.foto, 'unaFoto');
+    });
+
+    test('los libros y las insignias vuelven del servidor', () async {
+      // Lo que faltaba: entrar desde otro aparato traía el nombre y nada
+      // más, porque la tabla no tenía dónde guardar esto.
+      servidor.enElServidor = Perfil(
+        usuario: 'lectora',
+        nombre: 'L',
+        desde: DateTime(2026, 1, 1),
+        libros: ['uno|autor', 'dos|autor'],
+        insignias: ['hp.slytherin'],
+      );
+
+      await cuenta.entrar(correo: 'a@b.com', clave: 'unaClave123');
+
+      expect(cuenta.perfil?.libros, ['uno|autor', 'dos|autor']);
+      expect(cuenta.perfil?.insignias, ['hp.slytherin']);
     });
 
     test('si la contraseña está mal, no se toca ningún perfil', () async {
