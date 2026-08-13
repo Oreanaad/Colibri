@@ -37,6 +37,7 @@ void main() {
     terminado: DateTime(2026, 3, 25),
     resena: 'Una narrativa muy buena con historias y personajes increíbles.',
     animos: ['no pude parar', 'me dejó pensando'],
+    estantes: {'Fantasía épica'},
     personajes: ['Rhaenyra'],
     nota: 'ESTO ES MI NOTA PRIVADA',
   );
@@ -90,16 +91,19 @@ void main() {
       // Dos veces: dentro de la tapa dibujada y como dato al lado. La
       // tapa generada escribe el título y la autoría encima.
       expect(find.text('George R. R. Martin'), findsWidgets);
-      expect(find.text('880'), findsOneWidget);
+      // El año y las páginas van en un renglón: dos números en dos
+      // renglones era gastar alto en nada.
+      expect(find.text('2018  ·  880 páginas'), findsOneWidget);
     });
 
     testWidgets('las fechas y cuánto te llevó', (tester) async {
       await dibujar(tester, conTodo());
 
-      expect(find.text('EMPECÉ'), findsOneWidget);
-      expect(find.text('TERMINÉ'), findsOneWidget);
+      // Con flecha y no con dos rótulos: se lee de un vistazo y ocupa un
+      // renglón donde «EMPECÉ / TERMINÉ» ocupaba cuatro.
+      expect(find.textContaining('→'), findsOneWidget);
       // Del 24/12 al 25/3, contando los dos extremos.
-      expect(find.textContaining('días'), findsOneWidget);
+      expect(find.textContaining('me llevó'), findsOneWidget);
     });
 
     testWidgets('la reseña', (tester) async {
@@ -107,11 +111,24 @@ void main() {
       expect(find.textContaining('personajes increíbles'), findsOneWidget);
     });
 
-    testWidgets('cómo te dejó', (tester) async {
+    testWidgets('cómo te dejó, y en qué estante lo guardaste', (tester) async {
       await dibujar(tester, conTodo());
 
       expect(find.text('no pude parar'), findsOneWidget);
       expect(find.text('me dejó pensando'), findsOneWidget);
+      expect(find.text('Fantasía épica'), findsOneWidget);
+    });
+
+    testWidgets('las escalas van con su nombre, no solo el dibujo', (
+      tester,
+    ) async {
+      // Una gota azul no dice «lágrimas» si no lo sabés de antes, y quien
+      // ve esta imagen es justamente alguien que nunca abrió Colibrí.
+      await dibujar(tester, conTodo());
+
+      for (final n in ['Puntaje', 'Lágrimas', 'Romance', 'Picante']) {
+        expect(find.text(n), findsOneWidget);
+      }
     });
   });
 
@@ -145,8 +162,9 @@ void main() {
 
       await dibujar(tester, l);
 
+      // El bloque entero desaparece: un recuadro que dice «sin puntuar»
+      // es un recuadro ocupando lugar para decir que no hay nada.
       expect(find.byType(Puntuacion), findsNothing);
-      expect(find.text('sin puntuar'), findsOneWidget);
     });
   });
 
@@ -204,6 +222,14 @@ void main() {
 
       await dibujar(tester, l);
       expect(tester.takeException(), isNull);
+      // Cambia el rótulo: sin reseña la placa no es «mi reseña», es el
+      // libro que leí. Y el hueco se llena con el puntaje en palabras.
+      expect(find.text('LO QUE LEÍ'), findsOneWidget);
+      expect(find.text('De los que no se prestan'), findsOneWidget);
+    });
+
+    testWidgets('con reseña, el rótulo es el otro', (tester) async {
+      await dibujar(tester, conTodo());
       expect(find.text('MI RESEÑA'), findsOneWidget);
     });
   });

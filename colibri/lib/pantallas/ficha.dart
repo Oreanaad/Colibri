@@ -332,20 +332,23 @@ class _PantallaFichaState extends State<PantallaFicha> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               ResenaPropia(l),
-              // El botón de compartir solo cuando hay algo que compartir.
-              // Ofrecerlo con la reseña vacía sería ofrecer una imagen de
-              // un libro sin nada dicho sobre él.
-              if (l.tieneResena) ...[
-                const SizedBox(height: 10),
-                BotonContorno(
-                  'Compartir mi reseña como imagen',
-                  alTocar: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => PantallaCompartirResena(l),
-                    ),
-                  ),
+              // Siempre, con reseña o sin ella.
+              //
+              // Antes solo aparecía con reseña escrita, pensando que una
+              // placa sin texto sería una imagen vacía. No lo es: el
+              // puntaje, las fechas, cuánto te llevó y cómo lo guardaste ya
+              // son bastante para compartir, y hay libros que una puntúa
+              // sin ganas de escribir nada. El botón cambia de nombre según
+              // el caso, para que se entienda qué va a salir.
+              const SizedBox(height: 10),
+              BotonContorno(
+                l.tieneResena
+                    ? 'Compartir mi reseña como imagen'
+                    : 'Compartir este libro como imagen',
+                alTocar: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => PantallaCompartirResena(l)),
                 ),
-              ],
+              ),
             ],
           ),
         ),

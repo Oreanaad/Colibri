@@ -70,6 +70,14 @@ extension on FondoDeResena {
     _ => Paleta.bruma,
   };
 
+  /// El color con el que se marca lo importante: el rótulo, la autoría,
+  /// tus estantes y la comilla. Uno solo por placa, para que marcar algo
+  /// siga significando algo.
+  Color get acento => switch (this) {
+    FondoDeResena.papel => const Color(0xFF8A6D3B),
+    _ => Paleta.oro,
+  };
+
   Color get linea => switch (this) {
     FondoDeResena.papel => const Color(0xFFE2DAD2),
     FondoDeResena.oro => const Color(0xFF4A3D1E),
@@ -284,6 +292,19 @@ class _PantallaCompartirResenaState extends State<PantallaCompartirResena> {
 ///
 /// Es un widget aparte porque es lo único que se fotografía: todo lo que
 /// quede adentro sale en la imagen, y todo lo que quede afuera, no.
+///
+/// # Cómo está ordenada, y por qué
+///
+/// De arriba abajo va de lo que identifica al libro a lo que dijiste vos:
+/// la tapa y la autoría primero, después las escalas, después tu reseña, y
+/// al final cómo lo guardaste. Es el mismo orden en que alguien mira una
+/// plantilla de papel, y el mismo en que decide si le interesa.
+///
+/// **Las escalas van con su nombre al lado.** En la placa anterior eran
+/// cuatro filas de dibujitos sueltos, y ahí una gota azul no dice
+/// «lágrimas»: hay que saberlo de antes. Con el nombre escrito, la imagen
+/// se entiende también para alguien que nunca vio Colibrí, que es
+/// exactamente la persona que la va a ver en las historias de otra.
 class PlacaDeResena extends StatelessWidget {
   final Libro libro;
   final FondoDeResena fondo;
@@ -300,19 +321,14 @@ class PlacaDeResena extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, medidas) {
-        // Todo se mide contra el ancho de la placa y no en píxeles fijos:
-        // la misma placa se dibuja chica en la vista previa y al triple al
+        // Todo se mide contra el ancho y no en píxeles fijos: la misma
+        // placa se dibuja chica en la vista previa y al triple al
         // fotografiarla, y con medidas fijas se rompería en una de las dos.
         final u = medidas.maxWidth / 100;
 
-        // El cuadrado tiene la mitad del alto y no entra lo mismo.
-        //
-        // Medido: con el diseño de «Historia» tal cual, el cuadrado se
-        // desbordaba 69 píxeles por abajo. Se puede achicar todo hasta que
-        // entre —y queda ilegible— o se puede sacar lo que sobra. Sale lo
-        // que menos se extraña: los chips de ánimo, que son el adorno, y la
-        // tapa va más chica. Las cuatro escalas y la reseña se quedan,
-        // porque son la placa.
+        // El cuadrado tiene la mitad del alto y no entra lo mismo. Medido:
+        // con el diseño de «Historia» tal cual, se desbordaba. Se achica lo
+        // que se puede y se saca lo que menos se extraña.
         final apretado = medidas.maxHeight < medidas.maxWidth * 1.3;
 
         return Container(
@@ -321,119 +337,54 @@ class PlacaDeResena extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'MI RESEÑA',
-                style: TextStyle(
-                  fontSize: u * 3.4,
-                  letterSpacing: u * 0.55,
-                  fontWeight: FontWeight.w600,
-                  color: fondo.tenue,
-                ),
+              _Encabezado(
+                u: u,
+                fondo: fondo,
+                texto: libro.tieneResena ? 'MI RESEÑA' : 'LO QUE LEÍ',
               ),
-              SizedBox(height: u * (apretado ? 2.5 : 4)),
+              SizedBox(height: u * (apretado ? 2.5 : 4.5)),
 
-              // La tapa y los datos, lado a lado.
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Tapa(libro, ancho: u * (apretado ? 18 : 26)),
-                  SizedBox(width: u * 5),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          libro.titulo,
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: u * 5.2,
-                            height: 1.15,
-                            fontWeight: FontWeight.w600,
-                            color: fondo.texto,
-                          ),
-                        ),
-                        SizedBox(height: u * 1.4),
-                        Text(
-                          libro.autor,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: u * 3.6,
-                            color: fondo.tenue,
-                          ),
-                        ),
-                        SizedBox(height: u * 3),
-                        _Escalas(libro: libro, u: u, tenue: fondo.tenue),
-                      ],
-                    ),
-                  ),
-                ],
+              _LibroYDatos(
+                libro: libro,
+                u: u,
+                fondo: fondo,
+                apretado: apretado,
               ),
+              SizedBox(height: u * (apretado ? 3 : 4)),
 
-              SizedBox(height: u * (apretado ? 2.5 : 4)),
-              _Datos(libro: libro, u: u, fondo: fondo),
+              _Escalas(libro: libro, u: u, fondo: fondo, apretado: apretado),
 
-              // La reseña, que es lo que ocupa todo lo que sobre.
               if (libro.tieneResena) ...[
-                SizedBox(height: u * (apretado ? 2.5 : 4)),
+                SizedBox(height: u * (apretado ? 3 : 4)),
                 Expanded(
-                  child: Container(
-                    width: double.infinity,
-                    padding: EdgeInsets.all(u * (apretado ? 3 : 4.5)),
-                    decoration: BoxDecoration(
-                      color: fondo.tarjeta,
-                      borderRadius: BorderRadius.circular(u * 3),
-                      border: Border.all(color: fondo.linea),
-                    ),
-                    child: _ResenaQueEntra(
-                      texto: libro.resena!,
-                      color: fondo.texto,
-                      maximo: u * 4.4,
-                      minimo: u * 2.2,
-                    ),
+                  child: _LaResena(
+                    texto: libro.resena!,
+                    u: u,
+                    fondo: fondo,
+                    apretado: apretado,
                   ),
                 ),
-              ] else
-                const Spacer(),
-
-              if (libro.animos.isNotEmpty && !apretado) ...[
-                SizedBox(height: u * 3.5),
-                _Animos(animos: libro.animos, u: u, fondo: fondo),
+              ] else ...[
+                // Sin reseña el hueco se llena a propósito y no se deja
+                // vacío: con lo que hay —el puntaje, las fechas, cómo lo
+                // guardaste— la placa se sostiene sola, y hay libros que
+                // una puntúa sin ganas de escribir nada.
+                SizedBox(height: u * (apretado ? 3 : 4)),
+                Expanded(
+                  child: _SinResena(libro: libro, u: u, fondo: fondo),
+                ),
               ],
 
-              SizedBox(height: u * 3.5),
-              // Flexible en los dos: es el cuarto renglón de esta sesión
-              // que se desbordaba por poner texto en un Row sin él. Acá
-              // eran 14 píxeles, y en una imagen que se comparte un
-              // desborde son las rayas amarillas y negras para siempre.
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Flexible(
-                    child: Text(
-                      'Colibrí',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: u * 3.2,
-                        color: Paleta.lila,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: u * 2),
-                  Flexible(
-                    child: Text(
-                      'mi biblioteca de lectora',
-                      maxLines: 1,
-                      textAlign: TextAlign.right,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: u * 2.8, color: fondo.tenue),
-                    ),
-                  ),
-                ],
-              ),
+              // Cómo lo guardaste: tus estantes y cómo te dejó. Van juntos
+              // y al final porque los dos contestan lo mismo —qué clase de
+              // libro fue para vos— y porque son lo primero que se sacrifica
+              // si no entra.
+              if (!apretado) ...[
+                _ComoLoGuarde(libro: libro, u: u, fondo: fondo),
+              ],
+
+              SizedBox(height: u * (apretado ? 2 : 3.5)),
+              _Pie(u: u, fondo: fondo),
             ],
           ),
         );
@@ -442,16 +393,205 @@ class PlacaDeResena extends StatelessWidget {
   }
 }
 
-/// Las cuatro escalas, y **solo las que puntuaste**.
+/// El rótulo de arriba, con su línea de oro.
+class _Encabezado extends StatelessWidget {
+  final double u;
+  final FondoDeResena fondo;
+  final String texto;
+  const _Encabezado({
+    required this.u,
+    required this.fondo,
+    required this.texto,
+  });
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: [
+      Text(
+        texto,
+        style: TextStyle(
+          fontSize: u * 3.2,
+          letterSpacing: u * 0.6,
+          fontWeight: FontWeight.w600,
+          color: fondo.acento,
+        ),
+      ),
+      SizedBox(width: u * 3),
+      // Una línea fina que corre hasta el borde. Es lo único decorativo de
+      // la placa, y alcanza: le da un arriba a la hoja sin competir con la
+      // tapa, que es lo que tiene que mirarse primero.
+      Expanded(
+        child: Container(height: u * 0.18, color: fondo.acento),
+      ),
+    ],
+  );
+}
+
+/// La tapa, el título, la autoría y los datos del ejemplar.
+class _LibroYDatos extends StatelessWidget {
+  final Libro libro;
+  final double u;
+  final FondoDeResena fondo;
+  final bool apretado;
+
+  const _LibroYDatos({
+    required this.libro,
+    required this.u,
+    required this.fondo,
+    required this.apretado,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Año y páginas en un solo renglón, con un punto medio entre ellos.
+    // Separados serían dos renglones para dos números.
+    final ficha = <String>[
+      if (libro.anio != null) '${libro.anio}',
+      if (libro.paginas != null) '${libro.paginas} páginas',
+    ].join('  ·  ');
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Tapa(libro, ancho: u * (apretado ? 20 : 27)),
+        SizedBox(width: u * 4.5),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                libro.titulo,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: u * (apretado ? 4.6 : 5.6),
+                  height: 1.12,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -u * 0.03,
+                  color: fondo.texto,
+                ),
+              ),
+              SizedBox(height: u * 1.6),
+
+              // La autoría en el color de acento: es el otro nombre propio
+              // de la placa y merece no perderse en el gris de los datos.
+              Text(
+                libro.autor,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: u * 3.6,
+                  height: 1.2,
+                  color: fondo.acento,
+                ),
+              ),
+
+              if (ficha.isNotEmpty) ...[
+                SizedBox(height: u * 1.6),
+                Text(
+                  ficha,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: u * 3, color: fondo.tenue),
+                ),
+              ],
+
+              // Las fechas se van en el cuadrado, junto con los chips: en
+              // la mitad del alto no entra todo, y entre achicar la letra
+              // hasta que no se lea y sacar lo menos mirado, se saca. El
+              // ejemplar y el veredicto se quedan siempre.
+              if (!apretado &&
+                  (libro.empezado != null || libro.terminado != null)) ...[
+                SizedBox(height: u * 2.2),
+                _Fechas(libro: libro, u: u, fondo: fondo),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Cuándo lo empezaste y cuándo lo terminaste, con la flecha en el medio.
 ///
-/// Una fila de cinco estrellas vacías se lee como un cero, y no es cero:
-/// es que todavía no dijiste nada. Lo mismo con las gotas y las llamitas.
+/// Con flecha y no con dos rótulos: «24 dic → 25 mar» se lee de un vistazo
+/// y ocupa un renglón, donde «EMPECÉ / TERMINÉ» ocupaba cuatro.
+class _Fechas extends StatelessWidget {
+  final Libro libro;
+  final double u;
+  final FondoDeResena fondo;
+
+  const _Fechas({required this.libro, required this.u, required this.fondo});
+
+  @override
+  Widget build(BuildContext context) {
+    final dias = libro.diasDeLectura;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(
+              Icons.calendar_today_outlined,
+              size: u * 2.8,
+              color: fondo.tenue,
+            ),
+            SizedBox(width: u * 1.6),
+            Flexible(
+              child: Text(
+                [
+                  if (libro.empezado != null) fechaCorta(libro.empezado!),
+                  if (libro.terminado != null) fechaCorta(libro.terminado!),
+                ].join('  →  '),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: u * 2.9, color: fondo.texto),
+              ),
+            ),
+          ],
+        ),
+        if (dias != null) ...[
+          SizedBox(height: u * 1),
+          Text(
+            dias == 1 ? 'lo leí en un día' : 'me llevó $dias días',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: u * 2.8, color: fondo.tenue),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Las cuatro escalas, **con su nombre al lado**.
+///
+/// # Por qué el nombre y no solo el dibujo
+///
+/// Porque una gota azul no dice «lágrimas» si no lo sabés de antes, y quien
+/// va a ver esta imagen es justamente alguien que nunca abrió Colibrí. En
+/// la app el dibujo solo alcanza, porque al lado está la pregunta escrita;
+/// acá la imagen viaja sola.
+///
+/// # Y solo las que puntuaste
+///
+/// Una fila de cinco estrellas vacías se lee como un cero, y no es cero: es
+/// que no dijiste nada. Es la misma regla que en la grilla del estante.
 class _Escalas extends StatelessWidget {
   final Libro libro;
   final double u;
-  final Color tenue;
+  final FondoDeResena fondo;
+  final bool apretado;
 
-  const _Escalas({required this.libro, required this.u, required this.tenue});
+  const _Escalas({
+    required this.libro,
+    required this.u,
+    required this.fondo,
+    required this.apretado,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -462,82 +602,165 @@ class _Escalas extends StatelessWidget {
       if (libro.picante > 0) (Escala.chiles, libro.picante),
     ];
 
-    if (puestas.isEmpty) {
-      return Text(
-        'sin puntuar',
-        style: TextStyle(fontSize: u * 3, color: tenue),
-      );
-    }
+    if (puestas.isEmpty) return const SizedBox.shrink();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (final (escala, valor) in puestas)
-          Padding(
-            padding: EdgeInsets.only(bottom: u * 1.1),
-            child: Puntuacion(escala, valor, tamano: u * 4),
-          ),
-      ],
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(
+        horizontal: u * 4,
+        vertical: u * (apretado ? 2 : 3.4),
+      ),
+      decoration: BoxDecoration(
+        color: fondo.tarjeta,
+        borderRadius: BorderRadius.circular(u * 2.6),
+        border: Border.all(color: fondo.linea),
+      ),
+      child: Column(
+        children: [
+          for (final (i, (escala, valor)) in puestas.indexed) ...[
+            if (i > 0) SizedBox(height: u * (apretado ? 1.2 : 2.2)),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    escala.nombre,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: u * 3.1, color: fondo.tenue),
+                  ),
+                ),
+                SizedBox(width: u * 2),
+                Puntuacion(escala, valor, tamano: u * (apretado ? 3.6 : 4.2)),
+              ],
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
 
-/// Las fechas y las páginas, en una fila de datos.
-class _Datos extends StatelessWidget {
+/// La reseña, en su tarjeta, con la comilla de oro.
+class _LaResena extends StatelessWidget {
+  final String texto;
+  final double u;
+  final FondoDeResena fondo;
+  final bool apretado;
+
+  const _LaResena({
+    required this.texto,
+    required this.u,
+    required this.fondo,
+    required this.apretado,
+  });
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: EdgeInsets.fromLTRB(
+      u * (apretado ? 3.5 : 4.5),
+      u * (apretado ? 2.5 : 3.5),
+      u * (apretado ? 3.5 : 4.5),
+      u * (apretado ? 3 : 4),
+    ),
+    decoration: BoxDecoration(
+      color: fondo.tarjeta,
+      borderRadius: BorderRadius.circular(u * 2.6),
+      border: Border.all(color: fondo.linea),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // La comilla como marca de que lo que sigue es una voz, no un dato.
+        // Grande y tenue: se ve sin leerse.
+        Text(
+          '“',
+          style: TextStyle(
+            fontSize: u * 8,
+            height: 0.9,
+            fontWeight: FontWeight.w600,
+            color: fondo.acento,
+          ),
+        ),
+        Expanded(
+          child: _ResenaQueEntra(
+            texto: texto,
+            color: fondo.texto,
+            maximo: u * (apretado ? 3.6 : 4.2),
+            minimo: u * 2.2,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+/// Lo que va donde iría la reseña, cuando no hay.
+///
+/// No es un cartel de «falta algo»: es el estado de un libro que puntuaste
+/// y no comentaste, que es un estado normal y frecuente. Se muestra lo más
+/// grande que hay para mostrar —el veredicto en palabras— y si no hay ni
+/// eso, el título del libro respirando.
+class _SinResena extends StatelessWidget {
   final Libro libro;
   final double u;
   final FondoDeResena fondo;
 
-  const _Datos({required this.libro, required this.u, required this.fondo});
+  const _SinResena({required this.libro, required this.u, required this.fondo});
+
+  /// El puntaje dicho en palabras.
+  ///
+  /// Cinco estrellas dibujadas ya están más arriba; repetirlas en número
+  /// no agrega nada. Lo que agrega es decir qué significan, que es lo que
+  /// alguien pondría de puño y letra en una plantilla de papel.
+  String? get _veredicto => switch (libro.puntaje) {
+    5 => 'De los que no se prestan',
+    4 => 'Muy bueno',
+    3 => 'Me gustó',
+    2 => 'Ni fu ni fa',
+    1 => 'No era para mí',
+    _ => null,
+  };
 
   @override
   Widget build(BuildContext context) {
-    final datos = <(String, String)>[
-      if (libro.empezado != null) ('Empecé', fechaCorta(libro.empezado!)),
-      if (libro.terminado != null) ('Terminé', fechaCorta(libro.terminado!)),
-      if (libro.diasDeLectura != null)
-        ('Me llevó', '${libro.diasDeLectura} días'),
-      if (libro.paginas != null) ('Páginas', '${libro.paginas}'),
-    ];
-
-    if (datos.isEmpty) return const SizedBox.shrink();
+    final v = _veredicto;
 
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.symmetric(vertical: u * 3, horizontal: u * 3.5),
+      alignment: Alignment.center,
+      padding: EdgeInsets.symmetric(horizontal: u * 5, vertical: u * 4),
       decoration: BoxDecoration(
+        color: fondo.tarjeta,
+        borderRadius: BorderRadius.circular(u * 2.6),
         border: Border.all(color: fondo.linea),
-        borderRadius: BorderRadius.circular(u * 2.5),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          for (final (rotulo, valor) in datos)
-            Flexible(
-              child: Column(
-                children: [
-                  Text(
-                    rotulo.toUpperCase(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: u * 2.4,
-                      letterSpacing: u * 0.2,
-                      color: fondo.tenue,
-                    ),
-                  ),
-                  SizedBox(height: u * 0.9),
-                  Text(
-                    valor,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: u * 3.2,
-                      fontWeight: FontWeight.w600,
-                      color: fondo.texto,
-                    ),
-                  ),
-                ],
+          if (v != null)
+            Text(
+              v,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: u * 5.4,
+                height: 1.2,
+                fontWeight: FontWeight.w600,
+                color: fondo.texto,
+              ),
+            )
+          else
+            Text(
+              libro.titulo,
+              textAlign: TextAlign.center,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: u * 4.6,
+                height: 1.25,
+                color: fondo.tenue,
               ),
             ),
         ],
@@ -546,31 +769,113 @@ class _Datos extends StatelessWidget {
   }
 }
 
-/// Cómo te dejó, en chips.
-class _Animos extends StatelessWidget {
-  final List<String> animos;
+/// Los estantes donde lo guardaste y cómo te dejó.
+///
+/// Los dos contestan lo mismo —qué clase de libro fue para vos— así que van
+/// juntos, pero se distinguen: los estantes son tuyos y llevan borde; los
+/// ánimos son de una lista común y van rellenos.
+class _ComoLoGuarde extends StatelessWidget {
+  final Libro libro;
   final double u;
   final FondoDeResena fondo;
 
-  const _Animos({required this.animos, required this.u, required this.fondo});
+  const _ComoLoGuarde({
+    required this.libro,
+    required this.u,
+    required this.fondo,
+  });
 
   @override
-  Widget build(BuildContext context) => Wrap(
-    spacing: u * 1.8,
-    runSpacing: u * 1.6,
+  Widget build(BuildContext context) {
+    final estantes = libro.estantes.toList();
+    if (estantes.isEmpty && libro.animos.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: EdgeInsets.only(top: u * 3.5),
+      child: Wrap(
+        spacing: u * 1.8,
+        runSpacing: u * 1.6,
+        children: [
+          for (final e in estantes)
+            _Chip(texto: e, u: u, fondo: fondo, propio: true),
+          for (final a in libro.animos)
+            _Chip(texto: a, u: u, fondo: fondo, propio: false),
+        ],
+      ),
+    );
+  }
+}
+
+class _Chip extends StatelessWidget {
+  final String texto;
+  final double u;
+  final FondoDeResena fondo;
+
+  /// Un estante tuyo, con borde; o un ánimo de la lista común, relleno.
+  final bool propio;
+
+  const _Chip({
+    required this.texto,
+    required this.u,
+    required this.fondo,
+    required this.propio,
+  });
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: EdgeInsets.symmetric(horizontal: u * 2.6, vertical: u * 1.2),
+    decoration: BoxDecoration(
+      color: propio ? null : fondo.tarjeta,
+      border: Border.all(color: propio ? fondo.acento : fondo.linea),
+      borderRadius: BorderRadius.circular(u * 4),
+    ),
+    child: Text(
+      texto,
+      style: TextStyle(
+        fontSize: u * 2.9,
+        color: propio ? fondo.acento : fondo.texto,
+        fontWeight: propio ? FontWeight.w500 : FontWeight.w400,
+      ),
+    ),
+  );
+}
+
+class _Pie extends StatelessWidget {
+  final double u;
+  final FondoDeResena fondo;
+  const _Pie({required this.u, required this.fondo});
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
     children: [
-      for (final a in animos)
-        Container(
-          padding: EdgeInsets.symmetric(horizontal: u * 2.6, vertical: u * 1.2),
-          decoration: BoxDecoration(
-            border: Border.all(color: fondo.linea),
-            borderRadius: BorderRadius.circular(u * 4),
-          ),
-          child: Text(
-            a,
-            style: TextStyle(fontSize: u * 2.9, color: fondo.texto),
+      // Flexible en los dos: es mi punto ciego de toda esta sesión, y en
+      // una imagen que se comparte un desborde son las rayas amarillas y
+      // negras para siempre.
+      Flexible(
+        child: Text(
+          'Colibrí',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: u * 3.2,
+            fontWeight: FontWeight.w600,
+            color: Paleta.lila,
           ),
         ),
+      ),
+      SizedBox(width: u * 2),
+      Flexible(
+        child: Text(
+          'mi biblioteca de lectora',
+          maxLines: 1,
+          textAlign: TextAlign.right,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontSize: u * 2.8, color: fondo.tenue),
+        ),
+      ),
     ],
   );
 }
