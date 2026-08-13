@@ -460,8 +460,68 @@ class Cuenta extends ChangeNotifier {
     return const Resultado.bien();
   }
 
-  Future<Resultado> entrar({required String correo, required String clave}) =>
-      servidor.entrar(correo: correo, clave: clave);
+  /// Entrar a una cuenta que ya existe, y dejar el perfil en su lugar.
+  ///
+  /// # Por qué esto no puede ser solo «iniciar sesión»
+  ///
+  /// Antes lo era, y pasaba esto: al entrar, la app arranca a subir la
+  /// biblioteca. Cada libro crea una fila en `obras` y otra en `ediciones`,
+  /// y `ediciones` tiene una clave ajena que `obras` no tiene:
+  ///
+  ///     cargada_por uuid references perfiles(id)
+  ///
+  /// Si todavía no hay una fila tuya en `perfiles`, la obra entra y **la
+  /// edición rebota**. Sin edición no hay lectura, y sin lectura tu libro
+  /// no existe del otro lado. Se vio en los datos de verdad: catorce obras
+  /// creadas en nueve segundos, cero ediciones, y catorce obras huérfanas
+  /// que quedaron ahí.
+  ///
+  /// Y no se notaba, porque [Nube.subirLibro] se traga los errores a
+  /// propósito —para que quedarse sin señal no te rompa la app— así que el
+  /// fallo era silencioso de punta a punta.
+  ///
+  /// Ahora, apenas hay sesión, se resuelve el perfil **antes** de que
+  /// alguien pueda subir nada:
+  ///
+  /// - Si hay uno del otro lado, se adopta: es el caso de entrar desde un
+  ///   teléfono nuevo, donde este aparato no sabe nada de vos.
+  /// - Si no lo hay pero sí hay uno local, se sube. Es el caso de haber
+  ///   armado el perfil sin cuenta y registrarse después.
+  ///
+  /// En los dos casos, cuando esto termina la fila existe.
+  Future<Resultado> entrar({
+    required String correo,
+    required String clave,
+  }) async {
+    final r = await servidor.entrar(correo: correo, clave: clave);
+    if (!r.bien) return r;
+
+    await asegurarElPerfil();
+    return r;
+  }
+
+  /// Deja tu fila de `perfiles` existiendo, venga de donde venga.
+  ///
+  /// Aparte de [entrar] y pública porque hace falta en más de un momento:
+  /// también al volver a abrir la app con una sesión que quedó guardada,
+  /// donde nadie llama a `entrar` y sin embargo se va a subir.
+  Future<void> asegurarElPerfil() async {
+    if (!servidor.disponible) return;
+
+    final delServidor = await servidor.miPerfil();
+    if (delServidor != null) {
+      // Lo de arriba manda: si entraste desde otro teléfono, tu @usuario y
+      // tu nombre son los que ya elegiste, no los que tenga este aparato.
+      // La foto no viaja —nunca se sube— así que se conserva la local.
+      await _guardar(delServidor.copiarCon(foto: _perfil?.foto));
+      return;
+    }
+
+    // No hay del otro lado. Si hay uno acá, se sube: es de alguien que
+    // armó su perfil sin cuenta y se registró después.
+    final local = _perfil;
+    if (local != null) await servidor.guardarPerfil(local);
+  }
 
   /// Borra el perfil de este teléfono.
   ///

@@ -392,11 +392,20 @@ class _TraerMisLibrosState extends State<_TraerMisLibros> {
     if (!mounted) return;
 
     setState(() => _trayendo = false);
-    avisar(ScaffoldMessenger.of(context), switch (cuenta.bajados) {
-      0 => 'Ya tenías todo lo que hay en tu cuenta.',
-      1 => 'Volvió 1 libro.',
-      final n => 'Volvieron $n libros.',
-    });
+    avisar(
+      ScaffoldMessenger.of(context),
+      // Lo que falló va primero: es lo único que pide que hagas algo.
+      // Antes no se decía en ningún lado, y un fallo real —catorce libros
+      // que rebotaron al subir— no dejó más señal que una biblioteca
+      // vacía del otro lado.
+      cuenta.fallaron > 0
+          ? '${cuenta.fallaron} no se pudieron guardar. Probá de nuevo.'
+          : switch (cuenta.bajados) {
+              0 => 'Ya tenías todo lo que hay en tu cuenta.',
+              1 => 'Volvió 1 libro.',
+              final n => 'Volvieron $n libros.',
+            },
+    );
   }
 
   @override

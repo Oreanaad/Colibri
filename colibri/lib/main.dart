@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -44,6 +46,18 @@ Future<void> main() async {
 
   await biblioteca.cargar();
   await cuenta.cargar();
+
+  // Si quedó una sesión abierta de la vez pasada, nadie va a llamar a
+  // `entrar`, y sin embargo la app va a subir libros en cuanto se toque
+  // uno. La fila de `perfiles` tiene que existir antes: sin ella, cada
+  // edición rebota por clave ajena y el libro no llega. Ver
+  // [Cuenta.asegurarElPerfil].
+  //
+  // Sin await: es un pedido de red y la app tiene que abrir igual sin
+  // señal. Lo único que se sube antes de que esto termine es lo que
+  // alguien alcance a tocar en ese segundo, y eso se reintenta solo la
+  // próxima vez que toque ese libro.
+  if (haySupabase) unawaited(cuenta.asegurarElPerfil());
   await sesion.cargar();
   runApp(const AppColibri());
 }

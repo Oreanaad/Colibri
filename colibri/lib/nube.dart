@@ -109,7 +109,15 @@ class Nube {
   /// de nuevo son seis pedidos para dejar todo exactamente como estaba.
   /// Con doscientos libros, más de mil pedidos desde un teléfono para
   /// nada. Por eso se anotan las claves antes de bajar.
-  Future<({int bajados, int subidos})> sincronizar(
+  ///
+  /// # Por qué devuelve también cuántos fallaron
+  ///
+  /// Porque [subirLibro] se traga los errores —para que quedarse sin señal
+  /// no te rompa la app— y eso hizo que un fallo real pasara sin que nadie
+  /// se enterara: al entrar en la web, catorce libros crearon su obra y
+  /// rebotaron al crear la edición, y la única señal fue una biblioteca
+  /// vacía del otro lado. Tragarse el error está bien; no contarlo, no.
+  Future<({int bajados, int subidos, int fallaron})> sincronizar(
     Biblioteca biblioteca,
   ) async {
     final yaEstaban = {for (final l in biblioteca.todos) l.clave};
@@ -117,12 +125,17 @@ class Nube {
     final bajados = await bajarTodo(biblioteca);
 
     var subidos = 0;
+    var fallaron = 0;
     for (final libro in biblioteca.todos) {
       if (!yaEstaban.contains(libro.clave)) continue;
-      if (await subirLibro(libro)) subidos++;
+      if (await subirLibro(libro)) {
+        subidos++;
+      } else {
+        fallaron++;
+      }
     }
 
-    return (bajados: bajados, subidos: subidos);
+    return (bajados: bajados, subidos: subidos, fallaron: fallaron);
   }
 
   /// Sube un libro. Devuelve si de verdad llegó.
