@@ -23,3 +23,6 @@ fotos_*/
 # El molde está en colibri/claves.ejemplo.json
 claves.json
 *.claves.json
+
+# La dirección de la base, con la contraseña adentro. Nunca se sube.
+servidor/.conexion

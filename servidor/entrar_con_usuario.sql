@@ -54,13 +54,25 @@ as $$
   select u.email
   from public.perfiles p
   join auth.users u on u.id = p.id
+  -- $1 y no `nombre`, y esto es un bug que ya pasó:
+  --
+  -- El parámetro se llamaba `nombre`, y `perfiles` **tiene una columna
+  -- llamada `nombre`**. Postgres, ante la duda, prefiere la columna. Así
+  -- que la función comparaba `usuario` contra el nombre de pila de cada
+  -- fila —«oreanaad» contra «Ore»— y devolvía null siempre.
+  --
+  -- No dio ningún error: es SQL perfectamente válido que compara dos cosas
+  -- equivocadas. Se vio probando la función con un usuario que existía.
+  --
+  -- `$1` es el parámetro por posición y no se puede confundir con nada.
+  --
   -- Exacto y en minúsculas. La columna ya solo admite minúsculas por su
   -- check de formato, y `lower` acá es para que dé igual cómo lo escriban
   -- en el teclado del teléfono, que a veces pone la primera en mayúscula.
   --
   -- Sin `like` ni comodines a propósito: esto contesta por un nombre, no
   -- deja recorrer la lista.
-  where p.usuario = lower(trim(nombre))
+  where p.usuario = lower(trim($1))
   limit 1;
 $$;
 
@@ -76,13 +88,27 @@ grant execute on function public.correo_de_usuario(text) to anon, authenticated;
 -- Un nombre que no existe tiene que devolver nada, no un error.
 
 do $$
+declare
+  alguno text;
 begin
   if (select public.correo_de_usuario('no_existe_nadie_asi')) is not null then
     raise exception 'un usuario inexistente devolvió algo';
   end if;
 
-  if (select public.correo_de_usuario('  NO_EXISTE_NADIE_ASI  ')) is not null then
-    raise exception 'el recorte de espacios o las mayúsculas no andan';
+  -- Y que uno que **sí** existe devuelva su correo.
+  --
+  -- Esta comprobación faltaba, y por eso el bug del parámetro llegó a la
+  -- base: la de arriba pasaba igual, porque con el bug la función devolvía
+  -- null para todo, incluso para los usuarios que existen.
+  select usuario into alguno from perfiles limit 1;
+  if alguno is not null then
+    if (select public.correo_de_usuario(alguno)) is null then
+      raise exception 'el usuario % existe y la función no lo encontró', alguno;
+    end if;
+    -- Con mayúsculas y espacios de más también.
+    if (select public.correo_de_usuario('  ' || upper(alguno) || '  ')) is null then
+      raise exception 'no aguanta mayúsculas ni espacios';
+    end if;
   end if;
 
   raise notice 'correo_de_usuario: lista.';
