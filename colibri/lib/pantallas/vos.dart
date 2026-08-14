@@ -445,25 +445,123 @@ class _EstadoDeLaCuenta extends StatelessWidget {
             style: Tipo.meta.copyWith(color: aSalvo ? null : Paleta.oroTexto),
           ),
           const SizedBox(height: 12),
-          if (aSalvo) ...[const _TraerMisLibros(), const SizedBox(height: 10)],
+          if (aSalvo) ...[
+            const _TraerMisLibros(),
+            const SizedBox(height: 10),
+            // Cerrar sesión y borrar el perfil son dos cosas distintas, y
+            // antes eran un botón solo llamado «Borrar mi perfil» que
+            // hacía las dos. Con servidor, «borrar» no borraba nada de la
+            // nube: tu cuenta seguía ahí. El nombre mentía.
+            BotonContorno(
+              'Cerrar sesión',
+              alTocar: () => _confirmarCerrarSesion(context),
+            ),
+            const SizedBox(height: 10),
+          ],
           BotonContorno(
-            'Borrar mi perfil',
-            alTocar: () => _confirmarSalir(context),
+            // Sin servidor, este teléfono es el único lugar donde existe
+            // tu perfil, así que borrarlo acá es borrarlo. Con servidor,
+            // no: la cuenta se queda, y el botón lo dice.
+            aSalvo ? 'Borrar el perfil de este teléfono' : 'Borrar mi perfil',
+            alTocar: () => _confirmarSalir(context, aSalvo: aSalvo),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _confirmarSalir(BuildContext context) async {
+  /// Cerrar sesión: se sale de la cuenta y no se pierde nada.
+  ///
+  /// # Qué pasa con los libros de este teléfono
+  ///
+  /// Se quedan, por la misma razón de siempre: los leíste vos, no la
+  /// cuenta. Pero eso tiene una consecuencia que hay que decir, porque no
+  /// es obvia: si después entra otra persona en este mismo teléfono, esos
+  /// libros van a estar ahí, y al sincronizar se le van a subir **a su
+  /// cuenta**. Por eso el diálogo ofrece las dos salidas y explica cuál es
+  /// cuál, en vez de elegir por la lectora.
+  Future<void> _confirmarCerrarSesion(BuildContext context) async {
+    final cuantos = biblioteca.todos.length;
+
+    final que = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Paleta.nocheAlta,
+        title: Text('¿Cerrar sesión?', style: Tipo.subtitulo),
+        content: Text(
+          'Tu cuenta y todo lo que subiste se quedan como están: entrás de '
+          'nuevo cuando quieras y está todo.\n\n'
+          'Los $cuantos libros de este teléfono también se quedan. Si le vas '
+          'a prestar el teléfono a alguien, conviene sacarlos: al entrar con '
+          'otra cuenta se subirían a esa.',
+          style: Tipo.meta,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            style: TextButton.styleFrom(foregroundColor: Paleta.bruma),
+            child: const Text('Cancelar'),
+          ),
+          if (cuantos > 0)
+            TextButton(
+              onPressed: () => Navigator.of(context).pop('todo'),
+              style: TextButton.styleFrom(foregroundColor: Paleta.bruma),
+              child: const Text('Salir y sacar los libros'),
+            ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop('sesion'),
+            style: TextButton.styleFrom(foregroundColor: Paleta.lila),
+            child: const Text('Cerrar sesión'),
+          ),
+        ],
+      ),
+    );
+
+    if (que == null) return;
+    if (!context.mounted) return;
+
+    final mensajero = ScaffoldMessenger.of(context);
+
+    // Los libros primero y la sesión después, y el orden importa: al
+    // revés, quitarlos sin sesión no llegaría a borrarlos de la nube, y
+    // quedarían subidos a medias. Con sesión abierta, cada `quitar` borra
+    // también su lectura del servidor.
+    if (que == 'todo') {
+      for (final l in [...biblioteca.todos]) {
+        await biblioteca.quitar(l);
+      }
+    }
+
+    await cuenta.salir();
+    avisar(
+      mensajero,
+      que == 'todo'
+          ? 'Listo. Tu biblioteca sigue en tu cuenta.'
+          : 'Cerraste sesión. Tus libros siguen en este teléfono.',
+    );
+  }
+
+  Future<void> _confirmarSalir(
+    BuildContext context, {
+    required bool aSalvo,
+  }) async {
     final seguro = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Paleta.nocheAlta,
         title: Text('¿Borrar tu perfil?', style: Tipo.subtitulo),
         content: Text(
-          'Se borra el nombre, el @usuario y la presentación.\n\n'
-          'Tus libros no se tocan: los leíste vos, no la cuenta.',
+          aSalvo
+              // Con servidor esto es lo mismo que cerrar sesión, y decirlo
+              // es mejor que dejar creer que se está borrando la cuenta.
+              ? 'Se borra de **este teléfono** el nombre, el @usuario y la '
+                    'presentación.\n\n'
+                    'Tu cuenta no se toca: sigue existiendo con todo lo que '
+                    'subiste, y volvés a entrar cuando quieras.\n\n'
+                    'Tus libros de este teléfono tampoco: los leíste vos, no '
+                    'la cuenta.'
+              : 'Se borra el nombre, el @usuario y la presentación.\n\n'
+                    'Tus libros no se tocan: los leíste vos, no la cuenta.',
           style: Tipo.meta,
         ),
         actions: [
