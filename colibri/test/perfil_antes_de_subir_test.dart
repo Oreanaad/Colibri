@@ -201,6 +201,78 @@ void main() {
       expect(cuenta.perfil?.insignias, ['hp.slytherin']);
     });
 
+    test('lo de acá NO se borra si arriba está vacío', () async {
+      // El bug, y era pérdida de datos:
+      //
+      // Una cuenta creada cuando la tabla todavía no guardaba la foto, los
+      // tres libros ni las insignias tiene esa fila del otro lado con esos
+      // campos vacíos. Adoptarla entera **le borraba a la lectora sus tres
+      // libros y sus insignias del teléfono**, que era el único lugar donde
+      // estaban. Y como arriba ya había una fila, tampoco se subían nunca:
+      // quedaban borrados de los dos lados.
+      await cuenta.crear(
+        usuario: 'lectora',
+        nombre: 'L',
+        foto: 'mi cara',
+        libros: ['uno|a', 'dos|b'],
+        insignias: ['hp.slytherin'],
+      );
+      servidor.enElServidor = Perfil(
+        usuario: 'lectora',
+        nombre: 'L',
+        desde: DateTime(2026, 1, 1),
+      );
+      servidor.loQueSePidio.clear();
+
+      await cuenta.entrar(correo: 'a@b.com', clave: 'unaClave123');
+
+      expect(cuenta.perfil?.foto, 'mi cara');
+      expect(cuenta.perfil?.libros, ['uno|a', 'dos|b']);
+      expect(cuenta.perfil?.insignias, ['hp.slytherin']);
+
+      // Y además se sube, que es la otra mitad: sin esto se quedaría en
+      // este teléfono para siempre, porque ninguna otra parte de la app
+      // vuelve a subir el perfil sola.
+      expect(servidor.loQueSePidio, contains('guardarPerfil'));
+      expect(servidor.enElServidor?.libros, ['uno|a', 'dos|b']);
+      expect(servidor.enElServidor?.foto, 'mi cara');
+    });
+
+    test('lo de arriba gana cuando arriba tiene algo', () async {
+      // La otra mitad de la regla: si de verdad hay libros del otro lado,
+      // esos mandan. Es el caso de entrar desde un teléfono nuevo.
+      await cuenta.crear(usuario: 'lectora', nombre: 'L', libros: ['viejo|x']);
+      servidor.enElServidor = Perfil(
+        usuario: 'lectora',
+        nombre: 'L',
+        desde: DateTime(2026, 1, 1),
+        libros: ['nuevo|y'],
+      );
+
+      await cuenta.entrar(correo: 'a@b.com', clave: 'unaClave123');
+
+      expect(cuenta.perfil?.libros, ['nuevo|y']);
+    });
+
+    test('si no falta nada arriba, no se sube de más', () async {
+      // Un pedido de red por cada arranque de la app, para mandar lo mismo
+      // que ya está, es un pedido al pedo.
+      await cuenta.crear(usuario: 'lectora', nombre: 'L', libros: ['uno|a']);
+      servidor.enElServidor = Perfil(
+        usuario: 'lectora',
+        nombre: 'L',
+        desde: DateTime(2026, 1, 1),
+        libros: ['uno|a'],
+        foto: 'una cara',
+        insignias: ['hp.slytherin'],
+      );
+      servidor.loQueSePidio.clear();
+
+      await cuenta.asegurarElPerfil();
+
+      expect(servidor.loQueSePidio, isNot(contains('guardarPerfil')));
+    });
+
     test('si la contraseña está mal, no se toca ningún perfil', () async {
       cuenta.servidor = _ServidorQueRechaza();
 

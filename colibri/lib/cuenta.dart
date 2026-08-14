@@ -509,25 +509,59 @@ class Cuenta extends ChangeNotifier {
     if (!servidor.disponible) return;
 
     final delServidor = await servidor.miPerfil();
-    if (delServidor != null) {
-      // Lo de arriba manda: si entraste desde otro teléfono, tu @usuario y
-      // tu nombre son los que ya elegiste, no los que tenga este aparato.
-      //
-      // La foto se queda con la de arriba si hay, y con la de acá si no.
-      // El «si no» cubre dos casos de verdad: una cuenta creada antes de
-      // que las fotos viajaran, y una base a la que todavía no le
-      // corrieron `servidor/perfil_completo.sql`. En los dos, quedarse sin
-      // cara sería una pérdida y no una sincronización.
-      await _guardar(
-        delServidor.copiarCon(foto: delServidor.foto ?? _perfil?.foto),
-      );
+    final local = _perfil;
+
+    // No hay nada del otro lado. Si hay uno acá, se sube: es de alguien
+    // que armó su perfil sin cuenta y se registró después.
+    if (delServidor == null) {
+      if (local != null) await servidor.guardarPerfil(local);
       return;
     }
 
-    // No hay del otro lado. Si hay uno acá, se sube: es de alguien que
-    // armó su perfil sin cuenta y se registró después.
-    final local = _perfil;
-    if (local != null) await servidor.guardarPerfil(local);
+    // Hay perfil arriba. **Se junta con el de acá, no se reemplaza.**
+    //
+    // # El bug que esto arregla, y que era una pérdida de datos
+    //
+    // Antes se adoptaba el de arriba entero. Suena razonable hasta que se
+    // mira un caso de verdad: una cuenta creada cuando la tabla todavía no
+    // guardaba la foto, los tres libros ni las insignias. Ese perfil existe
+    // del otro lado y tiene esos tres campos vacíos.
+    //
+    // Adoptarlo **le borraba a la lectora sus tres libros y sus insignias
+    // del teléfono**, que eran el único lugar donde estaban. Y como del
+    // otro lado ya había una fila, tampoco se subían nunca: quedaban
+    // borrados de los dos lados.
+    //
+    // # La regla
+    //
+    // La identidad la manda el servidor —el @usuario y el nombre son los
+    // que elegiste, no los que tenga este aparato—. Lo demás se queda con
+    // lo que exista: si arriba hay, gana arriba; si arriba está vacío y acá
+    // hay algo, se conserva **y se sube**.
+    //
+    // Vacío no es lo mismo que «lo borré»: borrar los tres libros a
+    // propósito pasa por editar el perfil, que sí sube la lista vacía.
+    final juntos = delServidor.copiarCon(
+      foto: delServidor.foto ?? local?.foto,
+      libros: delServidor.libros.isNotEmpty
+          ? delServidor.libros
+          : (local?.libros ?? const []),
+      insignias: delServidor.insignias.isNotEmpty
+          ? delServidor.insignias
+          : (local?.insignias ?? const []),
+    );
+
+    await _guardar(juntos);
+
+    // Y si de acá salió algo que arriba no estaba, se manda. Sin esto, lo
+    // que tenías en el teléfono se quedaría en el teléfono para siempre:
+    // ninguna otra parte de la app vuelve a subir el perfil sola.
+    final faltaArriba =
+        (delServidor.foto == null && juntos.foto != null) ||
+        (delServidor.libros.isEmpty && juntos.libros.isNotEmpty) ||
+        (delServidor.insignias.isEmpty && juntos.insignias.isNotEmpty);
+
+    if (faltaArriba) await servidor.guardarPerfil(juntos);
   }
 
   /// Borra el perfil de este teléfono.

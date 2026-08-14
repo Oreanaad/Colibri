@@ -78,6 +78,12 @@ extension on FondoDeResena {
     _ => Paleta.oro,
   };
 
+  /// El color de los lomos del librero del pie.
+  Color get lomos => switch (this) {
+    FondoDeResena.papel => const Color(0xFF6B5B4A),
+    _ => Paleta.lila,
+  };
+
   Color get linea => switch (this) {
     FondoDeResena.papel => const Color(0xFFE2DAD2),
     FondoDeResena.oro => const Color(0xFF4A3D1E),
@@ -288,6 +294,66 @@ class _PantallaCompartirResenaState extends State<PantallaCompartirResena> {
   }
 }
 
+/// El librero de fondo de la placa.
+///
+/// # Por qué está acá y no se reusa el de la app
+///
+/// El de `fondo.dart` dibuja lomos **en los márgenes** de una pantalla
+/// ancha, y se apaga en un teléfono porque no hay margen. Una placa no
+/// tiene márgenes: es una hoja. Así que la misma idea, dibujada distinto —
+/// una fila de lomos al pie, como el estante sobre el que se apoya todo lo
+/// demás.
+///
+/// Mismas reglas que el de la app, y por las mismas razones: un solo
+/// violeta con distinta luz en cada lomo —el color en esta placa es de la
+/// tapa y de las escalas, no del adorno— y números repetibles en vez de
+/// azar, para que la misma reseña dé siempre la misma imagen.
+class _Librero extends CustomPainter {
+  final Color color;
+  const _Librero(this.color);
+
+  static double _mezcla(int i, int sal) =>
+      ((i * 9301 + sal * 49297 + 233) % 233280) / 233280;
+
+  @override
+  void paint(Canvas lienzo, Size medida) {
+    final piso = medida.height;
+    var x = 0.0;
+    var i = 0;
+
+    while (x < medida.width) {
+      final ancho = medida.height * (0.16 + _mezcla(i, 7) * 0.22);
+      final alto = medida.height * (0.42 + _mezcla(i, 13) * 0.58);
+      final tono = _mezcla(i, 23);
+
+      lienzo.drawRect(
+        Rect.fromLTWH(x, piso - alto, ancho, alto),
+        Paint()..color = color.withValues(alpha: 0.14 + tono * 0.16),
+      );
+
+      // La franja del título: es lo que hace que se lea como un lomo y no
+      // como una barra de color.
+      if (ancho > medida.height * 0.2 && alto > medida.height * 0.6) {
+        lienzo.drawRect(
+          Rect.fromLTWH(
+            x + ancho * 0.24,
+            piso - alto * 0.74,
+            ancho * 0.52,
+            medida.height * 0.02,
+          ),
+          Paint()..color = color.withValues(alpha: 0.22),
+        );
+      }
+
+      x += ancho + medida.height * 0.05;
+      i++;
+    }
+  }
+
+  @override
+  bool shouldRepaint(_Librero viejo) => viejo.color != color;
+}
+
 /// La placa en sí.
 ///
 /// Es un widget aparte porque es lo único que se fotografía: todo lo que
@@ -331,62 +397,93 @@ class PlacaDeResena extends StatelessWidget {
         // que se puede y se saca lo que menos se extraña.
         final apretado = medidas.maxHeight < medidas.maxWidth * 1.3;
 
-        return Container(
-          color: fondo.fondo,
-          padding: EdgeInsets.all(u * (apretado ? 4.5 : 6)),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _Encabezado(
-                u: u,
-                fondo: fondo,
-                texto: libro.tieneResena ? 'MI RESEÑA' : 'LO QUE LEÍ',
+        return Stack(
+          children: [
+            Positioned.fill(child: Container(color: fondo.fondo)),
+
+            // El librero, apoyado en el borde de abajo.
+            //
+            // Va **debajo del pie y no detrás**: la primera versión lo
+            // dibujaba alto y la firma «Colibrí» quedaba encima de los
+            // lomos, ilegible. Un fondo que tapa lo que hay que leer no es
+            // un fondo, es ruido. Ahora es una franja al pie y el texto
+            // termina arriba de ella.
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: u * 9,
+              child: CustomPaint(painter: _Librero(fondo.lomos)),
+            ),
+
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                u * (apretado ? 4.5 : 6),
+                u * (apretado ? 4.5 : 6),
+                u * (apretado ? 4.5 : 6),
+                // El alto de la franja de lomos más aire: así el pie
+                // termina arriba del librero y no encima.
+                u * (apretado ? 11 : 12.5),
               ),
-              SizedBox(height: u * (apretado ? 2.5 : 4.5)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _Encabezado(
+                    u: u,
+                    fondo: fondo,
+                    texto: libro.tieneResena ? 'MI RESEÑA' : 'LO QUE LEÍ',
+                  ),
+                  SizedBox(height: u * (apretado ? 2.5 : 4.5)),
 
-              _LibroYDatos(
-                libro: libro,
-                u: u,
-                fondo: fondo,
-                apretado: apretado,
-              ),
-              SizedBox(height: u * (apretado ? 3 : 4)),
-
-              _Escalas(libro: libro, u: u, fondo: fondo, apretado: apretado),
-
-              if (libro.tieneResena) ...[
-                SizedBox(height: u * (apretado ? 3 : 4)),
-                Expanded(
-                  child: _LaResena(
-                    texto: libro.resena!,
+                  _LibroYDatos(
+                    libro: libro,
                     u: u,
                     fondo: fondo,
                     apretado: apretado,
                   ),
-                ),
-              ] else ...[
-                // Sin reseña el hueco se llena a propósito y no se deja
-                // vacío: con lo que hay —el puntaje, las fechas, cómo lo
-                // guardaste— la placa se sostiene sola, y hay libros que
-                // una puntúa sin ganas de escribir nada.
-                SizedBox(height: u * (apretado ? 3 : 4)),
-                Expanded(
-                  child: _SinResena(libro: libro, u: u, fondo: fondo),
-                ),
-              ],
 
-              // Cómo lo guardaste: tus estantes y cómo te dejó. Van juntos
-              // y al final porque los dos contestan lo mismo —qué clase de
-              // libro fue para vos— y porque son lo primero que se sacrifica
-              // si no entra.
-              if (!apretado) ...[
-                _ComoLoGuarde(libro: libro, u: u, fondo: fondo),
-              ],
+                  if (libro.tieneResena) ...[
+                    SizedBox(height: u * (apretado ? 3 : 4)),
+                    Expanded(
+                      child: _LaResena(
+                        texto: libro.resena!,
+                        u: u,
+                        fondo: fondo,
+                        apretado: apretado,
+                      ),
+                    ),
+                  ] else ...[
+                    SizedBox(height: u * (apretado ? 3 : 4)),
+                    Expanded(
+                      child: _SinResena(libro: libro, u: u, fondo: fondo),
+                    ),
+                  ],
 
-              SizedBox(height: u * (apretado ? 2 : 3.5)),
-              _Pie(u: u, fondo: fondo),
-            ],
-          ),
+                  // Las escalas, abajo y sin recuadro.
+                  //
+                  // Estaban en una tarjeta propia arriba, y eran tres
+                  // recuadros seguidos —escalas, reseña, y la tapa que ya
+                  // es un rectángulo— que hacían ver la placa como un
+                  // formulario. Sueltas y en fila se leen como un pie de
+                  // ficha, que es lo que son: el resumen de lo que
+                  // puntuaste.
+                  SizedBox(height: u * (apretado ? 3 : 4)),
+                  _Escalas(
+                    libro: libro,
+                    u: u,
+                    fondo: fondo,
+                    apretado: apretado,
+                  ),
+
+                  if (!apretado)
+                    _ComoLoGuarde(libro: libro, u: u, fondo: fondo),
+
+                  SizedBox(height: u * (apretado ? 2 : 3.5)),
+                  _Pie(u: u, fondo: fondo),
+                ],
+              ),
+            ),
+          ],
         );
       },
     );
@@ -604,38 +701,32 @@ class _Escalas extends StatelessWidget {
 
     if (puestas.isEmpty) return const SizedBox.shrink();
 
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.symmetric(
-        horizontal: u * 4,
-        vertical: u * (apretado ? 2 : 3.4),
-      ),
-      decoration: BoxDecoration(
-        color: fondo.tarjeta,
-        borderRadius: BorderRadius.circular(u * 2.6),
-        border: Border.all(color: fondo.linea),
-      ),
-      child: Column(
-        children: [
-          for (final (i, (escala, valor)) in puestas.indexed) ...[
-            if (i > 0) SizedBox(height: u * (apretado ? 1.2 : 2.2)),
-            Row(
+    // En fila y repartidas, con el nombre debajo de cada una. Así se leen
+    // de un vistazo y sin un recuadro que las encierre: son el pie de la
+    // ficha, no otra sección.
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final (escala, valor) in puestas)
+          Expanded(
+            child: Column(
               children: [
-                Expanded(
-                  child: Text(
-                    escala.nombre,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: u * 3.1, color: fondo.tenue),
+                Puntuacion(escala, valor, tamano: u * (apretado ? 3.2 : 3.8)),
+                SizedBox(height: u * 1.2),
+                Text(
+                  escala.nombre.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: u * 2.3,
+                    letterSpacing: u * 0.12,
+                    color: fondo.tenue,
                   ),
                 ),
-                SizedBox(width: u * 2),
-                Puntuacion(escala, valor, tamano: u * (apretado ? 3.6 : 4.2)),
               ],
             ),
-          ],
-        ],
-      ),
+          ),
+      ],
     );
   }
 }

@@ -126,7 +126,9 @@ void main() {
       // ve esta imagen es justamente alguien que nunca abrió Colibrí.
       await dibujar(tester, conTodo());
 
-      for (final n in ['Puntaje', 'Lágrimas', 'Romance', 'Picante']) {
+      // En mayúsculas y debajo de cada escala: es un pie de ficha, no un
+      // formulario con etiquetas a la izquierda.
+      for (final n in ['PUNTAJE', 'LÁGRIMAS', 'ROMANCE', 'PICANTE']) {
         expect(find.text(n), findsOneWidget);
       }
     });
