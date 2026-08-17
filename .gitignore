@@ -26,3 +26,7 @@ claves.json
 
 # La dirección de la base, con la contraseña adentro. Nunca se sube.
 servidor/.conexion
+
+# El registro de la renovación automática.
+servidor/.renovacion.log
+servidor/.renovacion.err
