@@ -119,6 +119,41 @@ if echo "$MODO" | grep -qi "disabled"; then
   exit 1
 fi
 
+# Que la firma se renueve de verdad, y no solo la app.
+#
+# Xcode guarda el permiso de aprovisionamiento y lo **reutiliza mientras no
+# esté vencido**. Con la firma gratis eso significa que reinstalar te deja
+# la app nueva con la misma fecha de vencimiento: creado el 11, vence el 18,
+# y reinstalar el 17 no movía nada. La app se moría igual al día siguiente y
+# el aviso decía «quedan 0 días» sin explicar por qué reinstalar no servía.
+#
+# Borrarlo hace que Xcode pida uno fresco, con siete días desde hoy. No se
+# pierde nada: es un permiso, no una credencial, y se regenera solo.
+#
+# Solo si le quedan menos de tres días: pedir uno nuevo cada vez sería
+# gastar sin motivo el cupo de la cuenta gratis, que admite diez
+# identificadores de app por semana.
+PERFILES="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+if [ -d "$PERFILES" ]; then
+  for perfil in "$PERFILES"/*.mobileprovision; do
+    [ -f "$perfil" ] || continue
+    vence=$(security cms -D -i "$perfil" 2>/dev/null \
+      | plutil -extract ExpirationDate raw -o - - 2>/dev/null) || continue
+    quedan=$(python3 -c "
+import datetime as dt, sys
+try:
+    v = dt.datetime.fromisoformat('$vence'.replace('Z', '+00:00'))
+    print((v - dt.datetime.now(dt.timezone.utc)).days)
+except Exception:
+    print(99)
+")
+    if [ "$quedan" -lt 3 ]; then
+      echo "A la firma le quedan $quedan día(s): pido una nueva."
+      rm -f "$perfil"
+    fi
+  done
+fi
+
 echo "Compilando…"
 # --release y no debug: en debug el código Dart va interpretado y la app
 # se siente casi tan lenta como la web, que es justo lo que se quiere
