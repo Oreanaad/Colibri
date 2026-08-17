@@ -480,14 +480,37 @@ class Nube {
     }
   }
 
-  // ---------- Los hijos: se borran y se vuelven a poner enteros ----------
+  // ---------- Los hijos de una lectura ----------
   //
-  // Ni las etiquetas, ni los personajes, ni las frases tienen una clave
-  // propia que sobreviva entre sincronizaciones. Diferenciar «esta frase
-  // es nueva, esta se borró, esta se editó» sería un mecanismo entero
-  // para guardar unos pocos textos cortos. Se borra todo lo de esta
-  // lectura y se vuelve a poner tal cual está ahora: más simple, y
-  // imposible de dejar desincronizado.
+  // Los ánimos, los personajes, las frases y los estantes son filas aparte
+  // que apuntan a la lectura. Se sincronizan borrando y volviendo a
+  // insertar, que es la forma más simple de dejarlos iguales a lo que tiene
+  // el teléfono, y es imposible de dejar desincronizado.
+  //
+  // # Salvo cuando el teléfono no sabe nada
+  //
+  // Y ahí estaba un bug que **borraba frases guardadas**.
+  //
+  // Visto en los datos: la nube tenía una frase de Fourth Wing, subida
+  // desde el teléfono. En la PC ese mismo libro estaba sin frases —nunca se
+  // marcó ninguna ahí— y al sincronizar desde la PC, el `delete` se llevó
+  // la frase y el `insert` no puso nada. La frase que alguien había marcado
+  // leyendo desapareció del servidor, sin ningún error.
+  //
+  // Una lista vacía no dice «las borré»: dice **«este aparato no sabe nada
+  // de esto»**. Son dos cosas distintas y tratarlas igual cuesta datos.
+  //
+  // Así que si la lista local está vacía, no se toca lo que hay del otro
+  // lado. Es la misma regla que ya usa [bajarTodo] para no pisar un libro
+  // que ya está en el teléfono: ante la duda, no se destruye.
+  //
+  // # Lo que esto todavía no resuelve
+  //
+  // Borrar la última frase de un libro **no la borra de la nube**: desde
+  // afuera se ve igual que «este aparato no la tiene». Para distinguirlos
+  // haría falta recordar qué frases subió cada aparato, y es un diseño
+  // aparte. Entre una frase que sobrevive de más y una frase que se pierde,
+  // esta app prefiere la primera: es de lo que se trata.
 
   Future<void> _reemplazarHijos(
     Libro libro,
@@ -499,37 +522,33 @@ class Nube {
     // No es un capricho de esquema: `servidor/esquema.sql` lo explica en
     // su encabezado —Postgres protege filas, no columnas—. Si la nota
     // fuera una columna de `lecturas`, el permiso que deja a otra persona
-    // ver tu estante dejaría ver también tus notas. Acá arriba se sube la
-    // lectura, que algún día va a ser visible; esto va aparte.
+    // ver tu estante dejaría ver también tus notas.
     if (libro.tieneNota) {
       await _base.from('notas').upsert({
         'lectura_id': lecturaId,
         'texto': libro.nota,
       }, onConflict: 'lectura_id');
-    } else {
-      // Borrar la nota tiene que borrarla del servidor, no solo del
-      // teléfono. Es lo mínimo que se le debe a algo que se prometió
-      // privado.
-      await _base.from('notas').delete().eq('lectura_id', lecturaId);
     }
+    // Sin `else` que borre: la misma razón que las frases. Un aparato sin
+    // la nota no sabe si no existe o si nunca la vio.
 
-    await _base.from('lectura_animos').delete().eq('lectura_id', lecturaId);
     if (libro.animos.isNotEmpty) {
+      await _base.from('lectura_animos').delete().eq('lectura_id', lecturaId);
       await _base.from('lectura_animos').insert([
         for (final a in libro.animos) {'lectura_id': lecturaId, 'animo': a},
       ]);
     }
 
-    await _base.from('personajes').delete().eq('lectura_id', lecturaId);
     if (libro.personajes.isNotEmpty) {
+      await _base.from('personajes').delete().eq('lectura_id', lecturaId);
       await _base.from('personajes').insert([
         for (final p in libro.personajes)
           {'lectura_id': lecturaId, 'nombre': p},
       ]);
     }
 
-    await _base.from('frases').delete().eq('lectura_id', lecturaId);
     if (libro.frases.isNotEmpty) {
+      await _base.from('frases').delete().eq('lectura_id', lecturaId);
       await _base.from('frases').insert([
         for (final f in libro.frases)
           {
@@ -557,8 +576,6 @@ class Nube {
       await _base.from('estante_lecturas').insert([
         for (final id in ids) {'estante_id': id, 'lectura_id': lecturaId},
       ]);
-    } else {
-      await _base.from('estante_lecturas').delete().eq('lectura_id', lecturaId);
     }
   }
 
