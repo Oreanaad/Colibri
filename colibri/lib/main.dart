@@ -47,17 +47,31 @@ Future<void> main() async {
   await biblioteca.cargar();
   await cuenta.cargar();
 
-  // Si quedó una sesión abierta de la vez pasada, nadie va a llamar a
-  // `entrar`, y sin embargo la app va a subir libros en cuanto se toque
-  // uno. La fila de `perfiles` tiene que existir antes: sin ella, cada
-  // edición rebota por clave ajena y el libro no llega. Ver
-  // [Cuenta.asegurarElPerfil].
+  // Cada vez que aparece una sesión, se resuelve el perfil.
   //
-  // Sin await: es un pedido de red y la app tiene que abrir igual sin
-  // señal. Lo único que se sube antes de que esto termine es lo que
-  // alguien alcance a tocar en ese segundo, y eso se reintenta solo la
-  // próxima vez que toque ese libro.
-  if (haySupabase) unawaited(cuenta.asegurarElPerfil());
+  // # Por qué escuchando y no una sola vez acá
+  //
+  // Antes era `unawaited(cuenta.asegurarElPerfil())` a secas, y eso
+  // preguntaba «¿hay sesión?» en el peor momento posible: justo cuando
+  // `Supabase.initialize` todavía está renovando un token vencido, que es
+  // un viaje a la red.
+  //
+  // Se vio en un teléfono de verdad. La sesión había vencido tres días
+  // antes; al abrir la app no había usuario todavía, así que no subía
+  // nada, no fallaba, y no lo reintentaba hasta el próximo arranque, donde
+  // pasaba lo mismo. La foto de perfil se quedó en el teléfono para
+  // siempre y nada avisó.
+  //
+  // Escuchando, la renovación termina, la sesión aparece, y ahí se hace lo
+  // que había que hacer. También cubre entrar desde cualquier pantalla sin
+  // que esa pantalla tenga que acordarse de llamar a nada.
+  //
+  // Sin await: la app tiene que abrir igual sin señal.
+  if (haySupabase) {
+    haySesion.listen((hay) {
+      if (hay) unawaited(cuenta.asegurarElPerfil());
+    });
+  }
   await sesion.cargar();
   runApp(const AppColibri());
 }

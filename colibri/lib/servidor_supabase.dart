@@ -74,6 +74,31 @@ String vueltaDelCorreo({required bool enLaWeb}) {
 bool get haySupabase =>
     urlSupabase.isNotEmpty && clavePublicaSupabase.isNotEmpty;
 
+/// Avisa cada vez que la sesión cambia de estado.
+///
+/// # Por qué hace falta escuchar y no preguntar una sola vez
+///
+/// Al abrir la app, `Supabase.initialize` recupera la sesión que quedó
+/// guardada. Si el token venció —a los siete días, o después de unos días
+/// sin abrir la app— hay que renovarlo, y eso es un viaje a la red que
+/// termina **después** de que `main` siguió de largo.
+///
+/// Se vio en un teléfono de verdad: la sesión había vencido tres días
+/// antes, y `asegurarElPerfil` corría en el arranque cuando todavía no
+/// había usuario. No subía nada, no fallaba, y no volvía a intentarlo hasta
+/// el próximo arranque, donde pasaba lo mismo. La foto se quedó en el
+/// teléfono para siempre sin que nada avisara.
+///
+/// Preguntar «¿hay sesión?» una vez, en el peor momento posible, es la
+/// forma de no enterarse nunca. Escuchando, cuando la sesión aparece —se
+/// renovó, o alguien entró en otra pantalla— lo que haya que hacer se hace.
+Stream<bool> get haySesion {
+  if (!haySupabase) return const Stream.empty();
+  return Supabase.instance.client.auth.onAuthStateChange.map(
+    (e) => e.session != null,
+  );
+}
+
 /// Se llama antes que nada en `main`. Si no hay claves, no hace nada.
 Future<void> prepararSupabase() async {
   if (!haySupabase) return;
