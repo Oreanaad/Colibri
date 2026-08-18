@@ -114,6 +114,44 @@ class _SinEstantes extends StatelessWidget {
             style: Tipo.meta,
             textAlign: TextAlign.center,
           ),
+
+          // Y que se pueden armar como un mueble.
+          //
+          // Sin esto, el armador de estantes era invisible: vive adentro de
+          // un estante, así que quien no tiene ninguno no tiene forma de
+          // enterarse de que existe. Una pantalla vacía es el único lugar
+          // donde se puede contar para qué sirve llenarla.
+          const SizedBox(height: 22),
+          Container(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+            decoration: BoxDecoration(
+              color: Paleta.nocheAlta,
+              border: Border.all(color: Paleta.linea),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  'Y después lo armás como un mueble',
+                  style: Tipo.cuerpo.copyWith(fontWeight: FontWeight.w600),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Cuántas repisas, de qué color el fondo, y qué le ponés '
+                  'encima: luces, una planta, un gato dormido. Cada libro va '
+                  'de lomo o de tapa, como en un estante de verdad.',
+                  style: Tipo.meta,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 14),
+                BotonLleno(
+                  'Armar mi primer estante',
+                  alTocar: () => pedirNombreDeEstante(context),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

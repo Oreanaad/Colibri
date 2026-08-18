@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:colibri/modelos.dart';
 import 'package:colibri/pantallas/vitrina.dart';
+import 'package:colibri/pantallas/estantes.dart';
 import 'package:colibri/vitrina.dart';
 import 'package:colibri/widgets.dart';
 
@@ -151,6 +152,33 @@ void main() {
 
       expect(v.posturaDe('uno|autor'), Postura.tapa);
       expect(v.posturaDe('otro|autor'), Postura.lomo);
+    });
+  });
+
+  group('se puede encontrar', () {
+    testWidgets('la solapa vacía cuenta que los estantes se decoran', (
+      tester,
+    ) async {
+      // El bug que esto atrapa no era de código: el armador vive adentro de
+      // un estante, así que quien no tiene ninguno no tenía forma de
+      // enterarse de que existe. Se reportó como «no veo en la web el
+      // cambio para hacerlo». Estaba publicado y era invisible.
+      SharedPreferences.setMockInitialValues({});
+      await biblioteca.cargar();
+      for (final e in [...biblioteca.estantes]) {
+        await biblioteca.borrarEstante(e);
+      }
+
+      await tester.binding.setSurfaceSize(const Size(420, 1200));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: VistaEstantes())),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('lo armás como un mueble'), findsOneWidget);
+      expect(find.textContaining('repisas'), findsOneWidget);
+      expect(find.text('Armar mi primer estante'), findsOneWidget);
     });
   });
 
