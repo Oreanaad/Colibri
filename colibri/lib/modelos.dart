@@ -1043,6 +1043,17 @@ class Sesion extends ChangeNotifier {
   /// Qué libro estabas mirando, o null si estabas en una lista.
   String? libro;
 
+  /// Si mirás tu estante como repisa de lomos o como grilla de tapas.
+  ///
+  /// Las dos contestan cosas distintas: la grilla sirve para **encontrar**
+  /// un libro —el título se lee de un vistazo— y la repisa para **mirar**
+  /// lo que leíste. Cuál preferís queda recordado, como el orden.
+  bool comoRepisa = false;
+
+  /// Las luces de la repisa. Prendidas de fábrica, que es como la gente
+  /// arma sus estantes.
+  bool conLuces = true;
+
   /// Cómo tenés ordenado el estante.
   ///
   /// Se guarda **por nombre** y no por número, siguiendo el consejo que
@@ -1068,6 +1079,8 @@ class Sesion extends ChangeNotifier {
     solapa = 0;
     libro = null;
     orden = Orden.cargados;
+    comoRepisa = false;
+    conLuces = true;
 
     final crudo = prefs.getString(_clave);
     if (crudo != null) {
@@ -1101,6 +1114,8 @@ class Sesion extends ChangeNotifier {
       seccion = (j['seccion'] as int?) ?? 0;
       solapa = (j['solapa'] as int?) ?? 0;
       libro = j['libro'] as String?;
+      comoRepisa = (j['repisa'] as bool?) ?? false;
+      conLuces = (j['luces'] as bool?) ?? true;
       orden = Orden.values.firstWhere(
         (o) => o.name == j['orden'],
         // Un nombre que la app ya no conoce vuelve al de fábrica, que es
@@ -1117,11 +1132,15 @@ class Sesion extends ChangeNotifier {
     int? solapa,
     String? libro,
     Orden? orden,
+    bool? comoRepisa,
+    bool? conLuces,
     bool cerrarLibro = false,
   }) async {
     if (seccion != null) this.seccion = seccion;
     if (solapa != null) this.solapa = solapa;
     if (orden != null) this.orden = orden;
+    if (comoRepisa != null) this.comoRepisa = comoRepisa;
+    if (conLuces != null) this.conLuces = conLuces;
     if (cerrarLibro) {
       this.libro = null;
     } else if (libro != null) {
@@ -1136,6 +1155,8 @@ class Sesion extends ChangeNotifier {
         'solapa': this.solapa,
         'libro': this.libro,
         'orden': this.orden.name,
+        'repisa': this.comoRepisa,
+        'luces': this.conLuces,
       }),
     );
   }

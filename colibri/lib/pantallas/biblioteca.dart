@@ -5,6 +5,7 @@ import '../tema.dart';
 import '../widgets.dart';
 import 'buscar.dart';
 import 'destacados.dart';
+import 'estante.dart';
 import 'estantes.dart';
 import 'ficha.dart';
 import 'vos.dart';
@@ -53,6 +54,10 @@ class _PantallaBibliotecaState extends State<PantallaBiblioteca> {
   /// El orden queda recordado entre sesiones: quien ordena su estante
   /// alfabético lo quiere alfabético mañana también.
   late Orden _orden = sesion.orden;
+
+  /// Repisa de lomos o grilla de tapas, y si las luces están prendidas.
+  late bool _repisa = sesion.comoRepisa;
+  late bool _luces = sesion.conLuces;
 
   /// A partir de cuántos libros aparece el buscador.
   ///
@@ -171,6 +176,19 @@ class _PantallaBibliotecaState extends State<PantallaBiblioteca> {
                     // se agrega arriba es un renglón de libros que se va
                     // abajo. Y solo cuando hay suficientes libros para que
                     // ordenar signifique algo.
+                    if (_activa == _Solapa.todos)
+                      _BotonDeVista(
+                        repisa: _repisa,
+                        luces: _luces,
+                        alCambiarVista: (v) {
+                          setState(() => _repisa = v);
+                          sesion.anotar(comoRepisa: v);
+                        },
+                        alCambiarLuces: (v) {
+                          setState(() => _luces = v);
+                          sesion.anotar(conLuces: v);
+                        },
+                      ),
                     if (biblioteca.todos.length >= _desde &&
                         _activa != _Solapa.estantes)
                       _BotonDeOrden(
@@ -311,8 +329,11 @@ class _PantallaBibliotecaState extends State<PantallaBiblioteca> {
     return [
       Rotulo('$titulo · ${libros.length}'),
       const SizedBox(height: 12),
-      GrillaLibros(libros, alTocar: _abrir),
-      const SizedBox(height: 26),
+      if (_repisa)
+        EstanteDeLomos(libros, alTocar: _abrir, conLuces: _luces)
+      else
+        GrillaLibros(libros, alTocar: _abrir),
+      SizedBox(height: _repisa ? 10 : 26),
     ];
   }
 
@@ -339,6 +360,86 @@ class _PantallaBibliotecaState extends State<PantallaBiblioteca> {
       ],
     );
   }
+}
+
+/// El botón que cambia entre repisa y grilla, y prende las luces.
+///
+/// # Por qué las luces viven acá adentro
+///
+/// Porque solo significan algo en la repisa. Un interruptor de luces
+/// siempre visible, que a veces no hace nada, es peor que uno escondido:
+/// hace dudar de si está roto.
+class _BotonDeVista extends StatelessWidget {
+  final bool repisa;
+  final bool luces;
+  final ValueChanged<bool> alCambiarVista;
+  final ValueChanged<bool> alCambiarLuces;
+
+  const _BotonDeVista({
+    required this.repisa,
+    required this.luces,
+    required this.alCambiarVista,
+    required this.alCambiarLuces,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      color: Paleta.nocheAlta,
+      tooltip: 'Cómo se ve',
+      position: PopupMenuPosition.under,
+      onSelected: (q) => switch (q) {
+        'grilla' => alCambiarVista(false),
+        'repisa' => alCambiarVista(true),
+        _ => alCambiarLuces(!luces),
+      },
+      itemBuilder: (_) => [
+        _opcion('grilla', 'Tapas', !repisa),
+        _opcion('repisa', 'Lomos, en la repisa', repisa),
+        if (repisa) ...[
+          const PopupMenuDivider(),
+          _opcion(
+            'luces',
+            luces ? 'Apagar las luces' : 'Prender las luces',
+            false,
+          ),
+        ],
+      ],
+      child: Padding(
+        padding: const EdgeInsets.only(left: 4, right: 10),
+        child: Icon(
+          repisa ? Icons.auto_stories_outlined : Icons.grid_view_rounded,
+          size: 17,
+          color: Paleta.bruma,
+        ),
+      ),
+    );
+  }
+
+  PopupMenuItem<String> _opcion(String valor, String texto, bool puesta) =>
+      PopupMenuItem(
+        value: valor,
+        child: Row(
+          children: [
+            Icon(
+              puesta ? Icons.check_rounded : null,
+              size: 16,
+              color: Paleta.lila,
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                texto,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: puesta ? Paleta.lila : Paleta.luz,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 /// El botón que cambia el orden del estante.
