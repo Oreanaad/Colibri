@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import '../modelos.dart';
 import '../tema.dart';
 import '../widgets.dart';
+import '../vitrina.dart';
 import 'ficha.dart';
+import 'vitrina.dart';
 
 /// Pide un nombre de estante. Devuelve el nombre creado, o null si la
 /// persona canceló o el nombre ya existía.
@@ -190,6 +192,15 @@ class PantallaEstante extends StatefulWidget {
 class _PantallaEstanteState extends State<PantallaEstante> {
   late String _nombre = widget.nombre;
 
+  /// Cómo está armado este estante, y si se está armando ahora.
+  late Vitrina _vitrina = vitrinas.de(_nombre);
+  bool _armando = false;
+
+  Future<void> _guardarVitrina(Vitrina v) async {
+    setState(() => _vitrina = v);
+    await vitrinas.guardar(_nombre, v);
+  }
+
   Future<void> _confirmarBorrado() async {
     final borrar = await showDialog<bool>(
       context: context,
@@ -217,6 +228,9 @@ class _PantallaEstanteState extends State<PantallaEstante> {
 
     if (borrar != true) return;
     await biblioteca.borrarEstante(_nombre);
+    // La decoración se va con el estante: dejarla huérfana haría que un
+    // estante nuevo con el mismo nombre apareciera ya decorado por otro.
+    await vitrinas.olvidar(_nombre);
     if (mounted) Navigator.of(context).pop();
   }
 
@@ -237,6 +251,15 @@ class _PantallaEstanteState extends State<PantallaEstante> {
               style: const TextStyle(color: Paleta.luz, fontSize: 17),
             ),
             actions: [
+              if (libros.isNotEmpty)
+                IconButton(
+                  onPressed: () => setState(() => _armando = !_armando),
+                  icon: Icon(
+                    _armando ? Icons.check_rounded : Icons.tune_rounded,
+                  ),
+                  color: _armando ? Paleta.oro : Paleta.lila,
+                  tooltip: _armando ? 'Listo' : 'Armar el estante',
+                ),
               PopupMenuButton<String>(
                 color: Paleta.nocheAlta,
                 icon: const Icon(Icons.more_horiz_rounded),
@@ -247,6 +270,8 @@ class _PantallaEstanteState extends State<PantallaEstante> {
                       nombreActual: _nombre,
                     );
                     if (nuevo != null && mounted) {
+                      await vitrinas.renombrar(_nombre, nuevo);
+                      if (!mounted) return;
                       setState(() => _nombre = nuevo);
                     }
                   } else {
@@ -272,34 +297,59 @@ class _PantallaEstanteState extends State<PantallaEstante> {
               ),
             ],
           ),
-          body: Columna(
-            hijo: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
-              children: [
-                Text(
-                  libros.length == 1 ? '1 libro' : '${libros.length} libros',
-                  style: Tipo.meta,
-                ),
-                const SizedBox(height: 16),
-                if (libros.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 40),
-                    child: Text(
-                      'Este estante está vacío.\n\nAbrí cualquier libro de tu '
-                      'biblioteca y sumalo desde ahí.',
-                      style: Tipo.meta,
-                      textAlign: TextAlign.center,
-                    ),
-                  )
-                else
-                  GrillaLibros(
-                    libros,
-                    alTocar: (l) => Navigator.of(
-                      context,
-                    ).push(MaterialPageRoute(builder: (_) => PantallaFicha(l))),
+          body: Column(
+            children: [
+              Expanded(
+                child: Columna(
+                  hijo: ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                    children: [
+                      Text(
+                        libros.length == 1
+                            ? '1 libro'
+                            : '${libros.length} libros',
+                        style: Tipo.meta,
+                      ),
+                      const SizedBox(height: 16),
+                      if (libros.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 40),
+                          child: Text(
+                            'Este estante está vacío.\n\nAbrí cualquier libro '
+                            'de tu biblioteca y sumalo desde ahí.',
+                            style: Tipo.meta,
+                            textAlign: TextAlign.center,
+                          ),
+                        )
+                      else
+                        MuebleDeEstante(
+                          libros: libros,
+                          vitrina: _vitrina,
+                          alTocar: (l) => Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => PantallaFicha(l)),
+                          ),
+                          // Mientras se arma, tocar un libro lo da vuelta
+                          // en vez de abrirlo: es el momento de acomodar,
+                          // no el de leer.
+                          alCambiarPostura: _armando
+                              ? (l) => _guardarVitrina(
+                                  _vitrina.alternarPostura(l.clave),
+                                )
+                              : null,
+                        ),
+                    ],
                   ),
-              ],
-            ),
+                ),
+              ),
+
+              if (_armando)
+                Columna(
+                  hijo: HojaDeArmar(
+                    vitrina: _vitrina,
+                    alCambiar: _guardarVitrina,
+                  ),
+                ),
+            ],
           ),
         );
       },

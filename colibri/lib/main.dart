@@ -8,6 +8,7 @@ import 'cuenta.dart';
 import 'nube.dart';
 import 'servidor_supabase.dart';
 import 'modelos.dart';
+import 'vitrina.dart';
 import 'pantallas/biblioteca.dart';
 import 'pantallas/comunidad.dart';
 import 'pantallas/fanfics.dart';
@@ -44,6 +45,7 @@ Future<void> main() async {
     nube.conectar(biblioteca);
   }
 
+  await vitrinas.cargar();
   await biblioteca.cargar();
   await cuenta.cargar();
 
