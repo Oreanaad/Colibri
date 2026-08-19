@@ -1,4 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import '../archivo/selector.dart';
+import '../foto.dart';
+import '../lomo.dart';
 import '../modelos.dart';
 import '../tema.dart';
 import '../widgets.dart';
@@ -234,9 +239,76 @@ class _PantallaEstanteState extends State<PantallaEstante> {
   late Vitrina _vitrina = vitrinas.de(_nombre);
   bool _armando = false;
 
+  @override
+  void initState() {
+    super.initState();
+    // Lo automático: sacarle a cada tapa su color para pintarle el lomo.
+    // Va acá y no en el widget del mueble porque acá se sabe qué libros
+    // son, y porque una sola vez al entrar alcanza.
+    _mirarLasTapas();
+  }
+
+  Future<void> _mirarLasTapas() async {
+    final aprendio = await lomos.mirarLasTapas(biblioteca.enEstante(_nombre));
+    if (aprendio && mounted) setState(() {});
+  }
+
   Future<void> _guardarVitrina(Vitrina v) async {
     setState(() => _vitrina = v);
     await vitrinas.guardar(_nombre, v);
+  }
+
+  /// Qué hacer con un libro que se tocó mientras se arma.
+  ///
+  /// Antes el toque alternaba lomo y tapa, y alcanzaba porque eran dos.
+  /// Con la foto son tres, y un toque que rota entre tres opciones obliga
+  /// a tocar hasta tres veces sin saber qué viene.
+  Future<void> _queHacerCon(Libro libro) => elegirComoSeVe(
+    context,
+    libro: libro,
+    deTapa: _vitrina.deTapa.contains(libro.clave),
+    alDarVuelta: () => _guardarVitrina(_vitrina.alternarPostura(libro.clave)),
+    alSacarFoto: () => _fotoDelLomo(libro),
+    alQuitarFoto: () async {
+      await lomos.quitarFoto(libro.clave);
+      if (mounted) setState(() {});
+    },
+  );
+
+  /// La foto del canto del libro que tenés en la mano.
+  ///
+  /// # Por qué no se puede buscar sola
+  ///
+  /// Ningún catálogo publica fotos de lomos. Está comprobado contra Open
+  /// Library, que es el que usa la app: `…/b/id/8231856-spine` contesta
+  /// 404, igual que `-back`. Solo existe la tapa. Así que el lomo de
+  /// verdad, con su tipografía y su editorial, solo puede entrar por acá.
+  ///
+  /// Lo que **sí** hace sola la app es sacarle el color a la tapa y
+  /// pintarle el lomo con eso, que es lo más parecido sin la foto.
+  Future<void> _fotoDelLomo(Libro libro) async {
+    try {
+      final archivo = await elegirArchivo(acepta: 'image/*');
+      if (archivo == null) return;
+
+      final achicada = FotoDeLomo.preparar(archivo.bytes);
+      if (!mounted) return;
+
+      if (achicada == null) {
+        avisar(
+          ScaffoldMessenger.of(context),
+          'Ese archivo no es una foto. Probá con otra.',
+        );
+        return;
+      }
+
+      await lomos.guardarFoto(libro.clave, base64Encode(achicada));
+      if (mounted) setState(() {});
+    } catch (_) {
+      if (mounted) {
+        avisar(ScaffoldMessenger.of(context), 'No se pudo abrir la foto.');
+      }
+    }
   }
 
   Future<void> _confirmarBorrado() async {
@@ -366,14 +438,10 @@ class _PantallaEstanteState extends State<PantallaEstante> {
                           alTocar: (l) => Navigator.of(context).push(
                             MaterialPageRoute(builder: (_) => PantallaFicha(l)),
                           ),
-                          // Mientras se arma, tocar un libro lo da vuelta
-                          // en vez de abrirlo: es el momento de acomodar,
-                          // no el de leer.
-                          alCambiarPostura: _armando
-                              ? (l) => _guardarVitrina(
-                                  _vitrina.alternarPostura(l.clave),
-                                )
-                              : null,
+                          // Mientras se arma, tocar un libro abre qué hacer
+                          // con él en vez de abrirlo: es el momento de
+                          // acomodar, no el de leer.
+                          alCambiarPostura: _armando ? _queHacerCon : null,
                         ),
                     ],
                   ),

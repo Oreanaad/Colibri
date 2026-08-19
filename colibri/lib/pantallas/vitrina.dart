@@ -2,6 +2,10 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import 'dart:convert';
+import 'dart:typed_data';
+
+import '../lomo.dart';
 import '../modelos.dart';
 import '../tema.dart';
 import '../vitrina.dart';
@@ -165,7 +169,32 @@ double _altoDeLomo(Libro libro, double altoDeRepisa) {
   return altoDeRepisa * (0.62 + (semilla % 23) / 23 * 0.26);
 }
 
+/// El color del lomo.
+///
+/// # De dónde sale, en orden
+///
+/// 1. **De la tapa del libro**, si ya se miró. Es lo más parecido a que la
+///    app lo busque sola: ningún catálogo publica fotos de lomos —se
+///    comprobó, `spine` contesta 404 en Open Library— pero la tapa sí
+///    existe, y una repisa donde cada lomo tiene el color de su libro se
+///    parece muchísimo más a una biblioteca.
+/// 2. **Del título**, si no. Es un color inventado, pero repetible: el
+///    mismo libro se ve siempre igual y dos libros distintos nunca quedan
+///    iguales.
+///
+/// En los dos casos se termina de acomodar acá: oscuro para que el título
+/// blanco se lea encima, y poco saturado porque las encuadernaciones de
+/// verdad son apagadas y una repisa chillona se ve como una juguetería.
 Color _colorDeLomo(Libro libro) {
+  final deLaTapa = lomos.colorDe(libro.clave);
+  if (deLaTapa != null) {
+    final h = HSLColor.fromColor(Color(deLaTapa));
+    return h
+        .withSaturation(h.saturation.clamp(0.18, 0.46))
+        .withLightness(h.lightness.clamp(0.17, 0.34))
+        .toColor();
+  }
+
   final semilla = libro.titulo.hashCode.abs();
   return HSLColor.fromAHSL(
     1,
@@ -315,6 +344,10 @@ class _Lomo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // La foto del canto de verdad gana sobre cualquier dibujo.
+    final foto = lomos.fotoDe(libro.clave);
+    if (foto != null) return _LomoConFoto(foto, ancho: ancho, alto: alto);
+
     final color = _colorDeLomo(libro);
     final angosto = ancho < 22;
     final claro = HSLColor.fromColor(color);
@@ -372,6 +405,53 @@ class _Lomo extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// El lomo, con la foto que alguien le sacó al libro de verdad.
+///
+/// Sin nervios dibujados ni título encima: la foto ya los tiene. Dibujarle
+/// algo arriba sería taparle justo lo que se fue a fotografiar.
+class _LomoConFoto extends StatelessWidget {
+  final String base64;
+  final double ancho;
+  final double alto;
+
+  const _LomoConFoto(this.base64, {required this.ancho, required this.alto});
+
+  @override
+  Widget build(BuildContext context) {
+    final bytes = _bytes(base64);
+    if (bytes == null) return const SizedBox.shrink();
+
+    return Container(
+      width: ancho,
+      height: alto,
+      decoration: BoxDecoration(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.28)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Image.memory(
+        bytes,
+        // Estirada a lo largo del canto: una foto de lomo tiene la
+        // proporción que tiene, y acá el alto lo manda el libro. `cover`
+        // recorta lo que sobra, que es preferible a deformar el título.
+        fit: BoxFit.cover,
+        // Si los bytes están rotos, el color de siempre y no un ícono de
+        // imagen rota en el medio de la repisa.
+        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+      ),
+    );
+  }
+}
+
+/// Los bytes de un base64, o null si no se puede.
+Uint8List? _bytes(String base64) {
+  try {
+    return base64Decode(base64);
+  } catch (_) {
+    return null;
   }
 }
 
@@ -760,6 +840,115 @@ class _FichaDeColor extends StatelessWidget {
           color: Paleta.luz,
           fontWeight: puesta ? FontWeight.w600 : FontWeight.w400,
         ),
+      ),
+    ),
+  );
+}
+
+/// Qué hacer con un libro de la repisa, mientras se arma.
+///
+/// # Por qué una hoja y no un toque que va rotando
+///
+/// Antes tocar un libro alternaba entre lomo y tapa. Con la foto ya son
+/// tres cosas, y un toque que rota entre tres es un toque que hay que dar
+/// hasta tres veces sin saber qué viene. Además la foto necesita una
+/// pantalla igual, para elegir el archivo.
+Future<void> elegirComoSeVe(
+  BuildContext context, {
+  required Libro libro,
+  required bool deTapa,
+  required VoidCallback alDarVuelta,
+  required VoidCallback alSacarFoto,
+  required VoidCallback alQuitarFoto,
+}) => showModalBottomSheet<void>(
+  context: context,
+  backgroundColor: Paleta.nocheAlta,
+  shape: const RoundedRectangleBorder(
+    borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+  ),
+  builder: (hoja) => SafeArea(
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            libro.titulo,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Tipo.subtitulo,
+          ),
+          const SizedBox(height: 16),
+
+          _Opcion(
+            deTapa ? 'Ponerlo de lomo' : 'Ponerlo de tapa',
+            detalle: deTapa
+                ? 'Como el resto, de canto'
+                : 'De frente, como los favoritos de un estante',
+            alTocar: () {
+              Navigator.of(hoja).pop();
+              alDarVuelta();
+            },
+          ),
+          const SizedBox(height: 10),
+
+          _Opcion(
+            lomos.tieneFoto(libro.clave)
+                ? 'Cambiar la foto del lomo'
+                : 'Sacarle una foto al lomo',
+            detalle:
+                'La del libro que tenés en la mano. Ningún catálogo tiene '
+                'fotos de lomos, así que esta es la única forma de que sea '
+                'el de verdad.',
+            alTocar: () {
+              Navigator.of(hoja).pop();
+              alSacarFoto();
+            },
+          ),
+
+          if (lomos.tieneFoto(libro.clave)) ...[
+            const SizedBox(height: 10),
+            _Opcion(
+              'Quitar la foto',
+              detalle: 'Vuelve al lomo dibujado con el color de su tapa',
+              alTocar: () {
+                Navigator.of(hoja).pop();
+                alQuitarFoto();
+              },
+            ),
+          ],
+        ],
+      ),
+    ),
+  ),
+);
+
+class _Opcion extends StatelessWidget {
+  final String texto;
+  final String detalle;
+  final VoidCallback alTocar;
+
+  const _Opcion(this.texto, {required this.detalle, required this.alTocar});
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: alTocar,
+    borderRadius: BorderRadius.circular(10),
+    child: Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 11, 14, 12),
+      decoration: BoxDecoration(
+        border: Border.all(color: Paleta.linea),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(texto, style: Tipo.cuerpo.copyWith(color: Paleta.lila)),
+          const SizedBox(height: 3),
+          Text(detalle, style: Tipo.meta.copyWith(fontSize: 11.5)),
+        ],
       ),
     ),
   );

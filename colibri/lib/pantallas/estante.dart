@@ -1,7 +1,10 @@
+import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import '../lomo.dart';
 import '../modelos.dart';
 import '../tema.dart';
 import '../widgets.dart';
@@ -48,6 +51,22 @@ class _EstanteDeLomosState extends State<EstanteDeLomos> {
   /// mirar dos a la vez no es nada. Además, si quedaran muchos dados vuelta
   /// la repisa se convierte otra vez en una grilla desordenada.
   String? _dadoVuelta;
+
+  @override
+  void initState() {
+    super.initState();
+    _mirarLasTapas();
+  }
+
+  /// Lo automático: cada lomo termina con el color de su propia tapa.
+  ///
+  /// Ningún catálogo publica fotos de lomos —Open Library contesta 404 a
+  /// `-spine` y a `-back`—, así que esto es lo más cerca que se llega sin
+  /// que alguien saque la foto: la tapa existe, y su color es el del libro.
+  Future<void> _mirarLasTapas() async {
+    final aprendio = await lomos.mirarLasTapas(widget.libros);
+    if (aprendio && mounted) setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -143,6 +162,18 @@ double _altoDeLomo(Libro libro) {
 /// saturados: una repisa de colores chillones se ve como una juguetería, y
 /// las encuadernaciones de verdad son apagadas.
 Color _colorDeLomo(Libro libro) {
+  // Si la app ya le miró la tapa, ese color manda: es el del libro de
+  // verdad y no uno inventado. Se acomoda igual —oscuro y poco saturado—
+  // porque una tapa fucsia hecha lomo entero encandila.
+  final deLaTapa = lomos.colorDe(libro.clave);
+  if (deLaTapa != null) {
+    final h = HSLColor.fromColor(Color(deLaTapa));
+    return h
+        .withSaturation(h.saturation.clamp(0.18, 0.46))
+        .withLightness(h.lightness.clamp(0.17, 0.34))
+        .toColor();
+  }
+
   final semilla = libro.titulo.hashCode.abs();
   final matiz = (semilla % 360).toDouble();
   final saturacion = 0.22 + (semilla % 11) / 11 * 0.20;
@@ -278,6 +309,30 @@ class _DeCanto extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // La foto que alguien le sacó al canto de verdad gana sobre el dibujo,
+    // acá igual que en los estantes armados: un libro tiene que verse
+    // igual en toda la app.
+    final foto = lomos.fotoDe(libro.clave);
+    if (foto != null) {
+      final bytes = _bytes(foto);
+      if (bytes != null) {
+        return Container(
+          width: ancho,
+          height: alto,
+          decoration: BoxDecoration(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
+            border: Border.all(color: Colors.black.withValues(alpha: 0.28)),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Image.memory(
+            bytes,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => const SizedBox.shrink(),
+          ),
+        );
+      }
+    }
+
     final color = _colorDeLomo(libro);
     final angosto = ancho < 22;
 
@@ -346,6 +401,15 @@ class _DeCanto extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Los bytes de un base64, o null si no se puede.
+Uint8List? _bytes(String base64) {
+  try {
+    return base64Decode(base64);
+  } catch (_) {
+    return null;
   }
 }
 

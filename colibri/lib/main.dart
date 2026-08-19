@@ -7,6 +7,7 @@ import 'fondo.dart';
 import 'cuenta.dart';
 import 'nube.dart';
 import 'servidor_supabase.dart';
+import 'lomo.dart';
 import 'modelos.dart';
 import 'vitrina.dart';
 import 'pantallas/biblioteca.dart';
@@ -46,6 +47,7 @@ Future<void> main() async {
   }
 
   await vitrinas.cargar();
+  await lomos.cargar();
   await biblioteca.cargar();
   await cuenta.cargar();
 
