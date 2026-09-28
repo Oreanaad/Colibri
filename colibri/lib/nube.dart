@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:archive/archive.dart' show getCrc32;
@@ -119,7 +120,7 @@ class Nube {
   /// rebotaron al crear la edición, y la única señal fue una biblioteca
   /// vacía del otro lado. Tragarse el error está bien; no contarlo, no.
   Future<
-    ({int bajados, int alDia, int subidos, int fallaron, bool sinConexion})
+    ({int bajados, int alDia, int subidos, int fallaron, Problema? problema})
   >
   sincronizar(Biblioteca biblioteca) async {
     final yaEstaban = {for (final l in biblioteca.todos) l.clave};
@@ -131,7 +132,13 @@ class Nube {
     // hasta rendirse, y con doscientos libros eso son horas. Se avisa y
     // listo; lo de este aparato sigue intacto.
     if (enLaNube == null) {
-      return (bajados: 0, alDia: 0, subidos: 0, fallaron: 0, sinConexion: true);
+      return (
+        bajados: 0,
+        alDia: 0,
+        subidos: 0,
+        fallaron: 0,
+        problema: problema ?? Problema.sinRespuesta,
+      );
     }
 
     final libreta = await _libreta();
@@ -168,7 +175,7 @@ class Nube {
       alDia: alDia,
       subidos: subidos,
       fallaron: fallaron,
-      sinConexion: false,
+      problema: null,
     );
   }
 
@@ -214,6 +221,10 @@ class Nube {
   /// pero con techo, porque sin él un servidor que no contesta deja la app
   /// esperando para siempre sin decir nada.
   static const _espera = Duration(seconds: 25);
+
+  /// Qué salió mal la última vez que se intentó bajar, o `null` si salió
+  /// bien.
+  Problema? problema;
 
   /// [_subirLibro] con techo de tiempo: si la nube no contesta, cuenta
   /// como que no llegó —y se reintenta la próxima vez— en vez de colgar a
@@ -397,7 +408,10 @@ class Nube {
   ) async {
     const nada = (bajados: 0, alDia: 0, enLaNube: null);
     final yo = _quienSoy;
-    if (yo == null) return nada;
+    if (yo == null) {
+      problema = Problema.sinSesion;
+      return nada;
+    }
 
     final List<dynamic> filas;
     try {
@@ -408,11 +422,13 @@ class Nube {
           .select(todoLoDeUnaLectura)
           .eq('perfil_id', yo)
           .timeout(_espera);
-    } catch (_) {
+    } catch (e) {
       // Sin internet o el servidor no contestó. La biblioteca local queda
       // como estaba, que es lo correcto: no bajar nada no rompe nada.
+      problema = Problema.de(e);
       return nada;
     }
+    problema = null;
 
     final libros = <Libro>[];
     final direcciones = <String, _Registro>{};
@@ -786,6 +802,32 @@ class Nube {
     libreta.remove(claveLibro);
     await prefs.setString(_clave, jsonEncode(libreta));
   }
+}
+
+/// Por qué no se pudo hablar con la nube.
+///
+/// Antes era un solo «no me pude conectar» para todo, y eso no ayudaba a
+/// nadie: con el servidor pausado, con la sesión vencida y con un error de
+/// la base el cartel era el mismo, y cada uno se arregla distinto.
+enum Problema {
+  /// No hay nadie en sesión: hay que volver a entrar.
+  sinSesion,
+
+  /// La nube no contestó a tiempo, o no se la encontró.
+  sinRespuesta,
+
+  /// La sesión existía pero el servidor no la aceptó.
+  sesionVencida,
+
+  /// La nube contestó, pero con un error.
+  error;
+
+  static Problema de(Object e) => switch (e) {
+    AuthException() => Problema.sesionVencida,
+    PostgrestException(code: 'PGRST301' || '401') => Problema.sesionVencida,
+    PostgrestException() => Problema.error,
+    _ => Problema.sinRespuesta,
+  };
 }
 
 class _Registro {
