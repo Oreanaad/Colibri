@@ -30,26 +30,31 @@ Future<void> main() async {
       systemNavigationBarIconBrightness: Brightness.light,
     ),
   );
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
-
+  // Todo a la vez: ninguna de estas cosas necesita a otra, y en fila la
+  // primera pantalla esperaba la suma de todas. Lo que sí depende de
+  // Supabase —el servidor de la cuenta y la nube— va después.
+  //
   // Si hay claves, la app habla con Supabase. Si no, funciona igual y
   // todo queda en el teléfono: es la misma app, con otra implementación
   // de la misma frontera.
-  await prepararSupabase();
+  await Future.wait([
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]),
+    prepararSupabase(),
+    vitrinas.cargar(),
+    lomos.cargar(),
+    biblioteca.cargar(),
+    cuenta.cargar(),
+    sesion.cargar(),
+  ]);
   if (haySupabase) {
     cuenta.servidor = const ServidorSupabase();
     // Biblioteca no se entera de que esto existe: nube se cuelga de sus
     // dos enganches y a partir de acá cada cambio intenta subirse solo.
     nube.conectar(biblioteca);
   }
-
-  await vitrinas.cargar();
-  await lomos.cargar();
-  await biblioteca.cargar();
-  await cuenta.cargar();
 
   // Cada vez que aparece una sesión, se resuelve el perfil.
   //
@@ -76,7 +81,6 @@ Future<void> main() async {
       if (hay) unawaited(cuenta.asegurarElPerfil());
     });
   }
-  await sesion.cargar();
   runApp(const AppColibri());
 }
 

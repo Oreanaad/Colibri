@@ -2,9 +2,6 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
-import 'dart:convert';
-import 'dart:typed_data';
-
 import '../lomo.dart';
 import '../modelos.dart';
 import '../tema.dart';
@@ -421,7 +418,7 @@ class _LomoConFoto extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bytes = _bytes(base64);
+    final bytes = bytesDeFoto(base64);
     if (bytes == null) return const SizedBox.shrink();
 
     return Container(
@@ -447,13 +444,6 @@ class _LomoConFoto extends StatelessWidget {
 }
 
 /// Los bytes de un base64, o null si no se puede.
-Uint8List? _bytes(String base64) {
-  try {
-    return base64Decode(base64);
-  } catch (_) {
-    return null;
-  }
-}
 
 class _Nervio extends StatelessWidget {
   final double ancho;

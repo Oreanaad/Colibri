@@ -1,6 +1,4 @@
-import 'dart:convert';
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
@@ -224,7 +222,12 @@ class _Balda extends StatelessWidget {
               ),
 
               if (conLuces)
-                const Positioned(left: 0, right: 0, top: 6, child: _Luces()),
+                const Positioned(
+                  left: 0,
+                  right: 0,
+                  top: 6,
+                  child: RepaintBoundary(child: _Luces()),
+                ),
             ],
           ),
         ),
@@ -263,37 +266,42 @@ class _Lomo extends StatelessWidget {
     final ancho = _anchoDeLomo(libro);
     final alto = _altoDeLomo(libro);
 
-    return GestureDetector(
-      onTap: alTocar,
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0, end: dadoVuelta ? 1 : 0),
-        duration: const Duration(milliseconds: 420),
-        curve: Curves.easeInOutCubic,
-        builder: (context, t, _) {
-          // Gira sobre su eje vertical, como un libro que se saca de la
-          // repisa y se pone de frente. A mitad de camino se cambia lo que
-          // se dibuja, que es cuando el canto queda perpendicular y no se
-          // ve nada: ahí el cambio es invisible.
-          final angulo = t * pi;
-          final deFrente = t > 0.5;
+    // Una capa propia por lomo: mientras uno gira, los demás —y las
+    // luces, con sus sombras difusas, que son lo más caro de pintar— no
+    // se vuelven a pintar en cada cuadro del giro.
+    return RepaintBoundary(
+      child: GestureDetector(
+        onTap: alTocar,
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: dadoVuelta ? 1 : 0),
+          duration: const Duration(milliseconds: 420),
+          curve: Curves.easeInOutCubic,
+          builder: (context, t, _) {
+            // Gira sobre su eje vertical, como un libro que se saca de la
+            // repisa y se pone de frente. A mitad de camino se cambia lo que
+            // se dibuja, que es cuando el canto queda perpendicular y no se
+            // ve nada: ahí el cambio es invisible.
+            final angulo = t * pi;
+            final deFrente = t > 0.5;
 
-          return Transform(
-            alignment: Alignment.center,
-            transform: Matrix4.identity()
-              ..setEntry(3, 2, 0.0015) // un poco de perspectiva
-              ..rotateY(angulo),
-            // En la segunda mitad del giro, lo que se dibuje sale espejado
-            // —está mirando para el otro lado— así que la tapa se
-            // contrarrota. Sin esto el título de la tapa aparece al revés.
-            child: deFrente
-                ? Transform(
-                    alignment: Alignment.center,
-                    transform: Matrix4.identity()..rotateY(pi),
-                    child: _DeFrente(libro, alto: alto),
-                  )
-                : _DeCanto(libro, ancho: ancho, alto: alto),
-          );
-        },
+            return Transform(
+              alignment: Alignment.center,
+              transform: Matrix4.identity()
+                ..setEntry(3, 2, 0.0015) // un poco de perspectiva
+                ..rotateY(angulo),
+              // En la segunda mitad del giro, lo que se dibuje sale espejado
+              // —está mirando para el otro lado— así que la tapa se
+              // contrarrota. Sin esto el título de la tapa aparece al revés.
+              child: deFrente
+                  ? Transform(
+                      alignment: Alignment.center,
+                      transform: Matrix4.identity()..rotateY(pi),
+                      child: _DeFrente(libro, alto: alto),
+                    )
+                  : _DeCanto(libro, ancho: ancho, alto: alto),
+            );
+          },
+        ),
       ),
     );
   }
@@ -314,7 +322,7 @@ class _DeCanto extends StatelessWidget {
     // igual en toda la app.
     final foto = lomos.fotoDe(libro.clave);
     if (foto != null) {
-      final bytes = _bytes(foto);
+      final bytes = bytesDeFoto(foto);
       if (bytes != null) {
         return Container(
           width: ancho,
@@ -405,13 +413,6 @@ class _DeCanto extends StatelessWidget {
 }
 
 /// Los bytes de un base64, o null si no se puede.
-Uint8List? _bytes(String base64) {
-  try {
-    return base64Decode(base64);
-  } catch (_) {
-    return null;
-  }
-}
 
 class _Nervio extends StatelessWidget {
   final double ancho;

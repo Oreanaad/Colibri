@@ -1,7 +1,6 @@
 import 'dart:convert';
 
-import 'package:http/http.dart' as http;
-
+import 'api.dart' show clienteHttp;
 import 'isbn.dart';
 import 'modelos.dart';
 
@@ -133,7 +132,7 @@ class Google {
       }
 
       try {
-        final respuesta = await http
+        final respuesta = await clienteHttp
             .get(uri, headers: const {'Accept': 'application/json'})
             .timeout(const Duration(seconds: 10));
 

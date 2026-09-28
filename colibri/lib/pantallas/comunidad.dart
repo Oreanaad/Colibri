@@ -63,17 +63,16 @@ class _PantallaComunidadState extends State<PantallaComunidad> {
       }
     }
 
-    final encontrados = <Libro>[];
-    for (final (titulo, autor) in _estanteDeCaro) {
-      try {
-        final l = await Api.primero(titulo, autor);
-        encontrados.add(
-          l ?? Libro(id: titulo, titulo: titulo, autor: autor),
-        ); // tapa generada
-      } catch (_) {
-        encontrados.add(Libro(id: titulo, titulo: titulo, autor: autor));
-      }
-    }
+    // Todos a la vez y no de a uno: son independientes, y en fila la
+    // primera visita esperaba la suma de nueve búsquedas.
+    final encontrados = await Future.wait([
+      for (final (titulo, autor) in _estanteDeCaro)
+        Api.primero(titulo, autor)
+            .then((l) => l ?? Libro(id: titulo, titulo: titulo, autor: autor))
+            .catchError(
+              (_) => Libro(id: titulo, titulo: titulo, autor: autor),
+            ), // tapa generada
+    ]);
 
     if (!mounted) return;
     await prefs.setString(

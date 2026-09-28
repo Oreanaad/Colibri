@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
 import '../archivo/selector.dart';
 import '../foto.dart';
@@ -291,7 +292,9 @@ class _PantallaEstanteState extends State<PantallaEstante> {
       final archivo = await elegirArchivo(acepta: 'image/*');
       if (archivo == null) return;
 
-      final achicada = FotoDeLomo.preparar(archivo.bytes);
+      // En otro hilo: una foto de teléfono son doce megapíxeles, y
+      // achicarla en el de la pantalla la congelaba un par de segundos.
+      final achicada = await compute(FotoDeLomo.preparar, archivo.bytes);
       if (!mounted) return;
 
       if (achicada == null) {

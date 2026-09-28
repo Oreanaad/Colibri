@@ -62,10 +62,7 @@ List<Libro> ordenados(List<Libro> libros, Orden orden) {
       break;
 
     case Orden.titulo:
-      lista.sort(
-        (a, b) =>
-            Libro._normalizar(a.titulo).compareTo(Libro._normalizar(b.titulo)),
-      );
+      lista.sort((a, b) => a.tituloNormal.compareTo(b.tituloNormal));
 
     case Orden.autoria:
       // Por apellido y no por nombre de pila: en un estante los libros de
@@ -73,16 +70,10 @@ List<Libro> ordenados(List<Libro> libros, Orden orden) {
       // cuenta que usa `claveDeObra` para saber si dos fichas son el mismo
       // libro, así que no hay dos ideas de "quién escribió esto".
       lista.sort((a, b) {
-        final r = Libro._claveAutor(
-          a.autor,
-        ).compareTo(Libro._claveAutor(b.autor));
+        final r = a.autorClave.compareTo(b.autorClave);
         // Del mismo autor, por título: si no, el orden de sus libros
         // cambia cada vez que se recarga la lista.
-        return r != 0
-            ? r
-            : Libro._normalizar(
-                a.titulo,
-              ).compareTo(Libro._normalizar(b.titulo));
+        return r != 0 ? r : a.tituloNormal.compareTo(b.tituloNormal);
       });
 
     case Orden.terminados:
@@ -388,7 +379,14 @@ class Libro {
   /// títulos escritos a mano, porque el mismo fic cargado por cuatro mil
   /// personas tendría cuatro mil títulos distintos y una sola dirección.
   /// Ver [Fanfic.identidad].
-  String get clave {
+  ///
+  /// Se calcula una sola vez por ficha: todo lo que la forma es `final`, y
+  /// se pide muchísimo —cada comparación de `tiene`, cada lomo del
+  /// estante—. Recalcularla eran doce reemplazos y dos expresiones
+  /// regulares por vez, y al importar dos mil libros eso eran millones.
+  late final String clave = _calcularClave();
+
+  String _calcularClave() {
     final id = enlace == null ? null : Fanfic.identidad(enlace!);
     if (origen == Origen.fanfic && id != null) return 'fanfic|$id';
 
@@ -401,7 +399,13 @@ class Libro {
   /// nombre propio porque hace falta en otro lugar: al sincronizar con
   /// la nube, la tabla `obras` se identifica por esto, y ahí siempre es
   /// la clave de la obra, nunca la del fanfic, aunque el libro fuera uno.
-  String get claveDeObra => '${_normalizar(titulo)}|${_claveAutor(autor)}';
+  late final String claveDeObra = '$tituloNormal|$autorClave';
+
+  /// El título y la autoría ya normalizados, guardados por la misma razón
+  /// que [clave]: ordenar y buscar los comparan una y otra vez.
+  late final String tituloNormal = _normalizar(titulo);
+  late final String autorNormal = _normalizar(autor);
+  late final String autorClave = _claveAutor(autor);
 
   /// El nombre del autor viene en cualquier orden: Open Library suele
   /// devolver "Juan Rulfo" y a mano se escribe "Rulfo, Juan". Ordenamos
@@ -434,10 +438,11 @@ class Libro {
     };
     var r = s.toLowerCase().trim();
     acentos.forEach((k, v) => r = r.replaceAll(k, v));
-    return r
-        .replaceAll(RegExp(r'[^a-z0-9 ]'), '')
-        .replaceAll(RegExp(r'\s+'), ' ');
+    return r.replaceAll(_noAlfanumerico, '').replaceAll(_espacios, ' ');
   }
+
+  static final _noAlfanumerico = RegExp(r'[^a-z0-9 ]');
+  static final _espacios = RegExp(r'\s+');
 
   factory Libro.desdeOpenLibrary(Map<String, dynamic> d) {
     final autores = (d['author_name'] as List?)?.cast<String>() ?? const [];
@@ -652,7 +657,7 @@ class Biblioteca extends ChangeNotifier {
     if (buscado.length < 3) return const [];
 
     return _libros.where((l) {
-      final suyo = Libro._normalizar(l.titulo);
+      final suyo = l.tituloNormal;
       return suyo.contains(buscado) || buscado.contains(suyo);
     }).toList();
   }
@@ -677,8 +682,8 @@ class Biblioteca extends ChangeNotifier {
     return _libros
         .where(
           (l) =>
-              Libro._normalizar(l.titulo).contains(aguja) ||
-              Libro._normalizar(l.autor).contains(aguja) ||
+              l.tituloNormal.contains(aguja) ||
+              l.autorNormal.contains(aguja) ||
               l.estantes.any((e) => Libro._normalizar(e).contains(aguja)),
         )
         .toList();
@@ -712,8 +717,11 @@ class Biblioteca extends ChangeNotifier {
   /// no puede reemplazarla.
   Future<int> agregarVarios(List<Libro> nuevos) async {
     final agregados = <Libro>[];
+    // Un conjunto y no `tiene` en cada vuelta: `tiene` recorre toda la
+    // biblioteca, y dentro del bucle eso crece al cuadrado.
+    final claves = {for (final l in _libros) l.clave};
     for (final libro in nuevos) {
-      if (tiene(libro)) continue;
+      if (!claves.add(libro.clave)) continue;
       _libros.insert(0, libro);
       agregados.add(libro);
     }
@@ -979,8 +987,35 @@ class Biblioteca extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _guardar() async {
+  /// Guarda la biblioteca entera, pero **una escritura por vez**.
+  ///
+  /// Cada escritura codifica todos los libros —reseñas y frases
+  /// incluidas— y los manda al disco. Si llegan varios cambios mientras
+  /// una está en camino (arrastrar la barra de páginas, tocar estrellas
+  /// seguido), no se encolan uno por cambio: se juntan en una sola
+  /// escritura más, que ya lleva todos. Quien espera este `Future` sigue
+  /// pudiendo confiar en que, al terminar, su cambio está en el disco.
+  Future<void> _guardar() {
     notifyListeners();
+    _hayQueEscribir = true;
+    return _escribiendo ??= _escribirMientrasHaga();
+  }
+
+  bool _hayQueEscribir = false;
+  Future<void>? _escribiendo;
+
+  Future<void> _escribirMientrasHaga() async {
+    try {
+      while (_hayQueEscribir) {
+        _hayQueEscribir = false;
+        await _escribir();
+      }
+    } finally {
+      _escribiendo = null;
+    }
+  }
+
+  Future<void> _escribir() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
       _claveLibros,

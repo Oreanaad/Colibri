@@ -255,18 +255,17 @@ class _PantallaBibliotecaState extends State<PantallaBiblioteca> {
       );
     }
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
-      children: [
+    return _lista(const EdgeInsets.fromLTRB(20, 14, 20, 24), [
+      _caja(
         Rotulo(
           encontrados.length == 1
               ? '1 libro en tu biblioteca'
               : '${encontrados.length} libros en tu biblioteca',
         ),
-        const SizedBox(height: 12),
-        GrillaLibros(encontrados, alTocar: _abrir),
-      ],
-    );
+      ),
+      _caja(const SizedBox(height: 12)),
+      SliverGrillaLibros(encontrados, alTocar: _abrir),
+    ]);
   }
 
   /// Tu estante entero, en un solo lugar.
@@ -295,9 +294,8 @@ class _PantallaBibliotecaState extends State<PantallaBiblioteca> {
       );
     }
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
-      children: [
+    return _lista(const EdgeInsets.fromLTRB(20, 18, 20, 32), [
+      ...[
         // Descubrir, arriba de tu estante.
         //
         // Vivía solo en la pantalla de explorar, o sea que se veía
@@ -317,48 +315,58 @@ class _PantallaBibliotecaState extends State<PantallaBiblioteca> {
           _TarjetaLeyendo(ahora, alTocar: () => _abrir(ahora)),
           const SizedBox(height: 26),
         ],
-        ..._seccion('Leyendo', leyendo),
-        ..._seccion('Pendientes', pendientes),
-        ..._seccion('Leídos', leidos),
-      ],
-    );
+      ].map(_caja),
+      ..._seccion('Leyendo', leyendo),
+      ..._seccion('Pendientes', pendientes),
+      ..._seccion('Leídos', leidos),
+    ]);
   }
 
   List<Widget> _seccion(String titulo, List<Libro> libros) {
     if (libros.isEmpty) return const [];
     return [
-      Rotulo('$titulo · ${libros.length}'),
-      const SizedBox(height: 12),
+      _caja(Rotulo('$titulo · ${libros.length}')),
+      _caja(const SizedBox(height: 12)),
       if (_repisa)
-        EstanteDeLomos(libros, alTocar: _abrir, conLuces: _luces)
+        _caja(EstanteDeLomos(libros, alTocar: _abrir, conLuces: _luces))
       else
-        GrillaLibros(libros, alTocar: _abrir),
-      SizedBox(height: _repisa ? 10 : 26),
+        SliverGrillaLibros(libros, alTocar: _abrir),
+      _caja(SizedBox(height: _repisa ? 10 : 26)),
     ];
   }
+
+  /// Una lista que se desliza hecha de slivers, para que las grillas de
+  /// tapas se armen de a lo que se ve. Ver [SliverGrillaLibros].
+  Widget _lista(EdgeInsets relleno, List<Widget> slivers) => CustomScrollView(
+    slivers: [
+      SliverPadding(
+        padding: relleno,
+        sliver: SliverMainAxisGroup(slivers: slivers),
+      ),
+    ],
+  );
+
+  static Widget _caja(Widget hijo) => SliverToBoxAdapter(child: hijo);
 
   Widget _listaDeEstado(Estado estado) {
     final libros = ordenados(biblioteca.enEstado(estado), _orden);
     final leyendo = biblioteca.leyendoAhora;
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
-      children: [
-        if (leyendo != null && estado == Estado.leyendo) ...[
-          const Rotulo('Ahora mismo'),
-          const SizedBox(height: 10),
-          _TarjetaLeyendo(leyendo, alTocar: () => _abrir(leyendo)),
-          const SizedBox(height: 26),
-        ],
-        if (libros.isEmpty)
-          _Vacio(estado: estado, alTocar: _irABuscar)
-        else ...[
-          Rotulo('${libros.length} ${estado.nombre.toLowerCase()}'),
-          const SizedBox(height: 12),
-          GrillaLibros(libros, alTocar: _abrir),
-        ],
+    return _lista(const EdgeInsets.fromLTRB(20, 18, 20, 24), [
+      if (leyendo != null && estado == Estado.leyendo) ...[
+        _caja(const Rotulo('Ahora mismo')),
+        _caja(const SizedBox(height: 10)),
+        _caja(_TarjetaLeyendo(leyendo, alTocar: () => _abrir(leyendo))),
+        _caja(const SizedBox(height: 26)),
       ],
-    );
+      if (libros.isEmpty)
+        _caja(_Vacio(estado: estado, alTocar: _irABuscar))
+      else ...[
+        _caja(Rotulo('${libros.length} ${estado.nombre.toLowerCase()}')),
+        _caja(const SizedBox(height: 12)),
+        SliverGrillaLibros(libros, alTocar: _abrir),
+      ],
+    ]);
   }
 }
 

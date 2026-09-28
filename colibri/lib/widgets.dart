@@ -521,10 +521,11 @@ final tapasGuardadas = CacheManager(
   Config(
     'colibri.tapas',
     stalePeriod: const Duration(days: 30),
-    // Quinientas tapas a 25 KB son unos doce megas. Una biblioteca de
-    // quinientos libros es mucha biblioteca, y doce megas en el teléfono
-    // no son nada.
-    maxNrOfCacheObjects: 500,
+    // Cada libro puede ocupar dos lugares: la tapa chica de la grilla y
+    // la grande de la ficha. Con quinientos, una biblioteca de trescientos
+    // libros ya no entraba y las tapas se borraban y se volvían a bajar.
+    // Dos mil a 25 KB son unos cincuenta megas: poco para un teléfono.
+    maxNrOfCacheObjects: 2000,
     fileService: _bajadorDeTapas,
   ),
 );
@@ -593,14 +594,8 @@ class Avatar extends StatelessWidget {
     return _Inicial(perfil, tamano: tamano);
   }
 
-  static Uint8List? _bytesDe(String? guardado) {
-    if (guardado == null) return null;
-    try {
-      return base64Decode(guardado);
-    } catch (_) {
-      return null;
-    }
-  }
+  static Uint8List? _bytesDe(String? guardado) =>
+      guardado == null ? null : bytesDeFoto(guardado);
 }
 
 /// El avatar dibujado, para cuando no hay foto.
@@ -819,6 +814,65 @@ class GrillaLibros extends StatelessWidget {
     this.marcados = const {},
   });
 
+  /// Las mismas medidas en la grilla suelta y en la de lomo perezoso,
+  /// para que las dos se vean igual.
+  static SliverGridDelegate _medidas(double ancho) =>
+      SliverGridDelegateWithFixedCrossAxisCount(
+        // Fijamos las columnas y no el ancho de la tapa. Al revés —que
+        // era como estaba— las tapas se achicaban cuando la pantalla
+        // crecía.
+        crossAxisCount: Medidas.columnasParaAncho(ancho),
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 14,
+        // 0,52 y no 2/3: la tapa sola es 2/3, y abajo van el título y
+        // las estrellas. Sin este aire, la celda le queda corta y el
+        // renglón de abajo se corta con las rayas de error.
+        childAspectRatio: 0.52,
+      );
+
+  static Widget _celda(
+    Libro l,
+    ValueChanged<Libro> alTocar,
+    Set<String> marcados,
+  ) {
+    return GestureDetector(
+      onTap: () => alTocar(l),
+      child: LayoutBuilder(
+        builder: (_, c) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Tapa(l, ancho: c.maxWidth, marcada: marcados.contains(l.clave)),
+            const SizedBox(height: 5),
+            // El título debajo de la tapa.
+            //
+            // Una grilla de tapas sin nombre obliga a abrir cada una
+            // para saber qué es, y con veinte libros eso es veinte
+            // toques. Ya estaba así en Descubrir, donde se probó que
+            // se puede decidir mirando; en los estantes faltaba.
+            //
+            // Dos renglones: los títulos largos —«Harry Potter y la
+            // Orden del Fénix»— no entran en uno a este ancho, y
+            // cortarlos en «Harry Potter y la…» los deja sin decir
+            // cuál es.
+            Text(
+              l.titulo,
+              style: Tipo.meta.copyWith(fontSize: 10.5, height: 1.25),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            // Las estrellas solo si puntuaste. Cinco estrellas
+            // apagadas en cada libro sin puntaje se leen como un
+            // cero, y no es cero: es que todavía no dijiste nada.
+            if (l.puntaje > 0) ...[
+              const SizedBox(height: 3),
+              Estrellas(l.puntaje, tamano: 10),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // LayoutBuilder y no MediaQuery: hace falta el ancho que esta grilla
@@ -829,61 +883,42 @@ class GrillaLibros extends StatelessWidget {
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         itemCount: libros.length,
-        // Fijamos las columnas y no el ancho de la tapa. Al revés —que
-        // era como estaba— las tapas se achicaban cuando la pantalla
-        // crecía.
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: Medidas.columnasParaAncho(medidas.maxWidth),
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 14,
-          // 0,52 y no 2/3: la tapa sola es 2/3, y abajo van el título y
-          // las estrellas. Sin este aire, la celda le queda corta y el
-          // renglón de abajo se corta con las rayas de error.
-          childAspectRatio: 0.52,
-        ),
-        itemBuilder: (_, i) {
-          final l = libros[i];
-          return GestureDetector(
-            onTap: () => alTocar(l),
-            child: LayoutBuilder(
-              builder: (_, c) => Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Tapa(
-                    l,
-                    ancho: c.maxWidth,
-                    marcada: marcados.contains(l.clave),
-                  ),
-                  const SizedBox(height: 5),
-                  // El título debajo de la tapa.
-                  //
-                  // Una grilla de tapas sin nombre obliga a abrir cada una
-                  // para saber qué es, y con veinte libros eso es veinte
-                  // toques. Ya estaba así en Descubrir, donde se probó que
-                  // se puede decidir mirando; en los estantes faltaba.
-                  //
-                  // Dos renglones: los títulos largos —«Harry Potter y la
-                  // Orden del Fénix»— no entran en uno a este ancho, y
-                  // cortarlos en «Harry Potter y la…» los deja sin decir
-                  // cuál es.
-                  Text(
-                    l.titulo,
-                    style: Tipo.meta.copyWith(fontSize: 10.5, height: 1.25),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  // Las estrellas solo si puntuaste. Cinco estrellas
-                  // apagadas en cada libro sin puntaje se leen como un
-                  // cero, y no es cero: es que todavía no dijiste nada.
-                  if (l.puntaje > 0) ...[
-                    const SizedBox(height: 3),
-                    Estrellas(l.puntaje, tamano: 10),
-                  ],
-                ],
-              ),
-            ),
-          );
-        },
+        gridDelegate: _medidas(medidas.maxWidth),
+        itemBuilder: (_, i) => _celda(libros[i], alTocar, marcados),
+      ),
+    );
+  }
+}
+
+/// La misma grilla, pero como pedazo de una lista que se desliza.
+///
+/// # Por qué hace falta aparte
+///
+/// [GrillaLibros] va con `shrinkWrap` adentro de una lista, y eso obliga a
+/// armar **todas** las tapas de entrada para saber cuánto mide: con
+/// quinientos libros eran quinientas tapas bajadas, decodificadas y en
+/// memoria antes de ver la primera, aunque en pantalla entren doce. Como
+/// sliver solo se arman las que se ven y las que están por aparecer.
+class SliverGrillaLibros extends StatelessWidget {
+  final List<Libro> libros;
+  final ValueChanged<Libro> alTocar;
+  final Set<String> marcados;
+
+  const SliverGrillaLibros(
+    this.libros, {
+    super.key,
+    required this.alTocar,
+    this.marcados = const {},
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverLayoutBuilder(
+      builder: (context, medidas) => SliverGrid.builder(
+        itemCount: libros.length,
+        gridDelegate: GrillaLibros._medidas(medidas.crossAxisExtent),
+        itemBuilder: (_, i) =>
+            GrillaLibros._celda(libros[i], alTocar, marcados),
       ),
     );
   }
@@ -909,3 +944,32 @@ class AvisoOro extends StatelessWidget {
     );
   }
 }
+
+/// Los bytes de una foto guardada en texto, decodificados una sola vez.
+///
+/// # Por qué importa que sean los mismos
+///
+/// `Image.memory` reconoce una imagen que ya dibujó comparando los bytes
+/// **por identidad**, no por contenido. Decodificar el texto en cada
+/// `build` daba bytes nuevos cada vez, así que cada redibujo —dar vuelta
+/// un libro, que llegue un color— volvía a decodificar todas las fotos de
+/// la repisa y el avatar. Devolviendo siempre el mismo objeto, la segunda
+/// vez sale de la memoria de imágenes.
+///
+/// Se olvida todo al pasar de doscientas: alcanza para una repisa entera
+/// y no deja crecer la memoria sin techo.
+Uint8List? bytesDeFoto(String base64) {
+  if (_fotosDecodificadas.containsKey(base64)) {
+    return _fotosDecodificadas[base64];
+  }
+  if (_fotosDecodificadas.length >= 200) _fotosDecodificadas.clear();
+  Uint8List? bytes;
+  try {
+    bytes = base64Decode(base64);
+  } catch (_) {
+    bytes = null;
+  }
+  return _fotosDecodificadas[base64] = bytes;
+}
+
+final _fotosDecodificadas = <String, Uint8List?>{};

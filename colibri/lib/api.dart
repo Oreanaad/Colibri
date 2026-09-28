@@ -6,6 +6,13 @@ import 'google.dart';
 import 'isbn.dart';
 import 'modelos.dart';
 
+/// Una sola conexión para todos los pedidos a los catálogos.
+///
+/// `http.get` suelto abre una conexión nueva por pedido, con su saludo
+/// TLS incluido, y eso en el teléfono son cientos de milisegundos antes
+/// de pedir nada. Un cliente compartido la reusa mientras siga abierta.
+final clienteHttp = http.Client();
+
 /// Las ediciones de una obra, separadas por lo que el catálogo sabe.
 ///
 /// [confirmadas] son las que dicen estar en el idioma que pediste.
@@ -69,7 +76,7 @@ class Api {
       'fields': _campos,
     });
 
-    final respuesta = await http
+    final respuesta = await clienteHttp
         .get(uri, headers: _cabeceras)
         .timeout(const Duration(seconds: 15));
 
@@ -118,7 +125,7 @@ class Api {
     });
 
     try {
-      final respuesta = await http
+      final respuesta = await clienteHttp
           .get(uri, headers: _cabeceras)
           .timeout(const Duration(seconds: 25));
       if (respuesta.statusCode != 200) return const [];
@@ -381,7 +388,7 @@ class Api {
     });
 
     try {
-      final respuesta = await http
+      final respuesta = await clienteHttp
           .get(uri, headers: _cabeceras)
           .timeout(const Duration(seconds: 12));
 
@@ -502,7 +509,7 @@ class Api {
     });
 
     try {
-      final respuesta = await http
+      final respuesta = await clienteHttp
           .get(uri, headers: _cabeceras)
           // 20 segundos era poco: la cola de este endpoint pasa de 45. Con
           // 40 se atrapan casi todas las respuestas lentas en vez de

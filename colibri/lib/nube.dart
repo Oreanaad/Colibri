@@ -356,9 +356,10 @@ class Nube {
     // que entraron: si un libro ya estaba en el teléfono pero la libreta
     // se había perdido, esta es justo la ocasión de recuperar su
     // dirección, y es el caso que dejaba fantasmas.
-    for (final entrada in direcciones.entries) {
-      await _guardarRegistro(entrada.key, entrada.value);
-    }
+    //
+    // Todas de una: guardarlas de a una leía y reescribía la libreta
+    // entera por cada libro, y con dos mil libros eso crece al cuadrado.
+    await _guardarRegistros(direcciones);
 
     return cuantos;
   }
@@ -602,13 +603,19 @@ class Nube {
     );
   }
 
-  Future<void> _guardarRegistro(String claveLibro, _Registro registro) async {
+  Future<void> _guardarRegistro(String claveLibro, _Registro registro) =>
+      _guardarRegistros({claveLibro: registro});
+
+  Future<void> _guardarRegistros(Map<String, _Registro> registros) async {
+    if (registros.isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
     final libreta = await _libreta();
-    libreta[claveLibro] = {
-      'edicionId': registro.edicionId,
-      'fanficId': registro.fanficId,
-    };
+    registros.forEach((claveLibro, registro) {
+      libreta[claveLibro] = {
+        'edicionId': registro.edicionId,
+        'fanficId': registro.fanficId,
+      };
+    });
     await prefs.setString(_clave, jsonEncode(libreta));
   }
 
@@ -682,8 +689,8 @@ Map<String, dynamic> filaDeLectura(
   String? fanficId,
 }) => {
   'perfil_id': perfilId,
-  if (edicionId != null) 'edicion_id': edicionId,
-  if (fanficId != null) 'fanfic_id': fanficId,
+  'edicion_id': ?edicionId,
+  'fanfic_id': ?fanficId,
   'estado': libro.estado.name,
   'puntaje': libro.puntaje,
   'lagrimas': libro.lagrimas,

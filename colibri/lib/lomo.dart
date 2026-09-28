@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show compute;
 
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -143,13 +144,16 @@ class Lomos {
         // día, y eso sí se reintenta.
         if (r.statusCode >= 400 && r.statusCode < 500) {
           _colores[clave] = null;
-          await _guardarColores();
+          _sinGuardar = true;
         }
         return false;
       }
 
-      _colores[clave] = FotoDeLomo.colorQueManda(r.bodyBytes);
-      await _guardarColores();
+      // En otro hilo: decodificar un JPEG en Dart puro lleva decenas de
+      // milisegundos, y en el hilo de la pantalla eso es la repisa
+      // trabándose mientras se desliza.
+      _colores[clave] = await compute(FotoDeLomo.colorQueManda, r.bodyBytes);
+      _sinGuardar = true;
       return _colores[clave] != null;
     } catch (_) {
       // Sin anotar nada: se vuelve a intentar la próxima vez. Anotar un
@@ -181,13 +185,32 @@ class Lomos {
     if (faltan.isEmpty) return false;
 
     var aprendio = false;
-    for (var i = 0; i < faltan.length; i += 3) {
-      final tanda = faltan.sublist(i, (i + 3).clamp(0, faltan.length));
-      final r = await Future.wait(tanda.map(mirarLaTapa));
-      if (r.contains(true)) aprendio = true;
+    try {
+      for (var i = 0; i < faltan.length; i += 3) {
+        final tanda = faltan.sublist(i, (i + 3).clamp(0, faltan.length));
+        final r = await Future.wait(tanda.map(mirarLaTapa));
+        if (r.contains(true)) aprendio = true;
+      }
+    } finally {
+      // Una escritura por estante y no una por libro: cada una reescribe
+      // todos los colores, y con quinientos libros eran quinientas
+      // escrituras cada vez más largas.
+      await guardarColores();
     }
     return aprendio;
   }
+
+  /// Si [mirarLaTapa] aprendió algo, lo deja en el disco.
+  ///
+  /// [mirarLaTapa] no guarda sola para que un estante entero se guarde de
+  /// una vez; quien la llame suelta tiene que llamar a esto después.
+  Future<void> guardarColores() async {
+    if (!_sinGuardar) return;
+    _sinGuardar = false;
+    await _guardarColores();
+  }
+
+  bool _sinGuardar = false;
 
   Future<void> _guardarColores() async {
     final prefs = await SharedPreferences.getInstance();
