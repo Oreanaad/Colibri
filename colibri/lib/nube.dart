@@ -118,12 +118,22 @@ class Nube {
   /// se enterara: al entrar en la web, catorce libros crearon su obra y
   /// rebotaron al crear la edición, y la única señal fue una biblioteca
   /// vacía del otro lado. Tragarse el error está bien; no contarlo, no.
-  Future<({int bajados, int alDia, int subidos, int fallaron})> sincronizar(
-    Biblioteca biblioteca,
-  ) async {
+  Future<
+    ({int bajados, int alDia, int subidos, int fallaron, bool sinConexion})
+  >
+  sincronizar(Biblioteca biblioteca) async {
     final yaEstaban = {for (final l in biblioteca.todos) l.clave};
 
     final (:bajados, :alDia, :enLaNube) = await _bajar(biblioteca);
+
+    // Si ni siquiera se pudo preguntar qué hay allá, no tiene sentido
+    // intentar subir libro por libro: cada uno esperaría su propio tiempo
+    // hasta rendirse, y con doscientos libros eso son horas. Se avisa y
+    // listo; lo de este aparato sigue intacto.
+    if (enLaNube == null) {
+      return (bajados: 0, alDia: 0, subidos: 0, fallaron: 0, sinConexion: true);
+    }
+
     final libreta = await _libreta();
 
     var subidos = 0;
@@ -138,11 +148,9 @@ class Nube {
       //
       // Las dos condiciones, y no solo la huella: si la nube lo perdió
       // —se borró desde otro aparato, se rehízo la base— se vuelve a
-      // subir, que es para lo que existía subir todo. Y si la bajada
-      // falló no se sabe qué tiene la nube, así que se sube como antes.
+      // subir, que es para lo que existía subir todo.
       final anotado = libreta[libro.clave];
-      if (enLaNube != null &&
-          enLaNube.contains(libro.clave) &&
+      if (enLaNube.contains(libro.clave) &&
           anotado is Map &&
           anotado['huella'] == huellaDe(libro)) {
         continue;
@@ -160,6 +168,7 @@ class Nube {
       alDia: alDia,
       subidos: subidos,
       fallaron: fallaron,
+      sinConexion: false,
     );
   }
 
@@ -199,7 +208,20 @@ class Nube {
     return llego;
   }
 
-  Future<bool> _subirUnaVez(Libro libro) async {
+  /// Cuánto se espera a la nube antes de darla por perdida.
+  ///
+  /// Generoso, porque una biblioteca grande tarda en bajar con mala señal;
+  /// pero con techo, porque sin él un servidor que no contesta deja la app
+  /// esperando para siempre sin decir nada.
+  static const _espera = Duration(seconds: 25);
+
+  /// [_subirLibro] con techo de tiempo: si la nube no contesta, cuenta
+  /// como que no llegó —y se reintenta la próxima vez— en vez de colgar a
+  /// quien espera.
+  Future<bool> _subirUnaVez(Libro libro) =>
+      _subirLibro(libro).timeout(_espera, onTimeout: () => false);
+
+  Future<bool> _subirLibro(Libro libro) async {
     final yo = _quienSoy;
     if (yo == null) return false;
 
@@ -379,10 +401,13 @@ class Nube {
 
     final List<dynamic> filas;
     try {
+      // Con límite: sin él, con el servidor caído o pausado, esto no
+      // volvía nunca y el botón quedaba en «Trayendo…» para siempre.
       filas = await _base
           .from('lecturas')
           .select(todoLoDeUnaLectura)
-          .eq('perfil_id', yo);
+          .eq('perfil_id', yo)
+          .timeout(_espera);
     } catch (_) {
       // Sin internet o el servidor no contestó. La biblioteca local queda
       // como estaba, que es lo correcto: no bajar nada no rompe nada.

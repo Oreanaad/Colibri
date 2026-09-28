@@ -398,7 +398,10 @@ class _TraerMisLibrosState extends State<_TraerMisLibros> {
       // Antes no se decía en ningún lado, y un fallo real —catorce libros
       // que rebotaron al subir— no dejó más señal que una biblioteca
       // vacía del otro lado.
-      cuenta.fallaron > 0
+      cuenta.sinConexion
+          ? 'No me pude conectar con tu cuenta. Tus libros siguen acá; '
+                'probá de nuevo en un rato.'
+          : cuenta.fallaron > 0
           ? '${cuenta.fallaron} no se pudieron guardar. Probá de nuevo.'
           : _queCambio(cuenta.bajados, cuenta.alDia),
     );
