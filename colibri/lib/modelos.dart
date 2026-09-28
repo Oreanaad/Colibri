@@ -793,6 +793,64 @@ class Biblioteca extends ChangeNotifier {
   // ---------- Estantes propios ----------
 
   /// Devuelve el nombre creado, o null si estaba repetido o vacío.
+  /// Trae a libros que ya tenías lo que dice la nube de ellos.
+  ///
+  /// Cada par es (el tuyo, el que bajó). Se cambia el tuyo en el lugar,
+  /// sin reemplazarlo, así lo que solo vive en este aparato —el texto
+  /// importado, la tapa elegida, las fechas de cada frase— sigue igual.
+  ///
+  /// # Qué se pisa y qué se junta
+  ///
+  /// Lo que es un solo valor —estado, estrellas, página, reseña— se toma
+  /// de la nube. Las listas, solo si la nube trae algo: vacía no dice «las
+  /// borré», dice «no sé», que es la regla que ya usa la subida.
+  ///
+  /// Las frases **se suman**, nunca se reemplazan. Las que ya tenés se
+  /// quedan como están, y se agregan las de la nube que no tengas.
+  ///
+  /// Quién decide que el de la nube es más nuevo no es esto: ver
+  /// [Nube.sincronizar]. Guarda una sola vez para todos.
+  Future<void> ponerAlDia(List<(Libro, Libro)> pares) async {
+    if (pares.isEmpty) return;
+    for (final (tuyo, nube) in pares) {
+      tuyo
+        ..estado = nube.estado
+        ..puntaje = nube.puntaje
+        ..lagrimas = nube.lagrimas
+        ..romantico = nube.romantico
+        ..picante = nube.picante
+        ..paginaActual = nube.paginaActual
+        ..paginas = nube.paginas ?? tuyo.paginas
+        ..empezado = nube.empezado
+        ..terminado = nube.terminado
+        ..resena = nube.resena
+        ..resenaConSpoilers = nube.resenaConSpoilers
+        ..nota = nube.nota ?? tuyo.nota;
+      if (nube.animos.isNotEmpty) {
+        tuyo.animos
+          ..clear()
+          ..addAll(nube.animos);
+      }
+      if (nube.personajes.isNotEmpty) {
+        tuyo.personajes
+          ..clear()
+          ..addAll(nube.personajes);
+      }
+      if (nube.estantes.isNotEmpty) {
+        tuyo.estantes
+          ..clear()
+          ..addAll(nube.estantes);
+      }
+      final yaEstan = {for (final f in tuyo.frases) f.texto};
+      tuyo.frases.addAll(nube.frases.where((f) => !yaEstan.contains(f.texto)));
+
+      for (final e in tuyo.estantes) {
+        if (!_estantes.contains(e)) _estantes.add(e);
+      }
+    }
+    await _guardar();
+  }
+
   Future<String?> crearEstante(String nombre) async {
     final limpio = nombre.trim();
     if (limpio.isEmpty) return null;

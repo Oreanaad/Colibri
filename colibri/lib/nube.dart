@@ -118,12 +118,12 @@ class Nube {
   /// se enterara: al entrar en la web, catorce libros crearon su obra y
   /// rebotaron al crear la edición, y la única señal fue una biblioteca
   /// vacía del otro lado. Tragarse el error está bien; no contarlo, no.
-  Future<({int bajados, int subidos, int fallaron})> sincronizar(
+  Future<({int bajados, int alDia, int subidos, int fallaron})> sincronizar(
     Biblioteca biblioteca,
   ) async {
     final yaEstaban = {for (final l in biblioteca.todos) l.clave};
 
-    final (:bajados, :enLaNube) = await _bajar(biblioteca);
+    final (:bajados, :alDia, :enLaNube) = await _bajar(biblioteca);
     final libreta = await _libreta();
 
     var subidos = 0;
@@ -155,7 +155,12 @@ class Nube {
       }
     }
 
-    return (bajados: bajados, subidos: subidos, fallaron: fallaron);
+    return (
+      bajados: bajados,
+      alDia: alDia,
+      subidos: subidos,
+      fallaron: fallaron,
+    );
   }
 
   /// Sube un libro. Devuelve si de verdad llegó.
@@ -365,10 +370,10 @@ class Nube {
 
   /// [bajarTodo], y además qué claves tiene la nube, o `null` si no se
   /// pudo preguntar. [sincronizar] lo usa para no subir lo que ya está.
-  Future<({int bajados, Set<String>? enLaNube})> _bajar(
+  Future<({int bajados, int alDia, Set<String>? enLaNube})> _bajar(
     Biblioteca biblioteca,
   ) async {
-    const nada = (bajados: 0, enLaNube: null);
+    const nada = (bajados: 0, alDia: 0, enLaNube: null);
     final yo = _quienSoy;
     if (yo == null) return nada;
 
@@ -409,13 +414,50 @@ class Nube {
     // Sin el enganche mientras entran. Si no, cada libro que acaba de
     // bajar se sube de nuevo al instante: con doscientos libros son más
     // de mil pedidos para dejar la nube exactamente como estaba.
+    //
+    // # Los que ya estaban
+    //
+    // Antes se salteaban siempre, y eso hacía que dos aparatos con los
+    // mismos libros nunca se enteraran de lo que cambiaba el otro: la
+    // página 375 del teléfono no llegaba nunca a la compu.
+    //
+    // Ahora se ponen al día, pero **solo si este aparato no tiene nada
+    // sin subir**: si la huella de la última subida coincide con el libro
+    // de ahora, todo lo de acá ya está allá, y lo distinto que traiga la
+    // nube es un cambio de otro aparato. Si no coincide —lo cambiaste sin
+    // señal, o este aparato nunca lo subió— gana el de acá, que es lo que
+    // acabás de hacer, y [sincronizar] lo sube después.
+    final libreta = await _libreta();
+    final alDia = <(Libro, Libro)>[];
+    for (final deLaNube in libros) {
+      final tuyo = biblioteca.buscarPorClave(deLaNube.clave);
+      if (tuyo == null) continue;
+      final anotado = libreta[deLaNube.clave];
+      final huella = anotado is Map ? anotado['huella'] : null;
+      if (huella != null && huella == huellaDe(tuyo)) {
+        alDia.add((tuyo, deLaNube));
+      }
+    }
+
     final enganche = biblioteca.alGuardarUnLibro;
     biblioteca.alGuardarUnLibro = null;
     final int cuantos;
     try {
+      await biblioteca.ponerAlDia(alDia);
       cuantos = await biblioteca.agregarVarios(libros);
     } finally {
       biblioteca.alGuardarUnLibro = enganche;
+    }
+
+    // Lo puesto al día ya es igual a la nube: se anota así, para que
+    // sincronizar no lo suba de vuelta.
+    for (final (tuyo, _) in alDia) {
+      final r = direcciones[tuyo.clave]!;
+      direcciones[tuyo.clave] = _Registro(
+        edicionId: r.edicionId,
+        fanficId: r.fanficId,
+        huella: huellaDe(tuyo),
+      );
     }
 
     // La libreta se guarda para todos los que bajaron, no solo para los
@@ -427,7 +469,11 @@ class Nube {
     // entera por cada libro, y con dos mil libros eso crece al cuadrado.
     await _guardarRegistros(direcciones);
 
-    return (bajados: cuantos, enLaNube: direcciones.keys.toSet());
+    return (
+      bajados: cuantos,
+      alDia: alDia.length,
+      enLaNube: direcciones.keys.toSet(),
+    );
   }
 
   Future<void> borrarLibro(String clave) async {

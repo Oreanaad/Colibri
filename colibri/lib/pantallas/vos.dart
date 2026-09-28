@@ -400,12 +400,26 @@ class _TraerMisLibrosState extends State<_TraerMisLibros> {
       // vacía del otro lado.
       cuenta.fallaron > 0
           ? '${cuenta.fallaron} no se pudieron guardar. Probá de nuevo.'
-          : switch (cuenta.bajados) {
-              0 => 'Ya tenías todo lo que hay en tu cuenta.',
-              1 => 'Volvió 1 libro.',
-              final n => 'Volvieron $n libros.',
-            },
+          : _queCambio(cuenta.bajados, cuenta.alDia),
     );
+  }
+
+  static String _queCambio(int bajados, int alDia) {
+    final partes = [
+      switch (bajados) {
+        0 => null,
+        1 => 'Volvió 1 libro.',
+        final n => 'Volvieron $n libros.',
+      },
+      switch (alDia) {
+        0 => null,
+        1 => '1 libro se puso al día.',
+        final n => '$n libros se pusieron al día.',
+      },
+    ].nonNulls;
+    return partes.isEmpty
+        ? 'Ya tenías todo lo que hay en tu cuenta.'
+        : partes.join(' ');
   }
 
   @override
