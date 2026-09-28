@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:archive/archive.dart' show getCrc32;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -122,12 +123,31 @@ class Nube {
   ) async {
     final yaEstaban = {for (final l in biblioteca.todos) l.clave};
 
-    final bajados = await bajarTodo(biblioteca);
+    final (:bajados, :enLaNube) = await _bajar(biblioteca);
+    final libreta = await _libreta();
 
     var subidos = 0;
     var fallaron = 0;
     for (final libro in biblioteca.todos) {
       if (!yaEstaban.contains(libro.clave)) continue;
+
+      // Tampoco lo que ya subió tal cual está. Si la nube lo tiene y la
+      // huella de la última subida coincide con el libro de ahora, no
+      // cambió nada desde entonces: mandarlo de nuevo eran entre cinco y
+      // doce pedidos por libro para dejar todo igual.
+      //
+      // Las dos condiciones, y no solo la huella: si la nube lo perdió
+      // —se borró desde otro aparato, se rehízo la base— se vuelve a
+      // subir, que es para lo que existía subir todo. Y si la bajada
+      // falló no se sabe qué tiene la nube, así que se sube como antes.
+      final anotado = libreta[libro.clave];
+      if (enLaNube != null &&
+          enLaNube.contains(libro.clave) &&
+          anotado is Map &&
+          anotado['huella'] == huellaDe(libro)) {
+        continue;
+      }
+
       if (await subirLibro(libro)) {
         subidos++;
       } else {
@@ -145,11 +165,43 @@ class Nube {
   /// contar las llamadas en vez de los resultados sería contar mal. Esta
   /// función se traga los errores a propósito —abajo se explica por qué—
   /// así que desde afuera no habría otra forma de enterarse.
-  Future<bool> subirLibro(Libro libro) async {
+  ///
+  /// # De a una subida por libro
+  ///
+  /// Tocar tres estrellas seguidas son tres cambios, y cada uno llamaba a
+  /// esto. Las tres subidas salían a la vez y se pisaban: el borrar y
+  /// volver a insertar las frases de una podía caer en el medio del de
+  /// otra. Ahora, si el libro ya está subiendo, el cambio nuevo espera y
+  /// sale **una sola** subida más al terminar, con lo último que haya.
+  Future<bool> subirLibro(Libro libro) {
+    final clave = libro.clave;
+    _porSubir[clave] = libro;
+    return _subiendo[clave] ??= _subirMientrasHaya(clave);
+  }
+
+  final _porSubir = <String, Libro>{};
+  final _subiendo = <String, Future<bool>>{};
+
+  Future<bool> _subirMientrasHaya(String clave) async {
+    var llego = false;
+    try {
+      for (Libro? l; (l = _porSubir.remove(clave)) != null;) {
+        llego = await _subirUnaVez(l!);
+      }
+    } finally {
+      _subiendo.remove(clave);
+    }
+    return llego;
+  }
+
+  Future<bool> _subirUnaVez(Libro libro) async {
     final yo = _quienSoy;
     if (yo == null) return false;
 
     try {
+      // Antes de mandar nada: si el libro cambia mientras sube, lo que se
+      // anota tiene que ser lo que se mandó, no lo que quedó después.
+      final huella = huellaDe(libro);
       final registro = await _leerRegistro(libro.clave);
 
       final String? edicionId;
@@ -159,10 +211,9 @@ class Nube {
         fanficId = await _idDeFanfic(libro);
         edicionId = null;
       } else {
-        final obraId = await _idDeObra(libro, cargadaPor: yo);
         edicionId = await _idDeEdicion(
           libro,
-          obraId: obraId,
+          obra: () => _idDeObra(libro, cargadaPor: yo),
           cargadaPor: yo,
           cacheado: registro?.edicionId,
         );
@@ -192,6 +243,13 @@ class Nube {
       );
 
       await _reemplazarHijos(libro, lecturaId, perfilId: yo);
+
+      // La huella recién cuando subió todo, hijos incluidos: si algo
+      // rebotó a mitad de camino, la próxima sincronización lo reintenta.
+      await _guardarRegistro(
+        libro.clave,
+        _Registro(edicionId: edicionId, fanficId: fanficId, huella: huella),
+      );
       return true;
     } catch (_) {
       // Sin internet, o el servidor no contestó: la lectura queda igual
@@ -302,9 +360,17 @@ class Nube {
   /// su edición o de su fanfic. Así que reinstalar ya no deja fantasmas.
   ///
   /// Devuelve cuántos entraron.
-  Future<int> bajarTodo(Biblioteca biblioteca) async {
+  Future<int> bajarTodo(Biblioteca biblioteca) async =>
+      (await _bajar(biblioteca)).bajados;
+
+  /// [bajarTodo], y además qué claves tiene la nube, o `null` si no se
+  /// pudo preguntar. [sincronizar] lo usa para no subir lo que ya está.
+  Future<({int bajados, Set<String>? enLaNube})> _bajar(
+    Biblioteca biblioteca,
+  ) async {
+    const nada = (bajados: 0, enLaNube: null);
     final yo = _quienSoy;
-    if (yo == null) return 0;
+    if (yo == null) return nada;
 
     final List<dynamic> filas;
     try {
@@ -315,7 +381,7 @@ class Nube {
     } catch (_) {
       // Sin internet o el servidor no contestó. La biblioteca local queda
       // como estaba, que es lo correcto: no bajar nada no rompe nada.
-      return 0;
+      return nada;
     }
 
     final libros = <Libro>[];
@@ -361,7 +427,7 @@ class Nube {
     // entera por cada libro, y con dos mil libros eso crece al cuadrado.
     await _guardarRegistros(direcciones);
 
-    return cuantos;
+    return (bajados: cuantos, enLaNube: direcciones.keys.toSet());
   }
 
   Future<void> borrarLibro(String clave) async {
@@ -415,9 +481,15 @@ class Nube {
     }
   }
 
+  /// La edición de este libro en la nube, creándola si hace falta.
+  ///
+  /// La obra se pide recién si hay que crear la edición: una edición que
+  /// ya existe —el caso de casi todos los cambios, que son estrellas y
+  /// páginas de un libro ya subido— no la necesita, y buscarla antes era
+  /// un viaje a la red por cada toque para nada.
   Future<String> _idDeEdicion(
     Libro libro, {
-    required String obraId,
+    required Future<String> Function() obra,
     required String cargadaPor,
     String? cacheado,
   }) async {
@@ -438,7 +510,9 @@ class Nube {
     try {
       final creada = await _base
           .from('ediciones')
-          .insert(filaDeEdicion(libro, obraId: obraId, cargadaPor: cargadaPor))
+          .insert(
+            filaDeEdicion(libro, obraId: await obra(), cargadaPor: cargadaPor),
+          )
           .select('id')
           .single();
       return creada['id'] as String;
@@ -446,7 +520,7 @@ class Nube {
       if (e.code == '23505' && libro.isbn != null) {
         return _idDeEdicion(
           libro,
-          obraId: obraId,
+          obra: obra,
           cargadaPor: cargadaPor,
           cacheado: cacheado,
         );
@@ -524,60 +598,68 @@ class Nube {
     // su encabezado —Postgres protege filas, no columnas—. Si la nota
     // fuera una columna de `lecturas`, el permiso que deja a otra persona
     // ver tu estante dejaría ver también tus notas.
-    if (libro.tieneNota) {
-      await _base.from('notas').upsert({
-        'lectura_id': lecturaId,
-        'texto': libro.nota,
-      }, onConflict: 'lectura_id');
-    }
-    // Sin `else` que borre: la misma razón que las frases. Un aparato sin
-    // la nota no sabe si no existe o si nunca la vio.
+    //
+    // Las cinco tablas a la vez: no dependen una de otra, y en fila cada
+    // cambio esperaba la suma de todos los viajes. Dentro de cada una el
+    // orden sí importa —borrar antes de volver a insertar—, así que eso
+    // sigue en fila.
+    await Future.wait([
+      if (libro.tieneNota)
+        _base.from('notas').upsert({
+          'lectura_id': lecturaId,
+          'texto': libro.nota,
+        }, onConflict: 'lectura_id'),
+      // Sin `else` que borre: la misma razón que las frases. Un aparato sin
+      // la nota no sabe si no existe o si nunca la vio.
+      if (libro.animos.isNotEmpty)
+        _reemplazar('lectura_animos', lecturaId, [
+          for (final a in libro.animos) {'lectura_id': lecturaId, 'animo': a},
+        ]),
+      if (libro.personajes.isNotEmpty)
+        _reemplazar('personajes', lecturaId, [
+          for (final p in libro.personajes)
+            {'lectura_id': lecturaId, 'nombre': p},
+        ]),
+      if (libro.frases.isNotEmpty)
+        _reemplazar('frases', lecturaId, [
+          for (final f in libro.frases)
+            {
+              'lectura_id': lecturaId,
+              'texto': f.texto,
+              'pagina': paginaDeFrase(f, libro),
+            },
+        ]),
+      if (libro.estantes.isNotEmpty)
+        _reemplazarEstantes(libro, lecturaId, perfilId: perfilId),
+    ]);
+  }
 
-    if (libro.animos.isNotEmpty) {
-      await _base.from('lectura_animos').delete().eq('lectura_id', lecturaId);
-      await _base.from('lectura_animos').insert([
-        for (final a in libro.animos) {'lectura_id': lecturaId, 'animo': a},
-      ]);
-    }
+  Future<void> _reemplazar(
+    String tabla,
+    String lecturaId,
+    List<Map<String, dynamic>> filas,
+  ) async {
+    await _base.from(tabla).delete().eq('lectura_id', lecturaId);
+    await _base.from(tabla).insert(filas);
+  }
 
-    if (libro.personajes.isNotEmpty) {
-      await _base.from('personajes').delete().eq('lectura_id', lecturaId);
-      await _base.from('personajes').insert([
-        for (final p in libro.personajes)
-          {'lectura_id': lecturaId, 'nombre': p},
-      ]);
-    }
-
-    if (libro.frases.isNotEmpty) {
-      await _base.from('frases').delete().eq('lectura_id', lecturaId);
-      await _base.from('frases').insert([
-        for (final f in libro.frases)
-          {
-            'lectura_id': lecturaId,
-            'texto': f.texto,
-            'pagina': paginaDeFrase(f, libro),
-          },
-      ]);
-    }
-
-    if (libro.estantes.isNotEmpty) {
-      final ids = <String>[];
-      for (final nombre in libro.estantes) {
-        final fila = await _base
-            .from('estantes')
-            .upsert({
-              'perfil_id': perfilId,
-              'nombre': nombre,
-            }, onConflict: 'perfil_id,nombre')
-            .select('id')
-            .single();
-        ids.add(fila['id'] as String);
-      }
-      await _base.from('estante_lecturas').delete().eq('lectura_id', lecturaId);
-      await _base.from('estante_lecturas').insert([
-        for (final id in ids) {'estante_id': id, 'lectura_id': lecturaId},
-      ]);
-    }
+  Future<void> _reemplazarEstantes(
+    Libro libro,
+    String lecturaId, {
+    required String perfilId,
+  }) async {
+    // Todos los estantes en un solo pedido, no uno por estante.
+    final filas = await _base
+        .from('estantes')
+        .upsert([
+          for (final nombre in libro.estantes)
+            {'perfil_id': perfilId, 'nombre': nombre},
+        ], onConflict: 'perfil_id,nombre')
+        .select('id');
+    await _reemplazar('estante_lecturas', lecturaId, [
+      for (final fila in filas)
+        {'estante_id': fila['id'] as String, 'lectura_id': lecturaId},
+    ]);
   }
 
   // ---------- La libreta: qué fila de la nube es cada libro ----------
@@ -600,6 +682,7 @@ class Nube {
     return _Registro(
       edicionId: fila['edicionId'] as String?,
       fanficId: fila['fanficId'] as String?,
+      huella: fila['huella'] as String?,
     );
   }
 
@@ -611,9 +694,16 @@ class Nube {
     final prefs = await SharedPreferences.getInstance();
     final libreta = await _libreta();
     registros.forEach((claveLibro, registro) {
+      // La huella se conserva si no viene una nueva: bajar anota
+      // direcciones, pero no sabe qué fue lo último que subió este
+      // teléfono, y borrarla haría resubir todo en cada sincronización.
+      final anterior = libreta[claveLibro];
+      final huella =
+          registro.huella ?? (anterior is Map ? anterior['huella'] : null);
       libreta[claveLibro] = {
         'edicionId': registro.edicionId,
         'fanficId': registro.fanficId,
+        'huella': ?huella,
       };
     });
     await prefs.setString(_clave, jsonEncode(libreta));
@@ -630,7 +720,26 @@ class Nube {
 class _Registro {
   final String? edicionId;
   final String? fanficId;
-  const _Registro({this.edicionId, this.fanficId});
+
+  /// La [huellaDe] del libro la última vez que subió entero.
+  final String? huella;
+
+  const _Registro({this.edicionId, this.fanficId, this.huella});
+}
+
+/// Un resumen corto de todo lo que un libro tiene, para saber si cambió.
+///
+/// Sale de lo mismo que se guarda en el teléfono, así que cualquier cosa
+/// que la lectora pueda tocar —estrellas, reseña, frases, estantes— la
+/// cambia. No hace falta que sea imposible de repetir: una coincidencia
+/// por casualidad solo haría saltear una subida en «sincronizar», y el
+/// próximo cambio a ese libro lo sube igual.
+///
+/// CRC32 y no `hashCode`: tiene que dar lo mismo entre un arranque y el
+/// siguiente, y `hashCode` no lo promete.
+String huellaDe(Libro libro) {
+  final bytes = utf8.encode(jsonEncode(libro.aJson()));
+  return '${getCrc32(bytes).toRadixString(16)}-${bytes.length}';
 }
 
 /// Una sola nube para toda la app, como `cuenta` y `biblioteca`.
